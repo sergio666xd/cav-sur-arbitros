@@ -71,13 +71,15 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
                         "visible": t.is_visible,
                     })
             registered = set().union(*(users_by_day[x.id] for x in g.days))
+            # Los requeridos solo se muestran si todos los torneos de la franja lo permiten.
+            show_required = user.admin or all(x.tournament.show_required is not False for x in g.days)
             result.append({
                 "key": g.key,
                 "date": d.isoformat(),
                 "slot_label": g.slot.label,
                 "all_day": g.slot.all_day,
                 "start_time": g.slot.start.strftime("%H:%M") if g.slot.start else None,
-                "required": sum(x.required for x in g.days),
+                "required": sum(x.required for x in g.days) if show_required else None,
                 "registered": len(registered),
                 "mine": user.id in registered,
                 "open": is_open_for_availability(d),

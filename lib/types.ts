@@ -38,6 +38,7 @@ export type TournamentDetail = {
   categories: string[];
   referees_required: number;
   is_visible: boolean;
+  show_required: boolean;
   has_roles: boolean;
   roles: string[];
   notes: string;

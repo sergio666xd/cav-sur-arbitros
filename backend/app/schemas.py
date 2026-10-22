@@ -165,6 +165,7 @@ class TournamentIn(BaseModel):
     categories: list[str] = Field(default_factory=list)
     referees_required: int = Field(ge=1, le=200)
     is_visible: bool = True
+    show_required: bool = True
     has_roles: bool = False
     roles: list[str] = Field(default_factory=list)
     notes: str = ""

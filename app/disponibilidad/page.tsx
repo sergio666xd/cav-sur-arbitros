@@ -16,7 +16,8 @@ type Slot = {
   date: string;
   slot_label: string;
   all_day: boolean;
-  required: number;
+  /** null si el torneo no muestra cuántos árbitros se requieren. */
+  required: number | null;
   registered: number;
   mine: boolean;
   open: boolean;
@@ -83,7 +84,6 @@ export default function AvailabilityPage() {
               <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{formatDate(date)}</h2>
               <div className="grid gap-3 md:grid-cols-2">
                 {slots.map((s) => {
-                  const pct = Math.min(100, Math.round((s.registered / Math.max(1, s.required)) * 100));
                   return (
                     <div key={s.key} className={`card transition-all duration-300 hover:shadow-md ${s.mine ? "border-brand-300 ring-1 ring-brand-200" : ""}`}>
                       <div className="flex items-start justify-between gap-3">
@@ -112,13 +112,17 @@ export default function AvailabilityPage() {
                           {!s.open && <Badge color="stone"><LockClosedIcon className="mr-0.5 h-3 w-3" />Cerrado</Badge>}
                         </div>
                       </div>
-                      <div className="mt-4">
-                        <div className="mb-1 flex justify-between text-xs text-stone-500">
-                          <span>{s.registered} inscritos</span>
-                          <span>{s.required} requeridos</span>
+                      {s.required === null ? (
+                        <div className="mt-4 text-xs text-stone-500">{s.registered} inscritos</div>
+                      ) : (
+                        <div className="mt-4">
+                          <div className="mb-1 flex justify-between text-xs text-stone-500">
+                            <span>{s.registered} inscritos</span>
+                            <span>{s.required} requeridos</span>
+                          </div>
+                          <ProgressBar pct={Math.min(100, Math.round((s.registered / Math.max(1, s.required)) * 100))} />
                         </div>
-                        <ProgressBar pct={pct} />
-                      </div>
+                      )}
                       <div className="mt-4 flex flex-wrap gap-2">
                         {s.open && (
                           <button className={s.mine ? "btn-secondary" : "btn-primary"} disabled={busy === s.key} onClick={() => toggle(s)}>

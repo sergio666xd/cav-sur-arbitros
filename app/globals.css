@@ -71,9 +71,14 @@
   html { font-size: 150%; }
 }
 
-/* Reserva siempre el espacio del scrollbar para que la interfaz no salte al aparecer. */
-html {
-  scrollbar-gutter: stable;
+/*
+ * Contenedor principal (max-w-6xl) centrado respecto a la ventana y no al espacio que deja el scrollbar,
+ * para que la interfaz no salte cuando el scrollbar aparece o desaparece.
+ */
+.viewport-center {
+  position: relative;
+  /* Medio scrollbar, limitado al margen libre para no desbordar en ventanas angostas. */
+  left: clamp(0px, (100% - 72rem) / 2, (100vw - 100%) / 2);
 }
 
 body {

@@ -55,13 +55,13 @@ export default function Shell({
     return (
       <div className="min-h-screen">
         <div className="border-b-2 border-brand-500 bg-night">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
             <div className="h-8 w-24 animate-pulse rounded-md bg-white/10" />
           </div>
         </div>
-        <div className="mx-auto max-w-6xl space-y-4 px-4 py-8">
+        <div className="viewport-center mx-auto max-w-6xl space-y-4 px-4 py-8">
           <Skeleton className="h-7 w-56" />
           <Skeleton className="h-4 w-80 max-w-full" />
           <div className="grid gap-4 pt-2 md:grid-cols-2">
@@ -78,7 +78,7 @@ export default function Shell({
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b-2 border-brand-500 bg-night text-white shadow">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
@@ -128,7 +128,7 @@ export default function Shell({
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl animate-slide-up px-4 py-8">
+      <main className="viewport-center mx-auto max-w-6xl animate-slide-up px-4 py-8">
         {allowed ? children : <p className="text-sm text-stone-500">No tienes permiso para ver esta sección.</p>}
       </main>
     </div>
