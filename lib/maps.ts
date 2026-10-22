@@ -3,6 +3,8 @@
 // Integración con Google Maps. Sin NEXT_PUBLIC_GOOGLE_MAPS_API_KEY la app sigue funcionando:
 // el lugar se escribe a mano y se ofrece un enlace para abrirlo en Google Maps.
 export const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+// Los marcadores avanzados requieren un Map ID; DEMO_MAP_ID sirve mientras no se cree uno propio.
+export const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 
 export function mapsLink(place: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
@@ -43,6 +45,7 @@ async function lib<T>(name: string): Promise<T | null> {
 
 export const loadPlaces = () => lib<google.maps.PlacesLibrary>("places");
 export const loadMapsLib = () => lib<google.maps.MapsLibrary>("maps");
+export const loadMarker = () => lib<google.maps.MarkerLibrary>("marker");
 export const loadGeocoding = () => lib<google.maps.GeocodingLibrary>("geocoding");
 
 /** "Nombre, dirección" sin repetir el nombre si la dirección ya empieza por él. */

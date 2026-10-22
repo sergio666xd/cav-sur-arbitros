@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { loadGeocoding, loadMapsLib, loadPlaces, placeLabel } from "@/lib/maps";
+import { MAP_ID, loadGeocoding, loadMapsLib, loadMarker, loadPlaces, placeLabel } from "@/lib/maps";
 import { Modal } from "./ui";
 
 const BOGOTA = { lat: 4.711, lng: -74.0721 };
@@ -23,9 +23,9 @@ export default function MapPicker({ open, initial, onClose, onPick }: {
     setPicked(null);
     setStatus("loading");
     (async () => {
-      const [maps, places, geocoding] = await Promise.all([loadMapsLib(), loadPlaces(), loadGeocoding()]);
+      const [maps, markers, places, geocoding] = await Promise.all([loadMapsLib(), loadMarker(), loadPlaces(), loadGeocoding()]);
       if (cancelled || !box.current) return;
-      if (!maps) return setStatus("error");
+      if (!maps || !markers) return setStatus("error");
 
       // Centrar en el lugar escrito, si Google lo encuentra.
       let center: google.maps.LatLngLiteral = BOGOTA;
@@ -39,8 +39,8 @@ export default function MapPicker({ open, initial, onClose, onPick }: {
       }
       if (cancelled || !box.current) return;
 
-      const map = new maps.Map(box.current, { center, zoom, streetViewControl: false, mapTypeControl: false, clickableIcons: true });
-      const marker = new google.maps.Marker({ map, draggable: true, visible: false });
+      const map = new maps.Map(box.current, { center, zoom, mapId: MAP_ID, streetViewControl: false, mapTypeControl: false, clickableIcons: true });
+      const marker = new markers.AdvancedMarkerElement({ gmpDraggable: true });
       const geocoder = geocoding ? new geocoding.Geocoder() : null;
 
       async function describe(pos: google.maps.LatLngLiteral, placeId?: string) {
@@ -63,8 +63,8 @@ export default function MapPicker({ open, initial, onClose, onPick }: {
       }
 
       function place(pos: google.maps.LatLngLiteral, placeId?: string) {
-        marker.setPosition(pos);
-        marker.setVisible(true);
+        marker.position = pos;
+        marker.map = map;
         describe(pos, placeId);
       }
 
@@ -75,8 +75,8 @@ export default function MapPicker({ open, initial, onClose, onPick }: {
         place(e.latLng.toJSON(), placeId);
       });
       marker.addListener("dragend", () => {
-        const p = marker.getPosition();
-        if (p) place(p.toJSON());
+        const p = marker.position;
+        if (p) place(p instanceof google.maps.LatLng ? p.toJSON() : { lat: Number(p.lat), lng: Number(p.lng) });
       });
       setStatus("ready");
     })();
