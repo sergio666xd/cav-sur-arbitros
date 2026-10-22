@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronUpDownIcon, ChevronUpIcon } from "@heroicons/react/20/solid";
 import { useMemo, useState } from "react";
 import { fold } from "./text";
 
@@ -39,9 +40,11 @@ export function useSort<T>(rows: T[] | null | undefined, getters: Record<string,
     return (
       <th key={k} className={className} aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}>
         <button type="button" onClick={() => toggle(k, first)}
-          className={`inline-flex items-center gap-1 uppercase hover:text-brand-700 ${right ? "flex-row-reverse" : ""} ${active ? "text-brand-700" : ""}`}>
+          className={`inline-flex items-center gap-1 uppercase transition-colors hover:text-brand-700 ${right ? "flex-row-reverse" : ""} ${active ? "text-brand-700" : ""}`}>
           {children}
-          <span className="text-[10px]">{active ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}</span>
+          {active
+            ? <ChevronUpIcon className={`h-3.5 w-3.5 transition-transform duration-200 ${sort!.dir === "desc" ? "rotate-180" : ""}`} />
+            : <ChevronUpDownIcon className="h-3.5 w-3.5 opacity-50" />}
         </button>
       </th>
     );

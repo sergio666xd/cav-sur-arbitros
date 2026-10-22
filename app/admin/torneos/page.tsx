@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckCircleIcon, HandRaisedIcon, MapPinIcon, PlusIcon } from "@heroicons/react/20/solid";
+import { TrophyIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import Shell from "@/components/Shell";
@@ -30,15 +32,17 @@ function TournamentCards() {
   const { data, loading, error } = useFetch<Row[]>("/tournaments");
   if (loading) return <Loading />;
   if (error) return <Alert>{error}</Alert>;
-  if (!data?.length) return <Empty>Todavía no hay torneos.</Empty>;
+  if (!data?.length) return <Empty icon={TrophyIcon}>Todavía no hay torneos.</Empty>;
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {data.map((t) => (
-        <div key={t.id} className="card flex flex-col">
+      {data.map((t, i) => (
+        <div key={t.id} className="card flex animate-slide-up flex-col hover:shadow-md" style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}>
           <div className="flex items-start justify-between gap-2">
             <div>
               <Link href={`/admin/torneos/${t.id}`} className="text-lg font-semibold hover:text-brand-700 hover:underline">{t.name}</Link>
-              <div className="text-sm text-stone-600">📍 {t.venues.length > 1 ? `${t.venues.length} sedes` : t.location}</div>
+              <div className="flex items-center gap-1 text-sm text-stone-600">
+                <MapPinIcon className="h-4 w-4 shrink-0 text-brand-500" />{t.venues.length > 1 ? `${t.venues.length} sedes` : t.location}
+              </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               {!t.is_visible && <Badge color="stone">Oculto</Badge>}
@@ -56,12 +60,14 @@ function TournamentCards() {
                     <td className="py-1.5 pr-2">{formatShortDate(d.date)}</td>
                     <td className="py-1.5 pr-2 text-stone-500">
                       {d.slot_label}
-                      {t.venues.length > 1 && <div className="text-xs">📍 {d.effective_location}</div>}
+                      {t.venues.length > 1 && <div className="flex items-center gap-1 text-xs"><MapPinIcon className="h-3 w-3 shrink-0" />{d.effective_location}</div>}
                     </td>
                     <td className="py-1.5 text-right text-xs whitespace-nowrap">
-                      <span title="Disponibles">🙋 {d.available_count}</span>{" "}
-                      <span title="Asignados / requeridos" className={d.assigned_count >= d.required ? "text-green-700" : "text-brand-700"}>
-                        ✅ {d.assigned_count}/{d.required}
+                      <span title="Disponibles" className="inline-flex items-center gap-0.5 text-stone-600">
+                        <HandRaisedIcon className="h-3.5 w-3.5" />{d.available_count}
+                      </span>{" "}
+                      <span title="Asignados / requeridos" className={`ml-2 inline-flex items-center gap-0.5 ${d.assigned_count >= d.required ? "text-green-700" : "text-brand-700"}`}>
+                        <CheckCircleIcon className="h-3.5 w-3.5" />{d.assigned_count}/{d.required}
                       </span>
                     </td>
                   </tr>
@@ -75,7 +81,7 @@ function TournamentCards() {
             <span>{t.past_count > 0 ? `${t.past_count} fecha(s) anterior(es)` : ""}</span>
             <div className="flex gap-2">
               {user?.perm_create_tournaments && (
-                <Link href={`/admin/torneos/${t.id}/editar`} className="btn-ghost px-2 py-1 text-xs">+ Añadir fechas</Link>
+                <Link href={`/admin/torneos/${t.id}/editar`} className="btn-ghost px-2 py-1 text-xs"><PlusIcon className="h-3.5 w-3.5" />Añadir fechas</Link>
               )}
               <Link href={`/admin/torneos/${t.id}`} className="btn-secondary px-3 py-1 text-xs">Gestionar</Link>
             </div>
@@ -104,7 +110,7 @@ function PastDays() {
     return [...m.values()];
   }, [rows]);
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading variant="table" />;
   if (error) return <Alert>{error}</Alert>;
 
   const table = (items: PastDay[], showTournament: boolean) => (
@@ -186,12 +192,12 @@ export default function TournamentsPage() {
       <PageHeader
         title="Torneos"
         subtitle="Los torneos no se archivan: puedes añadirles fechas nuevas cuando quieras."
-        action={user?.perm_create_tournaments && <Link href="/admin/torneos/nuevo" className="btn-primary">+ Nuevo torneo</Link>}
+        action={user?.perm_create_tournaments && <Link href="/admin/torneos/nuevo" className="btn-primary"><PlusIcon className="h-4 w-4" />Nuevo torneo</Link>}
       />
       <div className="mb-4 inline-flex rounded-lg border border-stone-200 bg-white p-1 text-sm">
         {([["torneos", "Torneos"], ["anteriores", "Fechas anteriores"]] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)}
-            className={`rounded-md px-3 py-1.5 font-medium ${tab === k ? "bg-brand-500 text-white" : "text-stone-600 hover:bg-stone-100"}`}>
+            className={`rounded-md px-3 py-1.5 font-medium transition duration-200 ${tab === k ? "bg-brand-500 text-white shadow-sm" : "text-stone-600 hover:bg-stone-100"}`}>
             {label}
           </button>
         ))}

@@ -1,8 +1,9 @@
 "use client";
 
+import { MapPinIcon } from "@heroicons/react/20/solid";
 import { useEffect, useRef, useState } from "react";
 import { MAP_ID, loadGeocoding, loadMapsLib, loadMarker, loadPlaces, placeLabel } from "@/lib/maps";
-import { Modal } from "./ui";
+import { Modal, Spinner } from "./ui";
 
 const BOGOTA = { lat: 4.711, lng: -74.0721 };
 
@@ -90,13 +91,13 @@ export default function MapPicker({ open, initial, onClose, onPick }: {
         <div ref={box} className="h-full w-full" />
         {status !== "ready" && (
           <div className="absolute inset-0 grid place-items-center text-sm text-stone-500">
-            {status === "loading" ? "Cargando mapa..." : "No se pudo cargar Google Maps."}
+            {status === "loading" ? <span className="inline-flex items-center gap-2"><Spinner />Cargando mapa...</span> : "No se pudo cargar Google Maps."}
           </div>
         )}
       </div>
       <div className="mt-3 min-h-10 text-sm">
-        {resolving ? <span className="text-stone-500">Buscando dirección...</span>
-          : picked ? <span>📍 {picked.label}</span>
+        {resolving ? <span className="inline-flex items-center gap-2 text-stone-500"><Spinner />Buscando dirección...</span>
+          : picked ? <span className="inline-flex animate-fade-in items-start gap-1"><MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />{picked.label}</span>
           : <span className="text-stone-400">Aún no has elegido un punto.</span>}
       </div>
       <div className="mt-3 flex justify-end gap-2">

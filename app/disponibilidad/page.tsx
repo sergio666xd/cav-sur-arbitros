@@ -1,9 +1,11 @@
 "use client";
 
+import { CheckIcon, HandRaisedIcon, LockClosedIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
+import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import Place from "@/components/Place";
 import Shell from "@/components/Shell";
-import { Alert, Badge, Empty, Loading, Modal, PageHeader } from "@/components/ui";
+import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
 import { api, formatDate, formatDateTime } from "@/lib/api";
 import { useFetch } from "@/lib/useFetch";
 
@@ -63,21 +65,21 @@ export default function AvailabilityPage() {
       />
       {actionError && <div className="mb-4"><Alert>{actionError}</Alert></div>}
       {loading && !data ? (
-        <Loading />
+        <Loading variant="cards" />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : byDate.size === 0 ? (
-        <Empty>No hay torneos próximos que requieran disponibilidad.</Empty>
+        <Empty icon={CalendarDaysIcon}>No hay torneos próximos que requieran disponibilidad.</Empty>
       ) : (
         <div className="space-y-6">
-          {[...byDate.entries()].map(([date, slots]) => (
-            <section key={date}>
+          {[...byDate.entries()].map(([date, slots], i) => (
+            <section key={date} className="animate-slide-up" style={{ animationDelay: `${Math.min(i, 6) * 60}ms` }}>
               <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{formatDate(date)}</h2>
               <div className="grid gap-3 md:grid-cols-2">
                 {slots.map((s) => {
                   const pct = Math.min(100, Math.round((s.registered / Math.max(1, s.required)) * 100));
                   return (
-                    <div key={s.key} className={`card ${s.mine ? "border-brand-300 ring-1 ring-brand-200" : ""}`}>
+                    <div key={s.key} className={`card transition-all duration-300 hover:shadow-md ${s.mine ? "border-brand-300 ring-1 ring-brand-200" : ""}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="text-lg font-semibold">{s.slot_label}</div>
@@ -100,8 +102,8 @@ export default function AvailabilityPage() {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          {s.mine && <Badge color="green">Inscrito</Badge>}
-                          {!s.open && <Badge color="stone">Cerrado</Badge>}
+                          {s.mine && <span className="animate-pop"><Badge color="green"><CheckIcon className="mr-0.5 h-3 w-3" />Inscrito</Badge></span>}
+                          {!s.open && <Badge color="stone"><LockClosedIcon className="mr-0.5 h-3 w-3" />Cerrado</Badge>}
                         </div>
                       </div>
                       <div className="mt-4">
@@ -109,17 +111,17 @@ export default function AvailabilityPage() {
                           <span>{s.registered} inscritos</span>
                           <span>{s.required} requeridos</span>
                         </div>
-                        <div className="h-2 rounded-full bg-stone-100">
-                          <div className="h-2 rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
-                        </div>
+                        <ProgressBar pct={pct} />
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         {s.open && (
                           <button className={s.mine ? "btn-secondary" : "btn-primary"} disabled={busy === s.key} onClick={() => toggle(s)}>
-                            {busy === s.key ? "Guardando..." : s.mine ? "Quitar disponibilidad" : "Estoy disponible"}
+                            {busy === s.key ? <><Spinner />Guardando...</> : s.mine
+                              ? <><XMarkIcon className="h-4 w-4" />Quitar disponibilidad</>
+                              : <><HandRaisedIcon className="h-4 w-4" />Estoy disponible</>}
                           </button>
                         )}
-                        <button className="btn-ghost" onClick={() => showList(s)}>Ver inscritos</button>
+                        <button className="btn-ghost" onClick={() => showList(s)}><UsersIcon className="h-4 w-4" />Ver inscritos</button>
                       </div>
                     </div>
                   );
@@ -132,13 +134,13 @@ export default function AvailabilityPage() {
       <Modal open={!!listFor} onClose={() => setListFor(null)} title="Árbitros inscritos">
         {listFor && <p className="mb-3 text-sm text-stone-500">{formatDate(listFor.date)} · {listFor.slot_label}</p>}
         {!list ? (
-          <Loading />
+          <div className="space-y-3 py-1">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
         ) : list.length === 0 ? (
           <p className="text-sm text-stone-500">Aún no hay árbitros inscritos.</p>
         ) : (
           <ol className="divide-y divide-stone-100">
             {list.map((r, i) => (
-              <li key={i} className="flex justify-between py-2 text-sm">
+              <li key={i} className="flex animate-fade-in justify-between py-2 text-sm" style={{ animationDelay: `${i * 30}ms` }}>
                 <span>{i + 1}. {r.name}</span>
                 <span className="text-xs text-stone-400">{formatDateTime(r.since)}</span>
               </li>

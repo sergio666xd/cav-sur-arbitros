@@ -1,5 +1,6 @@
 "use client";
 
+import { MagnifyingGlassIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import Shell from "@/components/Shell";
@@ -28,13 +29,18 @@ export default function RefereesPage() {
   return (
     <Shell allow={(u) => u.perm_admin}>
       <PageHeader title="Árbitros" subtitle={`${data?.length ?? 0} usuarios registrados`}
-        action={<input className="input w-64" placeholder="Buscar por nombre o documento" value={q} onChange={(e) => setQ(e.target.value)} />} />
+        action={
+          <div className="relative w-64">
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-stone-400" />
+            <input className="input pl-9" placeholder="Buscar por nombre o documento" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+        } />
       {loading ? (
-        <Loading />
+        <Loading variant="table" />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : (
-        <div className="card overflow-x-auto p-0">
+        <div className="card animate-slide-up overflow-x-auto p-0">
           <table className="table">
             <thead>
               <tr>

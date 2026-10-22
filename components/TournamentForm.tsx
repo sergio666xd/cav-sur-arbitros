@@ -1,10 +1,11 @@
 "use client";
 
+import { MapPinIcon, PlusIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
 import DateInput from "./DateInput";
 import PlaceInput from "./PlaceInput";
-import { Alert } from "./ui";
+import { Alert, Spinner } from "./ui";
 
 export type DayForm = {
   id?: number;
@@ -93,9 +94,9 @@ function ListInput({
     <div>
       <div className="mb-2 flex flex-wrap gap-1">
         {value.map((c) => (
-          <span key={c} className="badge bg-brand-100 text-brand-800">
+          <span key={c} className="badge animate-pop bg-brand-100 text-brand-800">
             {c}
-            <button type="button" className="ml-1 text-brand-600 hover:text-brand-900" onClick={() => onChange(value.filter((x) => x !== c))}>×</button>
+            <button type="button" className="ml-1 text-brand-600 transition hover:text-brand-900" aria-label={`Quitar ${c}`} onClick={() => onChange(value.filter((x) => x !== c))}><XMarkIcon className="h-3.5 w-3.5" /></button>
           </span>
         ))}
       </div>
@@ -216,19 +217,19 @@ export default function TournamentForm({
           <label className="label">Sedes del torneo</label>
           <div className="space-y-2">
             {v.venues.map((venue, i) => (
-              <div key={i} className="flex gap-2">
+              <div key={i} className="flex animate-slide-down gap-2">
                 <div className="flex-1">
                   <PlaceInput value={venue} onChange={(x) => setVenue(i, x)} saved={locations.filter((l) => !v.venues.includes(l))}
                     placeholder={i === 0 ? "Sede principal" : "Otra sede"} required={i === 0} />
                 </div>
                 {v.venues.length > 1 && (
-                  <button type="button" className="btn-ghost px-2 text-red-600" title="Quitar sede" onClick={() => removeVenue(i)}>✕</button>
+                  <button type="button" className="btn-ghost px-2 text-red-600" title="Quitar sede" aria-label="Quitar sede" onClick={() => removeVenue(i)}><XMarkIcon className="h-5 w-5" /></button>
                 )}
               </div>
             ))}
           </div>
           <button type="button" className="btn-ghost mt-2 px-2 text-sm text-brand-700" onClick={() => setV({ ...v, venues: [...v.venues, ""] })}>
-            + Añadir sede
+            <PlusIcon className="h-4 w-4" />Añadir sede
           </button>
         </div>
         <div>
@@ -263,7 +264,7 @@ export default function TournamentForm({
       <div className="card">
         <div className="mb-1 flex items-center justify-between">
           <h2 className="font-semibold">Fechas y franjas</h2>
-          <button type="button" className="btn-secondary" onClick={addDay}>+ Añadir franja</button>
+          <button type="button" className="btn-secondary" onClick={addDay}><PlusIcon className="h-4 w-4" />Añadir franja</button>
         </div>
         {pastCount > 0 && (
           <p className="mb-3 text-sm text-stone-500">Este torneo tiene {pastCount} fecha(s) anterior(es); se conservan con sus asignaciones y partidos.</p>
@@ -271,7 +272,7 @@ export default function TournamentForm({
         {v.days.length === 0 && <p className="py-4 text-sm text-stone-500">Sin fechas próximas. Añade una franja para reutilizar el torneo.</p>}
         <div className="mt-3 space-y-3">
           {v.days.map((d, i) => (
-            <div key={i} className="rounded-lg border border-stone-200 p-3">
+            <div key={i} className="animate-slide-down rounded-lg border border-stone-200 p-3">
               <div className="grid items-end gap-3 sm:grid-cols-6">
                 <div className="sm:col-span-2">
                   <label className="label">Fecha</label>
@@ -302,7 +303,7 @@ export default function TournamentForm({
                       onChange={(e) => setDay(i, { referees_required: e.target.value })} />
                   </div>
                   <button type="button" className="btn-ghost self-end px-2 text-red-600" title="Quitar franja"
-                    onClick={() => setV({ ...v, days: v.days.filter((_, j) => j !== i) })}>✕</button>
+                    onClick={() => setV({ ...v, days: v.days.filter((_, j) => j !== i) })}><XMarkIcon className="h-5 w-5" /></button>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -316,7 +317,7 @@ export default function TournamentForm({
                     </select>
                   </div>
                 ) : venues[0] ? (
-                  <span className="text-sm text-stone-500">📍 {venues[0]}</span>
+                  <span className="inline-flex items-center gap-1 text-sm text-stone-500"><MapPinIcon className="h-4 w-4 text-brand-500" />{venues[0]}</span>
                 ) : null}
                 <label className="flex items-center gap-2 text-sm text-stone-600">
                   <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.custom}
@@ -336,7 +337,7 @@ export default function TournamentForm({
         </div>
       </div>
       {error && <Alert>{error}</Alert>}
-      <button className="btn-primary" disabled={busy}>{busy ? "Guardando..." : submitLabel}</button>
+      <button className="btn-primary" disabled={busy}>{busy ? <><Spinner />Guardando...</> : submitLabel}</button>
     </form>
   );
 }

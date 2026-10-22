@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import BackLink from "@/components/BackLink";
 import Shell from "@/components/Shell";
 import TournamentForm, { DEFAULT_ROLES, type TournamentFormValue } from "@/components/TournamentForm";
 import { Alert, Loading, PageHeader } from "@/components/ui";
@@ -40,10 +40,10 @@ export default function EditTournamentPage() {
   const { data, loading, error } = useFetch<TournamentDetail>(`/tournaments/${id}`);
   return (
     <Shell allow={(u) => u.perm_create_tournaments}>
-      <Link href={`/admin/torneos/${id}`} className="mb-4 inline-block text-sm text-brand-700 hover:underline">← Volver al torneo</Link>
+      <BackLink href={`/admin/torneos/${id}`}>Volver al torneo</BackLink>
       <PageHeader title="Editar torneo y fechas" subtitle="Añade nuevas fechas para reutilizar el torneo. Si cambias la fecha de una franja, se borran sus disponibilidades y asignaciones." />
       {loading ? (
-        <Loading />
+        <Loading variant="form" />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : data ? (

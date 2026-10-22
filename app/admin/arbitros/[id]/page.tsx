@@ -1,11 +1,13 @@
 "use client";
 
+import { CalendarDaysIcon, ClipboardDocumentListIcon, FlagIcon, PuzzlePieceIcon, StarIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { RoleBadges, type UserRow } from "@/components/RoleBadges";
+import BackLink from "@/components/BackLink";
 import Shell from "@/components/Shell";
-import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
+import { Alert, Badge, Empty, Loading, PageHeader, StatCard } from "@/components/ui";
 import { api, formatDate, formatDateTime, formatShortDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
@@ -48,27 +50,24 @@ export default function RefereeDetailPage() {
 
   return (
     <Shell allow={(u) => u.perm_admin}>
-      <Link href="/admin/arbitros" className="mb-4 inline-block text-sm text-brand-700 hover:underline">← Árbitros</Link>
+      <BackLink href="/admin/arbitros">Árbitros</BackLink>
       {loading && !data ? (
-        <Loading />
+        <Loading variant="detail" />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : data ? (
         <>
           <PageHeader title={`${data.first_name} ${data.last_name}`} subtitle={`Documento ${data.document}`} action={<RoleBadges u={data} />} />
           {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-          <div className="grid gap-4 md:grid-cols-5">
-            {[
-              ["Asignaciones", data.assignments.length],
-              ["Pitados", data.is_chief ? "—" : data.refereed],
-              ["Planillados", data.is_chief ? "—" : data.scored],
-              ["Otros roles", data.is_chief ? "—" : data.other],
-              ["Puntos", data.points ?? "—"],
-            ].map(([l, v]) => (
-              <div key={l} className="card">
-                <div className="text-xs uppercase tracking-wide text-stone-500">{l}</div>
-                <div className="mt-1 text-3xl font-bold text-brand-600">{v}</div>
-              </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+            {([
+              ["Asignaciones", data.assignments.length, CalendarDaysIcon],
+              ["Pitados", data.is_chief ? null : data.refereed, FlagIcon],
+              ["Planillados", data.is_chief ? null : data.scored, ClipboardDocumentListIcon],
+              ["Otros roles", data.is_chief ? null : data.other, PuzzlePieceIcon],
+              ["Puntos", data.points ?? null, StarIcon],
+            ] as const).map(([l, v, icon], i) => (
+              <StatCard key={l} label={l} value={v} icon={icon} delay={i * 50} />
             ))}
           </div>
 

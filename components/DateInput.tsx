@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarIcon } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
 
 // Campo de fecha en formato DD/MM/AAAA (estándar de Colombia). El valor que entra y sale es ISO (AAAA-MM-DD).
@@ -62,10 +63,10 @@ export default function DateInput({ value, onChange, required, className = "inpu
       <button
         type="button"
         aria-label="Abrir calendario"
-        className="absolute inset-y-0 right-0 px-3 text-stone-500 hover:text-brand-600"
+        className="absolute inset-y-0 right-0 px-3 text-stone-400 transition-colors hover:text-brand-600"
         onClick={() => picker.current?.showPicker?.()}
       >
-        📅
+        <CalendarIcon className="h-5 w-5" />
       </button>
       <input
         ref={picker}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import AuthCard from "@/components/AuthCard";
 import DateInput from "@/components/DateInput";
-import { Alert } from "@/components/ui";
+import { Alert, Spinner } from "@/components/ui";
 import { api, type Me } from "@/lib/api";
 import { homeFor, useAuth } from "@/lib/auth";
 
@@ -84,7 +84,7 @@ export default function RegisterPage() {
         </div>
         {error && <Alert>{error}</Alert>}
         <button className="btn-primary w-full" disabled={busy || form.code.length !== 6 || form.pin.length !== 4}>
-          {busy ? "Registrando..." : "Crear cuenta"}
+          {busy ? <><Spinner />Registrando...</> : "Crear cuenta"}
         </button>
       </form>
       <p className="mt-5 text-center text-sm text-stone-500">

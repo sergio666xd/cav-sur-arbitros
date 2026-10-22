@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import AuthCard from "@/components/AuthCard";
-import { Alert } from "@/components/ui";
+import { Alert, Spinner } from "@/components/ui";
 import { api, type Me } from "@/lib/api";
 import { homeFor, useAuth } from "@/lib/auth";
 
@@ -49,7 +49,7 @@ export default function LoginPage() {
             autoComplete="current-password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} required />
         </div>
         {error && <Alert>{error}</Alert>}
-        <button className="btn-primary w-full" disabled={busy || pin.length !== 4}>{busy ? "Ingresando..." : "Ingresar"}</button>
+        <button className="btn-primary w-full" disabled={busy || pin.length !== 4}>{busy ? <><Spinner />Ingresando...</> : "Ingresar"}</button>
       </form>
       <p className="mt-5 text-center text-sm text-stone-500">
         ¿Eres árbitro nuevo? <Link href="/registro" className="font-semibold text-brand-600 hover:underline">Regístrate con tu clave</Link>

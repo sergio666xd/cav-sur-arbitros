@@ -1,12 +1,14 @@
 "use client";
 
+import { ExclamationTriangleIcon, MapPinIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
+import BackLink from "@/components/BackLink";
 import Place from "@/components/Place";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import Shell from "@/components/Shell";
-import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
+import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fold } from "@/lib/text";
@@ -66,11 +68,15 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
           {people.map((c) => {
             const on = c.user_id in selected;
             return (
-              <li key={c.user_id} className={`flex flex-wrap items-center gap-3 px-3 py-2 text-sm ${on ? "bg-brand-50" : ""}`}>
+              <li key={c.user_id} className={`flex flex-wrap items-center gap-3 px-3 py-2 text-sm transition-colors duration-200 ${on ? "bg-brand-50" : ""}`}>
                 <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={on} onChange={() => toggle(c.user_id)} />
                 <span className="flex-1">
                   {c.name} {c.is_chief && <Badge color="brand">Jefe</Badge>}
-                  {c.assigned_elsewhere && <span className="ml-2 text-xs text-amber-700">⚠ Asignado en {c.assigned_elsewhere}</span>}
+                  {c.assigned_elsewhere && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-700">
+                      <ExclamationTriangleIcon className="h-3.5 w-3.5" />Asignado en {c.assigned_elsewhere}
+                    </span>
+                  )}
                 </span>
                 {t.has_roles && on && (
                   <select className="input w-40 py-1" value={selected[c.user_id]}
@@ -87,7 +93,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
         </ul>
       )}
       {msg && <div className="mt-2"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-      <button className="btn-primary mt-3" disabled={busy} onClick={save}>{busy ? "Guardando..." : "Guardar asignación"}</button>
+      <button className="btn-primary mt-3" disabled={busy} onClick={save}>{busy ? <><Spinner />Guardando...</> : "Guardar asignación"}</button>
     </div>
   );
 }
@@ -123,6 +129,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
   const [values, setValues] = useState(initial);
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [games, setGames] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => setValues(initial()), [day]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -154,6 +161,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
 
   async function save() {
     setMsg(null);
+    setSaving(true);
     try {
       await api(`/tournament-days/${day.id}/matches`, {
         method: "PUT",
@@ -165,6 +173,8 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
       onSaved();
     } catch (e) {
       setMsg({ kind: "error", text: (e as Error).message });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -239,7 +249,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
         </table>
       </div>
       {msg && <div className="mt-2"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-      <button className="btn-secondary mt-3" onClick={save}>Guardar partidos</button>
+      <button className="btn-secondary mt-3" disabled={saving} onClick={save}>{saving ? <><Spinner />Guardando...</> : "Guardar partidos"}</button>
     </div>
   );
 }
@@ -247,7 +257,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
 function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSaved: () => void }) {
   const ownPlace = d.location || (d.categories && d.categories.length > 0);
   return (
-    <section id={`dia-${d.id}`} className="card scroll-mt-24">
+    <section id={`dia-${d.id}`} className="card scroll-mt-24 animate-slide-up">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2 border-b border-stone-100 pb-3">
         <div>
           <h2 className="text-lg font-semibold">{formatDate(d.date)}</h2>
@@ -299,16 +309,21 @@ export default function TournamentDetailPage() {
 
   return (
     <Shell allow={(u) => u.perm_admin}>
-      <Link href="/admin/torneos" className="mb-4 inline-block text-sm text-brand-700 hover:underline">← Torneos</Link>
+      <BackLink href="/admin/torneos">Torneos</BackLink>
       {loading && !t ? (
-        <Loading />
+        <Loading variant="detail" />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : t ? (
         <>
           <PageHeader
             title={t.name}
-            subtitle={t.venues.length > 1 ? `📍 ${t.venues.length} sedes: ${t.venues.map((v) => v.split(",")[0]).join(" · ")}` : `📍 ${t.location}`}
+            subtitle={
+              <span className="inline-flex items-start gap-1">
+                <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+                {t.venues.length > 1 ? `${t.venues.length} sedes: ${t.venues.map((v) => v.split(",")[0]).join(" · ")}` : t.location}
+              </span>
+            }
             action={
               <div className="flex flex-wrap gap-2">
                 {t.days.some((d) => !d.past) && (
@@ -332,8 +347,8 @@ export default function TournamentDetailPage() {
                 )}
                 {user?.perm_create_tournaments && (
                   <>
-                    <Link href={`/admin/torneos/${t.id}/editar`} className="btn-secondary">Editar / añadir fechas</Link>
-                    <button className="btn-danger" onClick={remove}>Eliminar</button>
+                    <Link href={`/admin/torneos/${t.id}/editar`} className="btn-secondary"><PencilSquareIcon className="h-4 w-4" />Editar / añadir fechas</Link>
+                    <button className="btn-danger" onClick={remove}><TrashIcon className="h-4 w-4" />Eliminar</button>
                   </>
                 )}
               </div>

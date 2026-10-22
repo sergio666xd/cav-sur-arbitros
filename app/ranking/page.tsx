@@ -1,5 +1,7 @@
 "use client";
 
+import { TrophyIcon as TrophySolid } from "@heroicons/react/20/solid";
+import { TrophyIcon } from "@heroicons/react/24/outline";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
@@ -11,7 +13,7 @@ type Row = {
   refereed: number | null; scored: number | null; other: number | null;
 };
 
-const MEDALS = ["", "🥇", "🥈", "🥉"];
+const MEDALS = ["", "text-amber-400", "text-stone-400", "text-amber-700"];
 
 export default function RankingPage() {
   const { user } = useAuth();
@@ -29,13 +31,13 @@ export default function RankingPage() {
     <Shell>
       <PageHeader title="Ranking" subtitle="Puntos acumulados por calificaciones de desempeño y partidos registrados." />
       {loading ? (
-        <Loading />
+        <Loading variant="table" />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : !data?.length ? (
-        <Empty>Aún no hay árbitros en el ranking.</Empty>
+        <Empty icon={TrophyIcon}>Aún no hay árbitros en el ranking.</Empty>
       ) : (
-        <div className="card overflow-x-auto p-0">
+        <div className="card animate-slide-up overflow-x-auto p-0">
           <table className="table">
             <thead>
               <tr>
@@ -53,8 +55,10 @@ export default function RankingPage() {
                   <tr key={r.position} className={r.name === me ? "bg-brand-50" : ""}>
                     <td className="font-semibold text-stone-500">{r.position}</td>
                     <td className="font-medium">
-                      {medals.has(r.position) ? `${medals.get(r.position)} ` : ""}
-                      {r.name} {r.is_chief && <Badge color="brand">Jefe</Badge>}
+                      <span className="inline-flex items-center gap-1.5">
+                        {medals.has(r.position) && <TrophySolid className={`h-5 w-5 animate-pop ${medals.get(r.position)}`} aria-label="Medalla" />}
+                        {r.name} {r.is_chief && <Badge color="brand">Jefe</Badge>}
+                      </span>
                     </td>
                     <td className="text-right text-stone-600">{r.refereed ?? "—"}</td>
                     <td className="text-right text-stone-600">{r.scored ?? "—"}</td>

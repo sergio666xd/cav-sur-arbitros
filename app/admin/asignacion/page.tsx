@@ -1,11 +1,12 @@
 "use client";
 
+import { ClockIcon, ExclamationTriangleIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import { summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
-import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
+import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
 import { useFetch } from "@/lib/useFetch";
 
@@ -78,7 +79,7 @@ function GroupTable({ group, sel, setSel }: { group: Group; sel: Selection; setS
   return (
     <section className="card overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-stone-50 px-4 py-3">
-        <h2 className="font-semibold">🕒 {group.slot_label}</h2>
+        <h2 className="flex items-center gap-1.5 font-semibold"><ClockIcon className="h-5 w-5 text-brand-500" />{group.slot_label}</h2>
         <span className="text-xs text-stone-500">
           {group.rows.filter((r) => !r.is_chief).length} árbitro(s) disponibles · {cols.length} torneo(s)
         </span>
@@ -113,7 +114,7 @@ function GroupTable({ group, sel, setSel }: { group: Group; sel: Selection; setS
                     <div className="flex items-center gap-2 whitespace-nowrap">
                       {r.name} {r.is_chief && <Badge color="brand">Jefe</Badge>}
                     </div>
-                    {warn && <div className="text-xs text-amber-700">⚠ Asignado en torneos con horario cruzado</div>}
+                    {warn && <div className="flex animate-fade-in items-center gap-1 text-xs text-amber-700"><ExclamationTriangleIcon className="h-3.5 w-3.5" />Asignado en torneos con horario cruzado</div>}
                   </td>
                   {cols.map((c) => {
                     const on = r.user_id in sel[c.id];
@@ -209,7 +210,7 @@ export default function AssignmentBoardPage() {
         action={data && data.groups.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <AvailabilityImageButton
-              label="🖼️ Imagen de esta fecha"
+              label="Imagen de esta fecha"
               fileName={`disponibilidad-${data.date}`}
               spec={async () => ({
                 title: "Árbitros disponibles",
@@ -218,7 +219,7 @@ export default function AssignmentBoardPage() {
               })}
             />
             <AvailabilityImageButton
-              label="🖼️ Todas las fechas"
+              label="Todas las fechas"
               fileName="disponibilidad-proximas-fechas"
               spec={async () => ({
                 title: "Árbitros disponibles",
@@ -227,13 +228,13 @@ export default function AssignmentBoardPage() {
               })}
             />
             <button className="btn-primary" disabled={busy || !dirty} onClick={save}>
-              {busy ? "Guardando..." : dirty ? "Guardar cambios" : "Sin cambios"}
+              {busy ? <><Spinner />Guardando...</> : dirty ? "Guardar cambios" : "Sin cambios"}
             </button>
           </div>
         )}
       />
       {(loading && !data) || (data && !ready) ? (
-        <Loading />
+        <Loading variant="table" />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : data ? (
@@ -246,10 +247,11 @@ export default function AssignmentBoardPage() {
                 <button
                   key={d}
                   onClick={() => pickDate(d)}
-                  className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                    d === data.date ? "border-brand-500 bg-brand-500 text-white" : "border-stone-300 bg-white hover:border-brand-400"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition active:scale-95 ${
+                    d === data.date ? "border-brand-500 bg-brand-500 text-white shadow-sm" : "border-stone-300 bg-white hover:border-brand-400"
                   }`}
                 >
+                  {loading && d === date && <Spinner className="h-3 w-3" />}
                   {formatShortDate(d)}
                 </button>
               ))}
@@ -259,8 +261,12 @@ export default function AssignmentBoardPage() {
             {data.groups.length === 0 ? (
               <Empty>No hay torneos en esta fecha.</Empty>
             ) : (
-              <div className="space-y-6">
-                {data.groups.map((g) => <GroupTable key={g.key} group={g} sel={sel} setSel={setSel} />)}
+              <div className={`space-y-6 transition-opacity duration-200 ${loading ? "pointer-events-none opacity-50" : ""}`}>
+                {data.groups.map((g, i) => (
+                  <div key={`${data.date}-${g.key}`} className="animate-slide-up" style={{ animationDelay: `${i * 60}ms` }}>
+                    <GroupTable group={g} sel={sel} setSel={setSel} />
+                  </div>
+                ))}
               </div>
             )}
             <p className="mt-4 text-xs text-stone-500">

@@ -1,8 +1,10 @@
 "use client";
 
+import { ChevronDownIcon, PlusIcon, TrashIcon, XMarkIcon } from "@heroicons/react/20/solid";
+import { StarIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import Shell from "@/components/Shell";
-import { Alert, Empty, Loading, PageHeader } from "@/components/ui";
+import { Alert, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDateTime } from "@/lib/api";
 import { useFetch } from "@/lib/useFetch";
 
@@ -60,15 +62,15 @@ export default function RatingsPage() {
       <PageHeader
         title="Calificaciones de desempeño"
         subtitle={scale.data ? scale.data.map((s) => `${s.label} = ${s.points}`).join(" · ") : undefined}
-        action={!editing && <button className="btn-primary" onClick={() => { setEditing(true); setMsg(null); }}>+ Añadir calificación</button>}
+        action={!editing && <button className="btn-primary" onClick={() => { setEditing(true); setMsg(null); }}><PlusIcon className="h-4 w-4" />Añadir calificación</button>}
       />
       {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
 
       {editing && (
-        <div className="card mb-8">
+        <div className="card mb-8 animate-slide-up">
           <p className="mb-4 text-sm text-stone-500">Elige una calificación para cada árbitro que quieras calificar. No se guarda nada hasta que confirmes.</p>
           {refs.loading || scale.loading ? (
-            <Loading />
+            <Loading variant="list" />
           ) : !refs.data?.length ? (
             <Empty>No hay árbitros activos.</Empty>
           ) : (
@@ -90,8 +92,8 @@ export default function RatingsPage() {
                       </label>
                     ))}
                     {picks[r.user_id] && (
-                      <button className="px-2 text-xs text-stone-400 hover:text-stone-700" title="Quitar"
-                        onClick={() => { const p = { ...picks }; delete p[r.user_id]; setPicks(p); }}>✕</button>
+                      <button className="animate-pop px-2 text-xs text-stone-400 transition hover:text-stone-700" title="Quitar"
+                        aria-label="Quitar" onClick={() => { const p = { ...picks }; delete p[r.user_id]; setPicks(p); }}><XMarkIcon className="h-4 w-4" /></button>
                     )}
                   </div>
                 </div>
@@ -102,7 +104,7 @@ export default function RatingsPage() {
             <span className="text-sm text-stone-600">{count} seleccionados · {total} puntos</span>
             <div className="flex gap-2">
               <button className="btn-secondary" onClick={() => { setEditing(false); setPicks({}); }}>Cancelar</button>
-              <button className="btn-primary" disabled={!count || busy} onClick={confirmRatings}>{busy ? "Guardando..." : "Confirmar calificaciones"}</button>
+              <button className="btn-primary" disabled={!count || busy} onClick={confirmRatings}>{busy ? <><Spinner />Guardando...</> : "Confirmar calificaciones"}</button>
             </div>
           </div>
         </div>
@@ -110,22 +112,23 @@ export default function RatingsPage() {
 
       <h2 className="mb-3 text-lg font-semibold">Historial</h2>
       {history.loading ? (
-        <Loading />
+        <Loading variant="list" />
       ) : !history.data?.length ? (
-        <Empty>Aún no hay calificaciones.</Empty>
+        <Empty icon={StarIcon}>Aún no hay calificaciones.</Empty>
       ) : (
         <div className="space-y-3">
           {history.data.map((b) => (
-            <details key={b.id} className="card">
-              <summary className="flex cursor-pointer items-center justify-between text-sm">
+            <details key={b.id} className="card group hover:shadow-md">
+              <summary className="flex cursor-pointer list-none items-center justify-between text-sm">
                 <span><b>{formatDateTime(b.created_at)}</b> · {b.items.length} árbitros · {b.items.reduce((s, i) => s + i.points, 0)} pts</span>
+                <ChevronDownIcon className="h-5 w-5 text-stone-400 transition-transform duration-200 group-open:rotate-180" />
               </summary>
-              <ul className="mt-3 space-y-1 text-sm">
+              <ul className="mt-3 animate-slide-down space-y-1 text-sm">
                 {b.items.map((i, k) => (
                   <li key={k} className="flex justify-between"><span>{i.name}</span><span>{i.score} (+{i.points})</span></li>
                 ))}
               </ul>
-              <button className="btn-ghost mt-3 text-red-600" onClick={() => removeBatch(b.id)}>Anular esta calificación</button>
+              <button className="btn-ghost mt-3 text-red-600" onClick={() => removeBatch(b.id)}><TrashIcon className="h-4 w-4" />Anular esta calificación</button>
             </details>
           ))}
         </div>

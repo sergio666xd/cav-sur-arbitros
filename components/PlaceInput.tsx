@@ -1,5 +1,6 @@
 "use client";
 
+import { MapIcon, MapPinIcon, StarIcon } from "@heroicons/react/20/solid";
 import { useEffect, useRef, useState } from "react";
 import MapPicker from "./MapPicker";
 import { MAPS_KEY, newSession, suggestPlaces, type PlaceSuggestion } from "@/lib/maps";
@@ -70,7 +71,7 @@ export default function PlaceInput({ value, onChange, placeholder, required, sav
         />
         {MAPS_KEY && (
           <button type="button" className="btn-secondary shrink-0 px-3" title="Elegir en el mapa" onClick={() => setPicker(true)}>
-            🗺️<span className="ml-1 hidden sm:inline">Mapa</span>
+            <MapIcon className="h-4 w-4" /><span className="hidden sm:inline">Mapa</span>
           </button>
         )}
       </div>
@@ -78,7 +79,7 @@ export default function PlaceInput({ value, onChange, placeholder, required, sav
         <MapPicker open={picker} initial={value} onClose={() => setPicker(false)} onPick={(p) => { typed.current = false; onChange(p); }} />
       )}
       {open && options.length > 0 && (
-        <ul className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 text-sm shadow-lg" role="listbox">
+        <ul className="absolute z-30 mt-1 max-h-72 animate-slide-down w-full overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 text-sm shadow-lg" role="listbox">
           {options.map((o, i) => (
             <li key={o.key} role="option" aria-selected={i === active}>
               <button
@@ -87,7 +88,7 @@ export default function PlaceInput({ value, onChange, placeholder, required, sav
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => choose(o)}
               >
-                <span className="mt-0.5">{o.saved ? "⭐" : "📍"}</span>
+                {o.saved ? <StarIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" /> : <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />}
                 <span>
                   <span className="block font-medium text-ink">{o.text}</span>
                   {o.secondary && <span className="block text-xs text-stone-500">{o.secondary}</span>}

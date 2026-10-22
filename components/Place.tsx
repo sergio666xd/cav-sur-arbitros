@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowTopRightOnSquareIcon, MapPinIcon } from "@heroicons/react/20/solid";
 import { useState } from "react";
 import { mapsEmbed, mapsLink } from "@/lib/maps";
 
@@ -11,22 +12,22 @@ export default function Place({ place, className = "", defaultOpen = false }: { 
   return (
     <div className={className}>
       <span className="inline-flex flex-wrap items-center gap-x-2">
-        <span>📍 {place}</span>
+        <span className="inline-flex items-start gap-1"><MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />{place}</span>
         {embed ? (
           <button type="button" className="text-xs font-medium text-brand-700 hover:underline" onClick={() => setOpen(!open)}>
             {open ? "Ocultar mapa" : "Ver mapa"}
           </button>
         ) : (
           <a href={mapsLink(place)} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-700 hover:underline">
-            Abrir en Google Maps ↗
+            Abrir en Google Maps <ArrowTopRightOnSquareIcon className="inline h-3 w-3" />
           </a>
         )}
       </span>
       {embed && open && (
-        <div className="mt-2 overflow-hidden rounded-lg border border-stone-200">
+        <div className="mt-2 animate-slide-down overflow-hidden rounded-lg border border-stone-200">
           <iframe title={`Mapa de ${place}`} src={embed} className="h-56 w-full" loading="lazy" allowFullScreen />
           <a href={mapsLink(place)} target="_blank" rel="noreferrer" className="block bg-stone-50 px-3 py-1.5 text-right text-xs text-brand-700 hover:underline">
-            Abrir en Google Maps ↗
+            Abrir en Google Maps <ArrowTopRightOnSquareIcon className="inline h-3 w-3" />
           </a>
         </div>
       )}
