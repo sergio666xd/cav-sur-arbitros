@@ -401,3 +401,30 @@ def test_tournament_venues(client):
     assert t["days"][0]["location"] == "Coliseo"
     names = [c["name"] for c in client.get("/api/catalog/location", headers=chief).json()]
     assert set(venues + ["Coliseo"]) <= set(names)
+
+
+def test_matches_by_category(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "50000001", "Lu", "Lopez")
+    day = (today_local() + timedelta(days=2)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={
+        "name": "Copa Cat", "venues": ["Coliseo"], "categories": ["Mini", "Infantil"], "referees_required": 1,
+        "days": [{"date": day, "all_day": True}]}).json()["id"]
+    key = client.get("/api/availability", headers=ref).json()[0]["key"]
+    client.post(f"/api/availability/{key}", headers=ref)
+    d = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    uid = next(c["user_id"] for c in d["candidates"] if c["name"] == "Lu Lopez")
+    client.put(f"/api/tournament-days/{d['id']}/assignments", headers=chief, json=[{"user_id": uid}])
+    bad = client.put(f"/api/tournament-days/{d['id']}/matches", headers=chief, json=[
+        {"user_id": uid, "categories": [{"category": "Mayores", "refereed": 1}]}])
+    assert bad.status_code == 400
+    r = client.put(f"/api/tournament-days/{d['id']}/matches", headers=chief, json=[{"user_id": uid, "categories": [
+        {"category": "Mini", "refereed": 2, "scored": 1}, {"category": "Infantil", "refereed": 3, "scored": 0}]}])
+    assert r.status_code == 200, r.text
+    a = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"][0]
+    assert (a["refereed"], a["scored"]) == (5, 1)
+    assert a["by_category"][0] == {"category": "Mini", "refereed": 2, "scored": 1}
+    mine = client.get("/api/me/assignments", headers=ref).json()[0]["days"][0]
+    assert mine["refereed"] == 5 and len(mine["by_category"]) == 2
+    assert client.get("/api/me/stats", headers=ref).json()["refereed"] == 5

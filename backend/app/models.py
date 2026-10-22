@@ -186,6 +186,8 @@ class MatchRecord(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     refereed: Mapped[int] = mapped_column(Integer, default=0)
     scored: Mapped[int] = mapped_column(Integer, default=0)
+    # Desglose por categoría: [{"category", "refereed", "scored"}]; refereed/scored guardan los totales.
+    by_category: Mapped[list | None] = mapped_column(JSON, nullable=True)
     recorded_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

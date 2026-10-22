@@ -222,10 +222,27 @@ class BoardIn(BaseModel):
     days: list[BoardDayIn]
 
 
+class MatchCategoryIn(BaseModel):
+    category: str
+    refereed: int = Field(default=0, ge=0, le=100)
+    scored: int = Field(default=0, ge=0, le=100)
+
+
 class MatchIn(BaseModel):
     user_id: int
-    refereed: int = Field(ge=0, le=100)
-    scored: int = Field(ge=0, le=100)
+    refereed: int = Field(default=0, ge=0, le=100)
+    scored: int = Field(default=0, ge=0, le=100)
+    categories: list[MatchCategoryIn] | None = None
+
+    @model_validator(mode="after")
+    def _totals(self):
+        if self.categories:
+            names = [c.category for c in self.categories]
+            if len(names) != len(set(names)):
+                raise ValueError("Una categoría está repetida en el registro de partidos.")
+            self.refereed = sum(c.refereed for c in self.categories)
+            self.scored = sum(c.scored for c in self.categories)
+        return self
 
 
 # ---------- Calificaciones ----------

@@ -225,6 +225,7 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
                 "role": a.role,
                 "refereed": rec.refereed if rec else None,
                 "scored": rec.scored if rec else None,
+                "by_category": rec.by_category if rec else None,
             })
         info = day_info(d)
         info.update({
@@ -294,19 +295,26 @@ def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_
     day = _get_day(db, day_id)
     assigned = {a.user_id: a.user for a in day.assignments}
     records = {r.user_id: r for r in day.match_records}
+    categories = day.effective_categories
     for item in items:
         u = assigned.get(item.user_id)
         if not u:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se registran partidos de árbitros asignados a ese día.")
         if u.is_chief:
             continue  # Al JEFE no se le registran partidos.
+        breakdown = None
+        if item.categories:
+            unknown = [c.category for c in item.categories if c.category not in categories]
+            if unknown:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La categoría '{unknown[0]}' no es de esta franja.")
+            breakdown = [c.model_dump() for c in item.categories]
         rec = records.get(item.user_id)
         if rec:
-            rec.refereed, rec.scored, rec.recorded_by_id = item.refereed, item.scored, user.id
+            rec.refereed, rec.scored, rec.by_category, rec.recorded_by_id = item.refereed, item.scored, breakdown, user.id
         else:
-            day.match_records.append(
-                MatchRecord(user_id=item.user_id, refereed=item.refereed, scored=item.scored, recorded_by_id=user.id)
-            )
+            day.match_records.append(MatchRecord(
+                user_id=item.user_id, refereed=item.refereed, scored=item.scored, by_category=breakdown, recorded_by_id=user.id,
+            ))
     db.commit()
     return {"ok": True}
 

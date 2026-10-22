@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { api, formatDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { fold } from "@/lib/text";
 import { useFetch } from "@/lib/useFetch";
 import type { DayDetail, TournamentDetail } from "@/lib/types";
 
@@ -90,26 +91,58 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
   );
 }
 
-function MatchEditor({ day, onSaved }: { day: DayDetail; onSaved: () => void }) {
+type Counts = { refereed: string; scored: string };
+
+// En torneos con roles, el Planillero planilla y los demás roles pitan.
+const isScorer = (role: string | null) => !!role && fold(role).includes("planill");
+
+function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail; onSaved: () => void }) {
   const refs = day.assignments.filter((a) => !a.is_chief);
-  const initial = () => Object.fromEntries(refs.map((a) => [a.user_id, { refereed: String(a.refereed ?? ""), scored: String(a.scored ?? "") }]));
-  const [values, setValues] = useState<Record<number, { refereed: string; scored: string }>>(initial);
+  const cats = day.effective_categories;
+  // Clave "" = total sin categoría (franjas sin categorías).
+  const keys = cats.length ? cats : [""];
+  const initial = () =>
+    Object.fromEntries(refs.map((a) => [a.user_id, Object.fromEntries(keys.map((k) => {
+      const c = k ? a.by_category?.find((x) => x.category === k) : a;
+      // Registros antiguos sin desglose: el total va en la primera categoría.
+      const legacy = k && !a.by_category && k === keys[0] ? a : null;
+      const src = c ?? legacy;
+      return [k, { refereed: String(src?.refereed ?? ""), scored: String(src?.scored ?? "") }];
+    }))])) as Record<number, Record<string, Counts>>;
+  const [values, setValues] = useState(initial);
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
+  const [games, setGames] = useState<Record<string, string>>({});
 
   useEffect(() => setValues(initial()), [day]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (refs.length === 0) return null;
+  const withRoles = t.has_roles && refs.some((a) => a.role);
+
+  // Partidos jugados en una categoría: se reparten según el rol de cada árbitro.
+  function setGamesFor(cat: string, raw: string) {
+    const v = raw.replace(/\D/g, "");
+    setGames({ ...games, [cat]: v });
+    const next = { ...values };
+    for (const a of refs) {
+      if (!a.role) continue;
+      const k: keyof Counts = isScorer(a.role) ? "scored" : "refereed";
+      const other: keyof Counts = k === "scored" ? "refereed" : "scored";
+      next[a.user_id] = { ...next[a.user_id], [cat]: { ...next[a.user_id]?.[cat], [k]: v, [other]: next[a.user_id]?.[cat]?.[other] || "0" } };
+    }
+    setValues(next);
+  }
+
+  const num = (v?: string) => Number(v || 0);
+  const total = (id: number, k: keyof Counts) => keys.reduce((n, c) => n + num(values[id]?.[c]?.[k]), 0);
 
   async function save() {
     setMsg(null);
     try {
       await api(`/tournament-days/${day.id}/matches`, {
         method: "PUT",
-        body: refs.map((a) => ({
-          user_id: a.user_id,
-          refereed: Number(values[a.user_id]?.refereed || 0),
-          scored: Number(values[a.user_id]?.scored || 0),
-        })),
+        body: refs.map((a) => cats.length
+          ? { user_id: a.user_id, categories: cats.map((c) => ({ category: c, refereed: num(values[a.user_id]?.[c]?.refereed), scored: num(values[a.user_id]?.[c]?.scored) })) }
+          : { user_id: a.user_id, refereed: num(values[a.user_id]?.[""]?.refereed), scored: num(values[a.user_id]?.[""]?.scored) }),
       });
       setMsg({ kind: "success", text: "Partidos registrados." });
       onSaved();
@@ -118,23 +151,73 @@ function MatchEditor({ day, onSaved }: { day: DayDetail; onSaved: () => void }) 
     }
   }
 
-  const set = (id: number, k: "refereed" | "scored", v: string) => setValues({ ...values, [id]: { ...values[id], [k]: v.replace(/\D/g, "") } });
+  const set = (id: number, cat: string, k: keyof Counts, v: string) =>
+    setValues({ ...values, [id]: { ...values[id], [cat]: { ...values[id]?.[cat], [k]: v.replace(/\D/g, "") } } });
+
+  const cell = (id: number, cat: string, k: keyof Counts, label: string) => (
+    <input className="input w-14 px-2 py-1 text-center" inputMode="numeric" aria-label={label}
+      value={values[id]?.[cat]?.[k] ?? ""} onChange={(e) => set(id, cat, k, e.target.value)} />
+  );
 
   return (
-    <div>
-      <h3 className="mb-2 text-sm font-semibold">Partidos del día</h3>
-      <table className="table">
-        <thead><tr><th>Árbitro</th><th className="w-24">Pitados</th><th className="w-24">Planillados</th></tr></thead>
-        <tbody>
-          {refs.map((a) => (
-            <tr key={a.user_id}>
-              <td>{a.name} {a.role && <span className="text-xs text-stone-500">({a.role})</span>}</td>
-              <td><input className="input py-1" inputMode="numeric" value={values[a.user_id]?.refereed ?? ""} onChange={(e) => set(a.user_id, "refereed", e.target.value)} /></td>
-              <td><input className="input py-1" inputMode="numeric" value={values[a.user_id]?.scored ?? ""} onChange={(e) => set(a.user_id, "scored", e.target.value)} /></td>
+    <div className="lg:col-span-2">
+      <h3 className="mb-2 text-sm font-semibold">Partidos del día{cats.length > 0 && " por categoría"}</h3>
+      {withRoles && (
+        <div className="mb-3 rounded-lg bg-stone-50 p-3 text-sm">
+          <p className="mb-2 text-stone-600">Partidos jugados{cats.length > 0 && " por categoría"}: se rellenan como pitados para Principal y Segundo, y como planillados para el Planillero. Puedes ajustar cada valor después.</p>
+          <div className="flex flex-wrap gap-3">
+            {keys.map((c) => (
+              <label key={c} className="flex items-center gap-2">
+                <span className="font-medium">{c || "Partidos"}</span>
+                <input className="input w-16 px-2 py-1 text-center" inputMode="numeric" value={games[c] ?? ""}
+                  onChange={(e) => setGamesFor(c, e.target.value)} aria-label={`Partidos jugados ${c}`} />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            {cats.length > 0 && (
+              <tr>
+                <th />
+                {cats.map((c) => <th key={c} colSpan={2} className="border-l border-stone-100 text-center normal-case">{c}</th>)}
+                <th colSpan={2} className="border-l border-stone-100 text-center">Total</th>
+              </tr>
+            )}
+            <tr>
+              <th>Árbitro</th>
+              {keys.map((c) => (
+                <Fragment key={c}>
+                  <th className="border-l border-stone-100 text-center" title="Pitados">{cats.length ? "Pit." : "Pitados"}</th>
+                  <th className="text-center" title="Planillados">{cats.length ? "Plan." : "Planillados"}</th>
+                </Fragment>
+              ))}
+              {cats.length > 0 && <><th className="border-l border-stone-100 text-center">Pit.</th><th className="text-center">Plan.</th></>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {refs.map((a) => (
+              <tr key={a.user_id}>
+                <td className="whitespace-nowrap">{a.name} {a.role && <span className="text-xs text-stone-500">({a.role})</span>}</td>
+                {keys.map((c) => (
+                  <Fragment key={c}>
+                    <td className="border-l border-stone-100">{cell(a.user_id, c, "refereed", `${a.name} pitados ${c}`)}</td>
+                    <td>{cell(a.user_id, c, "scored", `${a.name} planillados ${c}`)}</td>
+                  </Fragment>
+                ))}
+                {cats.length > 0 && (
+                  <>
+                    <td className="border-l border-stone-100 text-center font-semibold">{total(a.user_id, "refereed")}</td>
+                    <td className="text-center font-semibold">{total(a.user_id, "scored")}</td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {msg && <div className="mt-2"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
       <button className="btn-secondary mt-3" onClick={save}>Guardar partidos</button>
     </div>
@@ -167,7 +250,7 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <AssignmentEditor day={d} t={t} onSaved={onSaved} />
-        <MatchEditor day={d} onSaved={onSaved} />
+        <MatchEditor day={d} t={t} onSaved={onSaved} />
       </div>
     </section>
   );

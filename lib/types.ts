@@ -6,7 +6,9 @@ export type AssignedRef = {
   role: string | null;
   refereed: number | null;
   scored: number | null;
+  by_category: CategoryCount[] | null;
 };
+export type CategoryCount = { category: string; refereed: number; scored: number };
 export type DayDetail = {
   id: number;
   date: string;

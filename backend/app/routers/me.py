@@ -32,6 +32,7 @@ def my_assignments(user: User = Depends(current_user), db: Session = Depends(get
             "crew": crew,
             "refereed": record.refereed if record else None,
             "scored": record.scored if record else None,
+            "by_category": record.by_category if record else None,
         })
     result = list(grouped.values())
     for t in result:

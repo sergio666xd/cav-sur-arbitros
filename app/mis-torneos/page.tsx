@@ -17,6 +17,7 @@ type Day = {
   crew: { name: string; role: string | null; me: boolean }[];
   refereed: number | null;
   scored: number | null;
+  by_category: { category: string; refereed: number; scored: number }[] | null;
 };
 type Assigned = { id: number; name: string; location: string; categories: string[]; notes: string; days: Day[] };
 type Stats = { refereed: number; scored: number; days_recorded: number; assignments: number };
@@ -89,7 +90,14 @@ export default function MyTournamentsPage() {
                         {d.refereed === null ? (
                           <span className="text-stone-400">Partidos aún sin registrar</span>
                         ) : (
-                          <span>🏐 {d.refereed} pitados · 📋 {d.scored} planillados</span>
+                          <span>
+                            🏐 {d.refereed} pitados · 📋 {d.scored} planillados
+                            {d.by_category && d.by_category.some((c) => c.refereed || c.scored) && (
+                              <span className="mt-1 block text-xs text-stone-500">
+                                {d.by_category.filter((c) => c.refereed || c.scored).map((c) => `${c.category}: ${c.refereed} pit. / ${c.scored} plan.`).join(" · ")}
+                              </span>
+                            )}
+                          </span>
                         )}
                       </div>
                     )}

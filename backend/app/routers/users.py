@@ -73,6 +73,7 @@ def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = 
             "role": a.role,
             "refereed": rec.refereed if rec else None,
             "scored": rec.scored if rec else None,
+            "by_category": rec.by_category if rec else None,
         })
     ratings = db.execute(
         select(Rating.score, Rating.points, RatingBatch.created_at)
