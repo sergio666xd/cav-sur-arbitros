@@ -10,6 +10,7 @@ import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
+import { shortAddress } from "@/lib/maps";
 import { useAuth } from "@/lib/auth";
 import { fold } from "@/lib/text";
 import { useFetch } from "@/lib/useFetch";
@@ -321,7 +322,7 @@ export default function TournamentDetailPage() {
             subtitle={
               <span className="inline-flex items-start gap-1">
                 <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-                {t.venues.length > 1 ? `${t.venues.length} sedes: ${t.venues.map((v) => v.split(",")[0]).join(" · ")}` : t.location}
+                {t.venues.length > 1 ? `${t.venues.length} sedes: ${t.venues.map((v) => shortAddress(v)).join(" · ")}` : shortAddress(t.location)}
               </span>
             }
             action={
@@ -336,7 +337,7 @@ export default function TournamentDetailPage() {
                       columns: t.days.filter((d) => !d.past).map((d) => ({
                         top: formatShortDate(d.date),
                         label: d.slot_label,
-                        sub: t.is_visible ? d.effective_location.split(",")[0] : undefined,
+                        sub: t.is_visible ? shortAddress(d.effective_location) : undefined,
                         required: d.required,
                         entries: d.candidates
                           .filter((c) => !c.is_chief && c.available_at)

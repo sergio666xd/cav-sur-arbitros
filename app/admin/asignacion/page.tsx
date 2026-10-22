@@ -8,6 +8,7 @@ import { summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
+import { shortAddress } from "@/lib/maps";
 import { useFetch } from "@/lib/useFetch";
 
 type Column = {
@@ -96,7 +97,7 @@ function GroupTable({ group, sel, setSel }: { group: Group; sel: Selection; setS
                     <Link href={`/admin/torneos/${c.tournament_id}#dia-${c.id}`} className="font-semibold text-ink hover:text-brand-700 hover:underline">
                       {c.tournament}
                     </Link>
-                    <div className="text-xs text-stone-500">{c.slot_label}{c.effective_location && ` · ${c.effective_location}`}</div>
+                    <div className="text-xs text-stone-500">{c.slot_label}{c.effective_location && ` · ${shortAddress(c.effective_location)}`}</div>
                     <div className={`mt-1 text-xs font-medium ${count >= c.required ? "text-green-700" : "text-brand-700"}`}>
                       {count} de {c.required} asignados
                     </div>
