@@ -100,10 +100,12 @@ function weekday(d: Date, style: "long" | "short"): string {
   return cap(d.toLocaleDateString("es-CO", { weekday: style }).replace(".", ""));
 }
 
-// "Viernes 23/10/2026", o solo "23/10/2026" sin el día de la semana.
+// Fecha larga "Viernes 23 de octubre, 2026", o solo "23/10/2026" sin el día de la semana.
 export function formatDate(iso: string, withWeekday = true): string {
   const d = parseDate(iso);
-  return withWeekday ? `${weekday(d, "long")} ${dmy(d)}` : dmy(d);
+  if (!withWeekday) return dmy(d);
+  const month = d.toLocaleDateString("es-CO", { month: "long" });
+  return `${weekday(d, "long")} ${String(d.getDate()).padStart(2, "0")} de ${month}, ${d.getFullYear()}`;
 }
 
 // "Vie 23/10/2026"
