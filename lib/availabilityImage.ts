@@ -90,17 +90,25 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
 
   // Encabezado de cada columna: fecha, franja y torneo (solo si se puede mostrar).
   ctx.font = `400 20px ${FONT}`;
-  const headLines = cols.map((c) => ({ top: c.top, label: c.label, sub: c.sub ? wrap(ctx, c.sub, colW - 20).slice(0, 3) : [] }));
+  const headLines = cols.map((c) => ({ top: c.top, label: c.label, sub: c.sub ? wrap(ctx, c.sub, colW - 20).slice(0, 3).map((l) => l.replace(/\s*·$/, "")) : [] }));
   const headH = 24 + Math.max(30, ...headLines.map((h) => (h.top ? 30 : 0) + 30 + h.sub.length * 24)) + 16;
 
-  const HEADER = 170;
-  ctx.font = `800 44px ${FONT}`;
-  const titleLines = wrap(ctx, spec.title, W - PAD * 2);
-  const titleH = titleLines.length * 54 + (spec.subtitle ? 40 : 0);
-  const tableTop = HEADER + 8 + 56 + titleH + 32;
+  // Encabezado oscuro: logo a la izquierda; título, subtítulo y fecha de generación a la derecha.
+  // Así todo el espacio debajo queda para la tabla.
+  const logoH = 100;
+  const logoW = logoH * (1320 / 375);
+  const textW = W - PAD * 2 - logoW - 40;
+  ctx.font = `800 40px ${FONT}`;
+  const titleLines = wrap(ctx, spec.title, textW);
+  ctx.font = `400 26px ${FONT}`;
+  const subLines = spec.subtitle ? wrap(ctx, spec.subtitle, textW) : [];
+  const generated = `Generado el ${dmy(new Date())} a las ${formatTime(new Date())}`;
+  const textH = titleLines.length * 48 + subLines.length * 34 + 30;
+  const HEADER = Math.max(170, textH + 60);
+  const tableTop = HEADER + 8 + 32;
   const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + 2 * ROW;
   canvas.width = W;
-  canvas.height = tableBottom + 70 + PAD;
+  canvas.height = tableBottom + PAD;
 
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, W, canvas.height);
@@ -108,22 +116,24 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.fillRect(0, 0, W, HEADER);
   ctx.fillStyle = BRAND;
   ctx.fillRect(0, HEADER, W, 8);
-  if (logo) ctx.drawImage(logo, PAD - 10, 35, 100 * (1320 / 375), 100);
+  if (logo) ctx.drawImage(logo, PAD - 10, (HEADER - logoH) / 2, logoW, logoH);
   else {
     ctx.fillStyle = "#fff";
     ctx.font = `800 60px ${FONT}`;
-    ctx.fillText("CAV-SUR", PAD, 105);
+    ctx.fillText("CAV-SUR", PAD, HEADER / 2 + 20);
   }
 
-  let y = HEADER + 8 + 56;
-  ctx.fillStyle = INK;
-  ctx.font = `800 44px ${FONT}`;
-  for (const l of titleLines) { ctx.fillText(l, PAD, y + 40); y += 54; }
-  if (spec.subtitle) {
-    ctx.fillStyle = MUTED;
-    ctx.font = `400 28px ${FONT}`;
-    ctx.fillText(spec.subtitle, PAD, y + 28);
-  }
+  const right = (text: string, yy: number) => ctx.fillText(text, W - PAD - ctx.measureText(text).width, yy);
+  let y = (HEADER - textH) / 2;
+  ctx.fillStyle = "#fff";
+  ctx.font = `800 40px ${FONT}`;
+  for (const l of titleLines) { right(l, y + 38); y += 48; }
+  ctx.fillStyle = "#fdba74";
+  ctx.font = `400 26px ${FONT}`;
+  for (const l of subLines) { right(l, y + 28); y += 34; }
+  ctx.fillStyle = "#a8a29e";
+  ctx.font = `400 20px ${FONT}`;
+  right(generated, y + 22);
 
   const colX = (i: number) => left + numW + nameW + i * colW;
   const center = (text: string, x: number, w: number, yy: number) => ctx.fillText(text, x + (w - ctx.measureText(text).width) / 2, yy);
@@ -206,13 +216,6 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   for (const x of [left, left + numW, ...cols.map((_, i) => colX(i)), left + tableW]) {
     ctx.beginPath(); ctx.moveTo(x + 0.5, tableTop); ctx.lineTo(x + 0.5, ry); ctx.stroke();
   }
-
-  ctx.fillStyle = MUTED;
-  ctx.font = `400 22px ${FONT}`;
-  ctx.fillText(
-    `Generado el ${dmy(new Date())} a las ${formatTime(new Date())}`,
-    left, ry + 50,
-  );
 
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen."))), "image/png"),
