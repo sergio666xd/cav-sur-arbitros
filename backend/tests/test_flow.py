@@ -283,3 +283,64 @@ def test_migration_adds_new_columns():
         m.engine = original
     cols = {c["name"] for c in inspect(old).get_columns("tournament_days")}
     assert {"location", "categories", "all_day"} <= cols
+
+
+def test_assignment_board(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref_a = _register(client, code, "30000001", "Ana", "Alvarez")
+    ref_b = _register(client, code, "30000002", "Beto", "Bravo")
+    day = (today_local() + timedelta(days=2)).isoformat()
+    t1 = client.post("/api/tournaments", headers=chief, json={
+        "name": "Liga Norte", "location": "Coliseo", "referees_required": 2,
+        "days": [{"date": day, "start_time": "08:00", "end_time": "12:00"}]}).json()["id"]
+    t2 = client.post("/api/tournaments", headers=chief, json={
+        "name": "Copa Roles", "location": "Estadio", "referees_required": 3, "has_roles": True,
+        "days": [{"date": day, "start_time": "10:00", "end_time": "14:00"}]}).json()["id"]
+    client.post("/api/tournaments", headers=chief, json={
+        "name": "Nocturno", "location": "Cancha", "referees_required": 2,
+        "days": [{"date": day, "start_time": "19:00", "end_time": "22:00"}]})
+
+    av = {d["slot_label"]: d for d in client.get("/api/availability", headers=ref_a).json()}
+    client.post(f"/api/availability/{av['08:00 - 14:00']['key']}", headers=ref_a)
+    client.post(f"/api/availability/{av['08:00 - 14:00']['key']}", headers=ref_b)
+
+    assert client.get("/api/assignment-board", headers=ref_a).status_code == 403
+    board = client.get("/api/assignment-board", headers=chief).json()
+    assert board["date"] == day and board["dates"] == [day]
+    assert [g["slot_label"] for g in board["groups"]] == ["08:00 - 14:00", "19:00 - 22:00"]
+    g = board["groups"][0]
+    cols = {c["tournament"]: c for c in g["columns"]}
+    assert [c["tournament"] for c in g["columns"]] == ["Liga Norte", "Copa Roles"]
+    assert cols["Copa Roles"]["has_roles"] and "Principal" in cols["Copa Roles"]["roles"]
+    rows = {r["name"]: r for r in g["rows"]}
+    assert list(rows) == ["Jefa Principal", "Ana Alvarez", "Beto Bravo"]
+    assert sorted(rows["Ana Alvarez"]["available_day_ids"]) == sorted(c["id"] for c in g["columns"])
+    # La franja nocturna no tiene disponibles: solo aparece el JEFE.
+    assert [r["name"] for r in board["groups"][1]["rows"]] == ["Jefa Principal"]
+
+    a, b, jefe = rows["Ana Alvarez"]["user_id"], rows["Beto Bravo"]["user_id"], rows["Jefa Principal"]["user_id"]
+    c1, c2 = cols["Liga Norte"]["id"], cols["Copa Roles"]["id"]
+    noct = board["groups"][1]["columns"][0]["id"]
+    # Si una franja falla, no se guarda ninguna.
+    r = client.put("/api/assignment-board", headers=chief, json={"days": [
+        {"day_id": c1, "items": [{"user_id": a}]},
+        {"day_id": noct, "items": [{"user_id": b}]},
+    ]})
+    assert r.status_code == 400
+    assert client.get("/api/assignment-board", headers=chief).json()["groups"][0]["rows"][1]["assigned"] == {}
+
+    r = client.put("/api/assignment-board", headers=chief, json={"days": [
+        {"day_id": c1, "items": [{"user_id": a}]},
+        {"day_id": c2, "items": [{"user_id": b, "role": "Principal"}, {"user_id": jefe, "role": "Segundo"}]},
+        {"day_id": noct, "items": [{"user_id": jefe}]},
+    ]})
+    assert r.status_code == 200, r.text
+    g = client.get(f"/api/assignment-board?d={day}", headers=chief).json()["groups"][0]
+    rows = {r["name"]: r for r in g["rows"]}
+    assert rows["Ana Alvarez"]["assigned"] == {str(c1): None}
+    assert rows["Beto Bravo"]["assigned"] == {str(c2): "Principal"}
+    assert rows["Jefa Principal"]["assigned"] == {str(c2): "Segundo"}
+    detail = client.get(f"/api/tournaments/{t2}", headers=chief).json()
+    assert len(detail["days"][0]["assignments"]) == 2
+    assert t1

@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date, time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
@@ -7,8 +8,9 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..deps import require_admin, require_creator
 from ..models import Assignment, Availability, MatchRecord, Tournament, TournamentDay, User
-from ..schemas import AssignmentIn, MatchIn, TournamentIn
+from ..schemas import AssignmentIn, BoardIn, MatchIn, TournamentIn
 from ..serializers import day_info, fold, name_key, tournament_info
+from ..slots import group_days
 from ..timeutil import is_open_for_availability, today_local
 from .catalog import remember
 
@@ -238,7 +240,13 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
 def set_assignments(
     day_id: int, items: list[AssignmentIn], _: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
-    day = _get_day(db, day_id)
+    _apply_assignments(db, _get_day(db, day_id), items)
+    db.commit()
+    return {"ok": True}
+
+
+def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn]) -> None:
+    """Deja la asignación de la franja exactamente como `items` (sin confirmar la transacción)."""
     t = day.tournament
     current = {a.user_id: a for a in day.assignments}
     user_ids = [i.user_id for i in items]
@@ -253,7 +261,8 @@ def set_assignments(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Árbitro no encontrado.")
         if not u.is_chief and (not u.is_referee or u.id not in available):
             raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, f"{u.full_name} no marcó disponibilidad para esta franja del {day.date:%d/%m/%Y}."
+                status.HTTP_400_BAD_REQUEST,
+                f"{u.full_name} no marcó disponibilidad para {t.name} el {day.date:%d/%m/%Y}.",
             )
         if t.has_roles:
             if item.role and item.role not in t.roles:
@@ -276,8 +285,7 @@ def set_assignments(
             a.role = item.role
         else:
             day.assignments.append(Assignment(user_id=item.user_id, role=item.role))
-    db.commit()
-    return {"ok": True}
+    db.flush()
 
 
 @router.put("/tournament-days/{day_id}/matches")
@@ -298,5 +306,65 @@ def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_
             day.match_records.append(
                 MatchRecord(user_id=item.user_id, refereed=item.refereed, scored=item.scored, recorded_by_id=user.id)
             )
+    db.commit()
+    return {"ok": True}
+
+
+# ---------- Asignación global por fecha ----------
+@router.get("/assignment-board")
+def assignment_board(d: date | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Para una fecha: por cada franja combinada, los árbitros disponibles (filas) y los torneos (columnas)."""
+    today = today_local()
+    upcoming = sorted(set(db.scalars(select(TournamentDay.date).where(TournamentDay.date >= today)).all()))
+    if d is None:
+        d = upcoming[0] if upcoming else today
+    days = db.scalars(
+        select(TournamentDay).where(TournamentDay.date == d)
+        .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments),
+                 selectinload(TournamentDay.availabilities))
+    ).all()
+    chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
+
+    groups = []
+    for g in group_days(list(days)):
+        cols = sorted(g.days, key=lambda x: (x.start_time or time.min, fold(x.tournament.name)))
+        people: dict[int, User] = {c.id: c for c in chiefs}
+        available: dict[int, list[int]] = defaultdict(list)
+        assigned: dict[int, dict[str, str | None]] = defaultdict(dict)
+        for day in cols:
+            for a in day.availabilities:
+                if a.user.active:
+                    people[a.user_id] = a.user
+                    available[a.user_id].append(day.id)
+            for a in day.assignments:
+                people[a.user_id] = a.user
+                assigned[a.user_id][str(day.id)] = a.role
+        rows = sorted(people.values(), key=lambda u: (not u.is_chief, *name_key(u)))
+        groups.append({
+            "key": g.key,
+            "slot_label": g.slot.label,
+            "columns": [{
+                **day_info(day),
+                "tournament_id": day.tournament_id,
+                "tournament": day.tournament.name,
+                "has_roles": day.tournament.has_roles,
+                "roles": day.tournament.roles or [],
+            } for day in cols],
+            "rows": [{
+                "user_id": u.id,
+                "name": u.full_name,
+                "is_chief": u.is_chief,
+                "available_day_ids": available.get(u.id, []),
+                "assigned": assigned.get(u.id, {}),
+            } for u in rows],
+        })
+    return {"date": d.isoformat(), "dates": [x.isoformat() for x in upcoming], "groups": groups}
+
+
+@router.put("/assignment-board")
+def save_assignment_board(data: BoardIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Guarda varias franjas a la vez: o se guardan todas o ninguna."""
+    for entry in data.days:
+        _apply_assignments(db, _get_day(db, entry.day_id), entry.items)
     db.commit()
     return {"ok": True}

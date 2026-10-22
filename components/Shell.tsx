@@ -14,6 +14,7 @@ const NAV: NavItem[] = [
   { href: "/mis-torneos", label: "Mis torneos", show: (u) => u.is_referee || u.is_chief },
   { href: "/ranking", label: "Ranking", show: () => true },
   { href: "/admin/torneos", label: "Torneos", show: (u) => u.perm_admin },
+  { href: "/admin/asignacion", label: "Asignación", show: (u) => u.perm_admin },
   { href: "/admin/arbitros", label: "Árbitros", show: (u) => u.perm_admin },
   { href: "/admin/clave", label: "Clave de registro", show: (u) => u.perm_admin },
   { href: "/jefe/calificaciones", label: "Calificaciones", show: (u) => u.is_chief },
@@ -58,11 +59,11 @@ export default function Shell({
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-brand-700 bg-brand-500 text-white shadow">
+      <header className="sticky top-0 z-40 border-b-2 border-brand-500 bg-night text-white shadow">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/" className="flex items-center gap-2 font-bold tracking-tight">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-brand-600">🏐</span>
-            <span>Árbitros CAV-Sur</span>
+          <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Inicio">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
           </Link>
           <nav className="hidden gap-1 lg:flex">
             {items.map((n) => (
@@ -70,7 +71,7 @@ export default function Shell({
                 key={n.href}
                 href={n.href}
                 className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  pathname.startsWith(n.href) ? "bg-white/20" : "hover:bg-white/10"
+                  pathname.startsWith(n.href) ? "bg-brand-500 text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 {n.label}
@@ -80,7 +81,7 @@ export default function Shell({
           <div className="hidden items-center gap-3 lg:flex">
             <Link href="/perfil" className="text-right text-xs leading-tight hover:underline">
               <div className="font-semibold">{user.first_name} {user.last_name}</div>
-              <div className="text-brand-100">{roleLabel(user)}</div>
+              <div className="text-white/60">{roleLabel(user)}</div>
             </Link>
             <button onClick={logout} className="rounded-md bg-white/15 px-3 py-1.5 text-sm hover:bg-white/25">Salir</button>
           </div>
@@ -88,7 +89,7 @@ export default function Shell({
         </div>
         {menuOpen && (
           <nav className="border-t border-white/20 px-4 pb-3 lg:hidden">
-            <div className="py-2 text-xs text-brand-100">{user.first_name} {user.last_name} · {roleLabel(user)}</div>
+            <div className="py-2 text-xs text-white/60">{user.first_name} {user.last_name} · {roleLabel(user)}</div>
             {items.map((n) => (
               <Link key={n.href} href={n.href} className="block rounded-md px-3 py-2 text-sm hover:bg-white/10">
                 {n.label}

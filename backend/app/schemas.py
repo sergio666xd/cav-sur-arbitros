@@ -198,6 +198,15 @@ class AssignmentIn(BaseModel):
     role: str | None = None
 
 
+class BoardDayIn(BaseModel):
+    day_id: int
+    items: list[AssignmentIn]
+
+
+class BoardIn(BaseModel):
+    days: list[BoardDayIn]
+
+
 class MatchIn(BaseModel):
     user_id: int
     refereed: int = Field(ge=0, le=100)
