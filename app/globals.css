@@ -71,6 +71,11 @@
   html { font-size: 150%; }
 }
 
+/* Reserva siempre el espacio del scrollbar para que la interfaz no salte al aparecer. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   @apply bg-stone-50 text-ink antialiased;
 }
