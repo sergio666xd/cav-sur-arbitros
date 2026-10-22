@@ -23,6 +23,7 @@ type Column = {
   slot_label: string;
   required: number;
   effective_location: string;
+  visible: boolean;
 };
 
 type BoardRow = {
@@ -55,7 +56,7 @@ function overlaps(a: Column, b: Column) {
   return a.start_time < (b.end_time ?? "24:00") && b.start_time < (a.end_time ?? "24:00");
 }
 
-function GroupTable({ group, sel, setSel }: { group: Group; sel: Selection; setSel: (s: Selection) => void }) {
+function GroupTable({ group, date, dirty, sel, setSel }: { group: Group; date: string; dirty: boolean; sel: Selection; setSel: (s: Selection) => void }) {
   const cols = group.columns;
 
   function toggle(col: Column, userId: number) {
@@ -81,9 +82,36 @@ function GroupTable({ group, sel, setSel }: { group: Group; sel: Selection; setS
     <section className="card overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-stone-50 px-4 py-3">
         <h2 className="flex items-center gap-1.5 font-semibold"><ClockIcon className="h-5 w-5 text-brand-500" />{group.slot_label}</h2>
-        <span className="text-xs text-stone-500">
-          {group.rows.filter((r) => !r.is_chief).length} árbitro(s) disponibles · {cols.length} torneo(s)
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-stone-500">
+            {group.rows.filter((r) => !r.is_chief).length} árbitro(s) disponibles · {cols.length} torneo(s)
+          </span>
+          {group.rows.some((r) => cols.some((c) => String(c.id) in r.assigned)) && (
+            // Usa las asignaciones guardadas, por eso pide guardar antes.
+            <AvailabilityImageButton
+              label="Imagen de asignación"
+              className="btn-secondary px-3 py-1.5 text-xs"
+              disabled={dirty}
+              title={dirty ? "Guarda los cambios para generar la imagen" : undefined}
+              fileName={`asignacion-${date}-${group.key}`}
+              spec={() => ({
+                kind: "assignment",
+                title: "Árbitros asignados",
+                subtitle: `${formatDate(date)} · ${group.slot_label}`,
+                columns: cols.map((c) => ({
+                  // En una franja combinada cada torneo puede tener su propio horario.
+                  top: c.slot_label !== group.slot_label ? c.slot_label : undefined,
+                  label: c.tournament,
+                  sub: c.visible ? shortAddress(c.effective_location) : undefined,
+                  required: c.required,
+                  entries: group.rows
+                    .filter((r) => String(c.id) in r.assigned)
+                    .map((r) => ({ user_id: r.user_id, name: r.name, at: "", mark: r.assigned[String(c.id)] ?? undefined })),
+                })),
+              })}
+            />
+          )}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-max text-sm">
@@ -265,7 +293,7 @@ export default function AssignmentBoardPage() {
               <div className={`space-y-6 transition-opacity duration-200 ${loading ? "pointer-events-none opacity-50" : ""}`}>
                 {data.groups.map((g, i) => (
                   <div key={`${data.date}-${g.key}`} className="animate-slide-up" style={{ animationDelay: `${i * 60}ms` }}>
-                    <GroupTable group={g} sel={sel} setSel={setSel} />
+                    <GroupTable group={g} date={data.date} dirty={dirty} sel={sel} setSel={setSel} />
                   </div>
                 ))}
               </div>

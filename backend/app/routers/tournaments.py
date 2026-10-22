@@ -359,6 +359,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                 **day_info(day),
                 "tournament_id": day.tournament_id,
                 "tournament": day.tournament.name,
+                "visible": day.tournament.is_visible,
                 "has_roles": day.tournament.has_roles,
                 "roles": day.tournament.roles or [],
             } for day in cols],

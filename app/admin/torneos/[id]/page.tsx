@@ -289,6 +289,26 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
       </div>
       {/* Oculta en vez de desmontada, para no perder cambios sin guardar al plegarla. */}
       <div className={open ? "animate-slide-down border-t border-stone-100 p-4 sm:p-5" : "hidden"}>
+        {assigned > 0 && (
+          <div className="mb-4 flex justify-end">
+            <AvailabilityImageButton
+              label="Imagen de asignación"
+              className="btn-secondary text-sm"
+              fileName={`asignacion-${d.date}-${d.id}`}
+              spec={() => ({
+                kind: "assignment",
+                title: t.name,
+                subtitle: `${formatDate(d.date)} · ${d.slot_label}`,
+                columns: [{
+                  label: "Asignados",
+                  sub: t.is_visible ? shortAddress(d.effective_location) : undefined,
+                  required: d.required,
+                  entries: d.assignments.map((a) => ({ user_id: a.user_id, name: a.name, at: "", mark: a.role ?? undefined })),
+                }],
+              })}
+            />
+          </div>
+        )}
         <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <AssignmentEditor day={d} t={t} onSaved={onSaved} />
           <MatchEditor day={d} t={t} onSaved={onSaved} />
