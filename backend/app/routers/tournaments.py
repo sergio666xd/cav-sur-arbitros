@@ -184,12 +184,12 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
     available_by_day: dict = defaultdict(list)
     if t.days:
         rows = db.execute(
-            select(Availability.day_id, User)
+            select(Availability.day_id, User, Availability.created_at)
             .join(User, User.id == Availability.user_id)
             .where(Availability.day_id.in_([d.id for d in t.days]), User.active.is_(True))
         ).all()
-        for day_id, u in rows:
-            available_by_day[day_id].append(u)
+        for day_id, u, at in rows:
+            available_by_day[day_id].append((u, at))
 
     # Asignaciones de esas fechas en otros torneos, para avisar de choques.
     elsewhere: dict = defaultdict(dict)
@@ -209,12 +209,14 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
     for d in t.days:
         records = {r.user_id: r for r in d.match_records}
         candidates = []
-        for u in [*chiefs, *sorted(available_by_day.get(d.id, []), key=name_key)]:
+        avail = sorted(available_by_day.get(d.id, []), key=lambda x: name_key(x[0]))
+        for u, at in [*((c, None) for c in chiefs), *avail]:
             candidates.append({
                 "user_id": u.id,
                 "name": u.full_name,
                 "is_chief": u.is_chief,
                 "assigned_elsewhere": elsewhere[d.date].get(u.id),
+                "available_at": at.isoformat() if at else None,
             })
         assignments = []
         for a in sorted(d.assignments, key=lambda a: (t.roles.index(a.role) if a.role in (t.roles or []) else 99, name_key(a.user))):
@@ -343,12 +345,14 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
         cols = sorted(g.days, key=lambda x: (x.start_time or time.min, fold(x.tournament.name)))
         people: dict[int, User] = {c.id: c for c in chiefs}
         available: dict[int, list[int]] = defaultdict(list)
+        available_at: dict[int, dict[str, str]] = defaultdict(dict)
         assigned: dict[int, dict[str, str | None]] = defaultdict(dict)
         for day in cols:
             for a in day.availabilities:
                 if a.user.active:
                     people[a.user_id] = a.user
                     available[a.user_id].append(day.id)
+                    available_at[a.user_id][str(day.id)] = a.created_at.isoformat()
             for a in day.assignments:
                 people[a.user_id] = a.user
                 assigned[a.user_id][str(day.id)] = a.role
@@ -360,6 +364,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                 **day_info(day),
                 "tournament_id": day.tournament_id,
                 "tournament": day.tournament.name,
+                "is_visible": day.tournament.is_visible,
                 "has_roles": day.tournament.has_roles,
                 "roles": day.tournament.roles or [],
             } for day in cols],
@@ -368,6 +373,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                 "name": u.full_name,
                 "is_chief": u.is_chief,
                 "available_day_ids": available.get(u.id, []),
+                "available_at": available_at.get(u.id, {}),
                 "assigned": assigned.get(u.id, {}),
             } for u in rows],
         })

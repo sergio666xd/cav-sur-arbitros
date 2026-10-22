@@ -1,6 +1,6 @@
 // Dibuja en un canvas una imagen para compartir con la lista de árbitros disponibles.
 
-export type ImageSection = { heading: string; sub?: string; names: string[] };
+export type ImageSection = { heading: string; sub?: string; names: string[]; required: number };
 export type ImageSpec = { title: string; subtitle?: string; sections: ImageSection[] };
 
 const W = 1080;
@@ -91,7 +91,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
         }
       }
       ctx.font = `600 26px ${FONT}`;
-      const label = s.names.length === 1 ? "1 disponible" : `${s.names.length} disponibles`;
+      const label = `${s.names.length} ${s.names.length === 1 ? "disponible" : "disponibles"} de ${s.required} ${s.required === 1 ? "solicitado" : "solicitados"}`;
       if (paint) { ctx.fillStyle = BRAND; ctx.fillText(label, PAD + 24, y + 30); }
       y += 52;
 

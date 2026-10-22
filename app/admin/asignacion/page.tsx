@@ -12,6 +12,7 @@ type Column = {
   id: number;
   tournament_id: number;
   tournament: string;
+  is_visible: boolean;
   has_roles: boolean;
   roles: string[];
   all_day: boolean;
@@ -27,6 +28,7 @@ type BoardRow = {
   name: string;
   is_chief: boolean;
   available_day_ids: number[];
+  available_at: Record<string, string>;
   assigned: Record<string, string | null>;
 };
 
@@ -212,10 +214,16 @@ export default function AssignmentBoardPage() {
               spec={() => ({
                 title: "Árbitros disponibles",
                 subtitle: formatDate(data.date),
+                // Es para compartir: de un torneo oculto solo se muestra la franja.
                 sections: data.groups.flatMap((g) => g.columns.map((c) => ({
-                  heading: c.tournament,
-                  sub: [c.slot_label, c.effective_location.split(",")[0]].filter(Boolean).join(" · "),
-                  names: g.rows.filter((r) => !r.is_chief && r.available_day_ids.includes(c.id)).map((r) => r.name),
+                  heading: c.is_visible ? c.tournament : c.slot_label,
+                  sub: c.is_visible ? [c.slot_label, c.effective_location.split(",")[0]].filter(Boolean).join(" · ") : undefined,
+                  required: c.required,
+                  // En orden de registro de la disponibilidad: el 1 es quien la marcó primero.
+                  names: g.rows
+                    .filter((r) => !r.is_chief && r.available_day_ids.includes(c.id))
+                    .sort((a, b) => a.available_at[c.id].localeCompare(b.available_at[c.id]))
+                    .map((r) => r.name),
                 }))),
               })}
             />

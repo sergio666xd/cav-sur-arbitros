@@ -1,4 +1,4 @@
-export type Candidate = { user_id: number; name: string; is_chief: boolean; assigned_elsewhere: string | null };
+export type Candidate = { user_id: number; name: string; is_chief: boolean; assigned_elsewhere: string | null; available_at: string | null };
 export type AssignedRef = {
   user_id: number;
   name: string;

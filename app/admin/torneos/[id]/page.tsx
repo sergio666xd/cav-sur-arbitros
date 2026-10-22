@@ -315,12 +315,18 @@ export default function TournamentDetailPage() {
                   <AvailabilityImageButton
                     fileName={`disponibilidad-torneo-${t.id}`}
                     spec={() => ({
-                      title: t.name,
-                      subtitle: "Árbitros con disponibilidad",
+                      // Es para compartir: si el torneo está oculto solo se muestran los días.
+                      title: t.is_visible ? t.name : "Árbitros disponibles",
+                      subtitle: t.is_visible ? "Árbitros con disponibilidad" : undefined,
                       sections: t.days.filter((d) => !d.past).map((d) => ({
                         heading: `${formatDate(d.date)} · ${d.slot_label}`,
-                        sub: d.effective_location.split(",")[0],
-                        names: d.candidates.filter((c) => !c.is_chief).map((c) => c.name),
+                        sub: t.is_visible ? d.effective_location.split(",")[0] : undefined,
+                        required: d.required,
+                        // En orden de registro de la disponibilidad: el 1 es quien la marcó primero.
+                        names: d.candidates
+                          .filter((c) => !c.is_chief && c.available_at)
+                          .sort((a, b) => a.available_at!.localeCompare(b.available_at!))
+                          .map((c) => c.name),
                       })),
                     })}
                   />
