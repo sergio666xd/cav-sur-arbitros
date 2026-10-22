@@ -24,7 +24,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
   // Incluye asignados que ya no figuran como candidatos (p. ej. si quitaron su disponibilidad).
   const people = [...day.candidates];
   for (const a of day.assignments) {
-    if (!people.some((c) => c.user_id === a.user_id)) people.push({ user_id: a.user_id, name: a.name, is_chief: a.is_chief, assigned_elsewhere: null });
+    if (!people.some((c) => c.user_id === a.user_id)) people.push({ user_id: a.user_id, name: a.name, is_chief: a.is_chief, assigned_elsewhere: null, available_at: null });
   }
   const count = Object.keys(selected).length;
   const usedRoles = new Set(Object.values(selected).filter(Boolean));
