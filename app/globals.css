@@ -18,6 +18,17 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+/* En monitores grandes todo (texto, espacios y ancho máximo) crece con el tamaño base. */
+@media (min-width: 1536px) {
+  html { font-size: 112.5%; }
+}
+@media (min-width: 1800px) {
+  html { font-size: 125%; }
+}
+@media (min-width: 2400px) {
+  html { font-size: 150%; }
+}
+
 body {
   @apply bg-stone-50 text-ink antialiased;
 }
