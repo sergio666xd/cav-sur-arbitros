@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import Place from "@/components/Place";
+import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { api, formatDate } from "@/lib/api";
@@ -308,12 +309,30 @@ export default function TournamentDetailPage() {
           <PageHeader
             title={t.name}
             subtitle={t.venues.length > 1 ? `📍 ${t.venues.length} sedes: ${t.venues.map((v) => v.split(",")[0]).join(" · ")}` : `📍 ${t.location}`}
-            action={user?.perm_create_tournaments && (
-              <div className="flex gap-2">
-                <Link href={`/admin/torneos/${t.id}/editar`} className="btn-secondary">Editar / añadir fechas</Link>
-                <button className="btn-danger" onClick={remove}>Eliminar</button>
+            action={
+              <div className="flex flex-wrap gap-2">
+                {t.days.some((d) => !d.past) && (
+                  <AvailabilityImageButton
+                    fileName={`disponibilidad-torneo-${t.id}`}
+                    spec={() => ({
+                      title: t.name,
+                      subtitle: "Árbitros con disponibilidad",
+                      sections: t.days.filter((d) => !d.past).map((d) => ({
+                        heading: `${formatDate(d.date)} · ${d.slot_label}`,
+                        sub: d.effective_location.split(",")[0],
+                        names: d.candidates.filter((c) => !c.is_chief).map((c) => c.name),
+                      })),
+                    })}
+                  />
+                )}
+                {user?.perm_create_tournaments && (
+                  <>
+                    <Link href={`/admin/torneos/${t.id}/editar`} className="btn-secondary">Editar / añadir fechas</Link>
+                    <button className="btn-danger" onClick={remove}>Eliminar</button>
+                  </>
+                )}
               </div>
-            )}
+            }
           />
           <div className="mb-6 flex flex-wrap gap-2">
             {t.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
@@ -205,9 +206,23 @@ export default function AssignmentBoardPage() {
         title="Asignación"
         subtitle="Asigna árbitros a todos los torneos de una fecha, franja por franja."
         action={data && data.groups.length > 0 && (
-          <button className="btn-primary" disabled={busy || !dirty} onClick={save}>
-            {busy ? "Guardando..." : dirty ? "Guardar cambios" : "Sin cambios"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <AvailabilityImageButton
+              fileName={`disponibilidad-${data.date}`}
+              spec={() => ({
+                title: "Árbitros disponibles",
+                subtitle: formatDate(data.date),
+                sections: data.groups.flatMap((g) => g.columns.map((c) => ({
+                  heading: c.tournament,
+                  sub: [c.slot_label, c.effective_location.split(",")[0]].filter(Boolean).join(" · "),
+                  names: g.rows.filter((r) => !r.is_chief && r.available_day_ids.includes(c.id)).map((r) => r.name),
+                }))),
+              })}
+            />
+            <button className="btn-primary" disabled={busy || !dirty} onClick={save}>
+              {busy ? "Guardando..." : dirty ? "Guardar cambios" : "Sin cambios"}
+            </button>
+          </div>
         )}
       />
       {(loading && !data) || (data && !ready) ? (
