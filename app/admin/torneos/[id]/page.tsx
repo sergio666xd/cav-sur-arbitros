@@ -267,7 +267,7 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
           <span className="text-stone-500">{d.available_count} disponibles</span>
         </div>
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         <AssignmentEditor day={d} t={t} onSaved={onSaved} />
         <MatchEditor day={d} t={t} onSaved={onSaved} />
       </div>
