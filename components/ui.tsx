@@ -2,6 +2,7 @@
 
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export function Alert({ kind = "error", children }: { kind?: "error" | "success" | "info"; children: React.ReactNode }) {
   const { styles, Icon } = {
@@ -123,9 +124,16 @@ export function Badge({ color = "stone", children }: { color?: "brand" | "green"
   return <span className={`badge ${styles}`}>{children}</span>;
 }
 
+// Lleva su contenido al final de <body>, fuera de los contextos de apilamiento de la página
+// (las animaciones crean uno), para que un modal quede siempre por encima de todo.
+export function Portal({ children }: { children: React.ReactNode }) {
+  return typeof document === "undefined" ? null : createPortal(children, document.body);
+}
+
 export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
   if (!open) return null;
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/40 p-4 backdrop-blur-[2px] sm:items-center" onClick={onClose}>
       <div className="max-h-[85vh] w-full max-w-lg animate-scale-in overflow-y-auto rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
@@ -135,6 +143,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
         {children}
       </div>
     </div>
+    </Portal>
   );
 }
 

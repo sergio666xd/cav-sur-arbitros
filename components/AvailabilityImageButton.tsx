@@ -3,7 +3,7 @@
 import { ArrowDownTrayIcon, PhotoIcon, ShareIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useState } from "react";
 import { renderAvailabilityImage, type ImageSpec } from "@/lib/availabilityImage";
-import { Spinner } from "./ui";
+import { Portal, Spinner } from "./ui";
 
 // Botón que genera la imagen de disponibilidad y la muestra para descargar o compartir.
 export default function AvailabilityImageButton({ spec, fileName, label = "Imagen de disponibilidad", className = "btn-secondary" }: {
@@ -49,6 +49,7 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
       </button>
       {error && <span className="text-sm text-red-700">{error}</span>}
       {url && file && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]" onClick={close}>
           <div className="flex max-h-full w-full max-w-lg animate-scale-in flex-col rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
@@ -71,6 +72,7 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );
