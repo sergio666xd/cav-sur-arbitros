@@ -3,6 +3,7 @@
 import { MapPinIcon, PlusIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
+import { shortAddress } from "@/lib/maps";
 import DateInput from "./DateInput";
 import PlaceInput from "./PlaceInput";
 import { Alert, Spinner } from "./ui";
@@ -311,11 +312,11 @@ export default function TournamentForm({
                     <select className="input py-1.5" value={venues.includes(d.location) ? d.location : ""}
                       onChange={(e) => setDay(i, { location: e.target.value })} required>
                       <option value="" disabled>Elige la sede...</option>
-                      {venues.map((x) => <option key={x} value={x}>{x}</option>)}
+                      {venues.map((x) => <option key={x} value={x} title={x}>{shortAddress(x)}</option>)}
                     </select>
                   </div>
                 ) : venues[0] ? (
-                  <span className="inline-flex items-center gap-1 text-sm text-stone-500"><MapPinIcon className="h-4 w-4 text-brand-500" />{venues[0]}</span>
+                  <span className="inline-flex items-center gap-1 text-sm text-stone-500"><MapPinIcon className="h-4 w-4 text-brand-500" />{shortAddress(venues[0])}</span>
                 ) : null}
                 <label className="flex items-center gap-2 text-sm text-stone-600">
                   <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.custom}
