@@ -25,6 +25,7 @@ export type TournamentFormValue = {
   categories: string[];
   referees_required: number;
   is_visible: boolean;
+  show_required: boolean;
   has_roles: boolean;
   roles: string[];
   notes: string;
@@ -50,6 +51,7 @@ export const emptyTournament: TournamentFormValue = {
   categories: [],
   referees_required: 4,
   is_visible: true,
+  show_required: true,
   has_roles: false,
   roles: DEFAULT_ROLES,
   notes: "",
@@ -249,6 +251,10 @@ export default function TournamentForm({
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.is_visible} onChange={(e) => setV({ ...v, is_visible: e.target.checked })} />
           <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán el nombre del torneo, la fecha y la franja.</span></span>
+        </label>
+        <label className="flex items-start gap-3 text-sm">
+          <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.show_required} onChange={(e) => setV({ ...v, show_required: e.target.checked })} />
+          <span><b>Árbitros requeridos visibles</b><br /><span className="text-stone-500">Si no, en Disponibilidad los árbitros solo verán cuántos se han inscrito en cada franja.</span></span>
         </label>
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.has_roles} onChange={(e) => setV({ ...v, has_roles: e.target.checked })} />

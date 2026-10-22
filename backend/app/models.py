@@ -79,6 +79,8 @@ class Tournament(Base):
     categories: Mapped[list] = mapped_column(JSON, default=list)
     referees_required: Mapped[int] = mapped_column(Integer, default=1)
     is_visible: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Si los árbitros ven cuántos se requieren por franja. Vacío (torneos antiguos) equivale a sí.
+    show_required: Mapped[bool | None] = mapped_column(Boolean, default=True, nullable=True)
     has_roles: Mapped[bool] = mapped_column(Boolean, default=False)
     roles: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[str] = mapped_column(Text, default="")

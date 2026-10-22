@@ -16,6 +16,7 @@ function toForm(t: TournamentDetail): TournamentFormValue {
     categories: t.categories,
     referees_required: t.referees_required,
     is_visible: t.is_visible,
+    show_required: t.show_required,
     has_roles: t.has_roles,
     roles: t.roles.length ? t.roles : DEFAULT_ROLES,
     notes: t.notes,

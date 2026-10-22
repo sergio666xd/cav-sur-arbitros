@@ -545,3 +545,15 @@ def test_editing_slot_keeps_availability(client):
     assert [(s["date"], s["mine"]) for s in slots] == [(later, True)]
     day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
     assert [a["user_id"] for a in day["assignments"]] == [hugo]
+
+
+def test_required_can_be_hidden(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=4)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 3,
+        "show_required": False, "days": [{"date": d, "start_time": "09:00"}]}).json()["id"]
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["show_required"] is False
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "90000001", "Iris")
+    slot = client.get("/api/availability", headers=ref).json()[0]
+    assert (slot["required"], slot["registered"]) == (None, 0)

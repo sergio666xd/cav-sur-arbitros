@@ -129,6 +129,7 @@ def _apply_fields(t: Tournament, data: TournamentIn) -> None:
     t.categories = data.categories
     t.referees_required = data.referees_required
     t.is_visible = data.is_visible
+    t.show_required = data.show_required
     t.has_roles = data.has_roles
     t.roles = data.roles
     t.notes = data.notes.strip()
