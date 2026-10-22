@@ -91,11 +91,12 @@ export default function Shell({
           <nav className="border-t border-white/20 px-4 pb-3 lg:hidden">
             <div className="py-2 text-xs text-white/60">{user.first_name} {user.last_name} · {roleLabel(user)}</div>
             {items.map((n) => (
-              <Link key={n.href} href={n.href} className="block rounded-md px-3 py-2 text-sm hover:bg-white/10">
+              <Link key={n.href} href={n.href}
+                className={`block rounded-md px-3 py-2 text-sm ${pathname.startsWith(n.href) ? "bg-brand-500 font-semibold text-white" : "hover:bg-white/10"}`}>
                 {n.label}
               </Link>
             ))}
-            <Link href="/perfil" className="block rounded-md px-3 py-2 text-sm hover:bg-white/10">Mi perfil</Link>
+            <Link href="/perfil" className={`block rounded-md px-3 py-2 text-sm ${pathname.startsWith("/perfil") ? "bg-brand-500 font-semibold text-white" : "hover:bg-white/10"}`}>Mi perfil</Link>
             <button onClick={logout} className="mt-1 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-white/10">Salir</button>
           </nav>
         )}
