@@ -121,6 +121,17 @@ export function formatShortDate(iso: string): string {
   return `${weekday(d, "short")} ${dmy(d)}`;
 }
 
+// "HH:MM" en formato de 12 horas: "7:00 a. m.".
+export function formatClock(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "a. m." : "p. m."}`;
+}
+
+// "las 7:00 a. m." o "la 1:00 p. m.".
+export function atClock(hhmm: string): string {
+  return `${Number(hhmm.split(":")[0]) % 12 === 1 ? "la" : "las"} ${formatClock(hhmm)}`;
+}
+
 export function formatTime(d: Date): string {
   return d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" });
 }

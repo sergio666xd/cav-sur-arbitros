@@ -332,8 +332,8 @@ export default function TournamentDetailPage() {
                     fileName={`disponibilidad-torneo-${t.id}`}
                     spec={() => ({
                       // Es para compartir: si el torneo está oculto solo se muestran los días.
-                      title: t.is_visible ? t.name : "Árbitros disponibles",
-                      subtitle: t.is_visible ? "Árbitros con disponibilidad" : undefined,
+                      title: t.name,
+                      subtitle: "Árbitros con disponibilidad",
                       columns: t.days.filter((d) => !d.past).map((d) => ({
                         top: formatShortDate(d.date),
                         label: d.slot_label,

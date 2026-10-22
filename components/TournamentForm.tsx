@@ -3,6 +3,7 @@
 import { MapPinIcon, PlusIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
+import { shortAddress } from "@/lib/maps";
 import DateInput from "./DateInput";
 import PlaceInput from "./PlaceInput";
 import { Alert, Spinner } from "./ui";
@@ -247,7 +248,7 @@ export default function TournamentForm({
         </div>
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.is_visible} onChange={(e) => setV({ ...v, is_visible: e.target.checked })} />
-          <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán la fecha y la franja.</span></span>
+          <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán el nombre del torneo, la fecha y la franja.</span></span>
         </label>
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.has_roles} onChange={(e) => setV({ ...v, has_roles: e.target.checked })} />
@@ -311,11 +312,11 @@ export default function TournamentForm({
                     <select className="input py-1.5" value={venues.includes(d.location) ? d.location : ""}
                       onChange={(e) => setDay(i, { location: e.target.value })} required>
                       <option value="" disabled>Elige la sede...</option>
-                      {venues.map((x) => <option key={x} value={x}>{x}</option>)}
+                      {venues.map((x) => <option key={x} value={x} title={x}>{shortAddress(x)}</option>)}
                     </select>
                   </div>
                 ) : venues[0] ? (
-                  <span className="inline-flex items-center gap-1 text-sm text-stone-500"><MapPinIcon className="h-4 w-4 text-brand-500" />{venues[0]}</span>
+                  <span className="inline-flex items-center gap-1 text-sm text-stone-500"><MapPinIcon className="h-4 w-4 text-brand-500" />{shortAddress(venues[0])}</span>
                 ) : null}
                 <label className="flex items-center gap-2 text-sm text-stone-600">
                   <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.custom}
