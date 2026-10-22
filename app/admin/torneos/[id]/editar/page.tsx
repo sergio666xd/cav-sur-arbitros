@@ -19,13 +19,17 @@ function toForm(t: TournamentDetail): TournamentFormValue {
     has_roles: t.has_roles,
     roles: t.roles.length ? t.roles : DEFAULT_ROLES,
     notes: t.notes,
-    days: t.days.map((d) => ({
+    // Las fechas pasadas no se editan aquí; el backend las conserva.
+    days: t.days.filter((d) => !d.past).map((d) => ({
       id: d.id,
       date: d.date,
       all_day: d.all_day,
       start_time: d.start_time ?? "08:00",
       end_time: d.end_time ?? "18:00",
       referees_required: d.referees_required ? String(d.referees_required) : "",
+      custom: !!(d.location || d.categories?.length),
+      location: d.location ?? "",
+      categories: d.categories ?? [],
     })),
   };
 }
@@ -37,7 +41,7 @@ export default function EditTournamentPage() {
   return (
     <Shell allow={(u) => u.perm_create_tournaments}>
       <Link href={`/admin/torneos/${id}`} className="mb-4 inline-block text-sm text-brand-700 hover:underline">← Volver al torneo</Link>
-      <PageHeader title="Editar torneo" subtitle="Si cambias la fecha de un día, se borran sus disponibilidades y asignaciones." />
+      <PageHeader title="Editar torneo y fechas" subtitle="Añade nuevas fechas para reutilizar el torneo. Si cambias la fecha de una franja, se borran sus disponibilidades y asignaciones." />
       {loading ? (
         <Loading />
       ) : error ? (
@@ -45,6 +49,7 @@ export default function EditTournamentPage() {
       ) : data ? (
         <TournamentForm
           initial={toForm(data)}
+          pastCount={data.days.filter((d) => d.past).length}
           submitLabel="Guardar cambios"
           onSubmit={async (body) => {
             await api(`/tournaments/${id}`, { method: "PUT", body });

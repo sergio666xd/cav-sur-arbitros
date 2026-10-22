@@ -205,3 +205,81 @@ def test_initial_chief_from_env(client, monkeypatch):
     r = client.post("/api/auth/login", json={"document": "99999999", "pin": "4321"})
     assert r.status_code == 200
     assert r.json()["user"]["is_chief"] is True
+
+
+def test_per_slot_fields_catalog_and_past_days(client):
+    chief = login(client, "10000000", "1111")
+    past = (today_local() - timedelta(days=3)).isoformat()
+    soon = (today_local() + timedelta(days=4)).isoformat()
+
+    # Sin lugar global, cada franja necesita el suyo.
+    bad = {"name": "Liga", "location": "", "referees_required": 2,
+           "days": [{"date": soon, "start_time": "08:00", "end_time": "10:00"}]}
+    assert client.post("/api/tournaments", headers=chief, json=bad).status_code == 422
+
+    r = client.post("/api/tournaments", headers=chief, json={
+        "name": "Liga", "location": "Coliseo Sur", "categories": ["Mayores"], "referees_required": 2,
+        "days": [
+            {"date": past, "all_day": True},
+            {"date": soon, "start_time": "08:00", "end_time": "10:00"},
+            {"date": soon, "start_time": "14:00", "end_time": "16:00", "location": "Colegio Norte", "categories": ["Sub-13"]},
+        ]})
+    assert r.status_code == 201, r.text
+    tid = r.json()["id"]
+
+    # Franjas superpuestas del mismo torneo el mismo día no se permiten.
+    overlap = {"name": "X", "location": "Y", "referees_required": 1, "days": [
+        {"date": soon, "start_time": "08:00", "end_time": "10:00"}, {"date": soon, "start_time": "09:00", "end_time": "11:00"}]}
+    assert client.post("/api/tournaments", headers=chief, json=overlap).status_code == 422
+
+    # Catálogo para autocompletar.
+    assert [v["name"] for v in client.get("/api/catalog/location", headers=chief).json()] == ["Colegio Norte", "Coliseo Sur"]
+    assert [v["name"] for v in client.get("/api/catalog/category", headers=chief).json()] == ["Mayores", "Sub-13"]
+
+    # El torneo sigue en la lista con sus próximas franjas y cuenta las pasadas.
+    t = next(x for x in client.get("/api/tournaments", headers=chief).json() if x["id"] == tid)
+    assert len(t["days"]) == 2 and t["past_count"] == 1
+    afternoon = t["days"][1]
+    assert afternoon["effective_location"] == "Colegio Norte" and afternoon["effective_categories"] == ["Sub-13"]
+    assert t["days"][0]["effective_location"] == "Coliseo Sur"
+
+    # Fechas anteriores.
+    past_days = client.get(f"/api/tournament-days/past?tournament_id={tid}", headers=chief).json()
+    assert [d["date"] for d in past_days] == [past]
+
+    # Editar enviando solo las próximas franjas (y una nueva) conserva la pasada.
+    days = [{"id": d["id"], "date": d["date"], "start_time": d["start_time"], "end_time": d["end_time"],
+             "location": d["location"], "categories": d["categories"]} for d in t["days"]]
+    days.append({"date": (today_local() + timedelta(days=10)).isoformat(), "all_day": True})
+    r = client.put(f"/api/tournaments/{tid}", headers=chief, json={
+        "name": "Liga", "location": "Coliseo Sur", "categories": ["Mayores"], "referees_required": 2, "days": days})
+    assert r.status_code == 200, r.text
+    detail = client.get(f"/api/tournaments/{tid}", headers=chief).json()
+    assert len(detail["days"]) == 4
+    assert sum(d["past"] for d in detail["days"]) == 1
+
+    # El árbitro ve el lugar de cada franja.
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "60000001", "Fer")
+    slots = [s for s in client.get("/api/availability", headers=ref).json() if s["date"] == soon]
+    assert [s["tournament"]["location"] for s in slots] == ["Coliseo Sur", "Colegio Norte"]
+
+
+def test_migration_adds_new_columns():
+    from sqlalchemy import create_engine, inspect, text
+
+    import app.migrate as m
+
+    import tempfile, os
+    path = os.path.join(tempfile.mkdtemp(), "old.db")
+    old = create_engine(f"sqlite:///{path}")
+    with old.begin() as c:
+        c.execute(text("CREATE TABLE tournament_days (id INTEGER PRIMARY KEY, tournament_id INTEGER, date DATE)"))
+    original = m.engine
+    m.engine = old
+    try:
+        m.migrate()
+    finally:
+        m.engine = original
+    cols = {c["name"] for c in inspect(old).get_columns("tournament_days")}
+    assert {"location", "categories", "all_day"} <= cols

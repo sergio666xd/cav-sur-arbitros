@@ -53,11 +53,13 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
     result = []
     for d, days in by_date.items():
         # Solo se muestran los detalles si ese día hay un único torneo y es visible.
-        tournament = None
-        if len(days) == 1 and days[0].tournament.is_visible:
-            t = days[0].tournament
-            tournament = {"name": t.name, "location": t.location, "categories": t.categories or []}
+        single = len({x.tournament_id for x in days}) == 1 and days[0].tournament.is_visible
         for g in group_days(days):
+            tournament = None
+            if single:
+                locations = list(dict.fromkeys(x.effective_location for x in g.days))
+                categories = list(dict.fromkeys(c for x in g.days for c in x.effective_categories))
+                tournament = {"name": days[0].tournament.name, "location": " / ".join(locations), "categories": categories}
             registered = set().union(*(users_by_day[x.id] for x in g.days))
             result.append({
                 "key": g.key,

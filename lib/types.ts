@@ -16,6 +16,11 @@ export type DayDetail = {
   slot_label: string;
   referees_required: number | null;
   required: number;
+  location: string | null;
+  categories: string[] | null;
+  effective_location: string;
+  effective_categories: string[];
+  past: boolean;
   open: boolean;
   available_count: number;
   assigned_count?: number;

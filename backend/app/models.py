@@ -74,7 +74,7 @@ class Tournament(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(150))
-    location: Mapped[str] = mapped_column(String(200))
+    location: Mapped[str] = mapped_column(String(200), default="")
     categories: Mapped[list] = mapped_column(JSON, default=list)
     referees_required: Mapped[int] = mapped_column(Integer, default=1)
     is_visible: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -99,6 +99,9 @@ class TournamentDay(Base):
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     referees_required: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Lugar y categorías propios de la franja; si están vacíos se usan los del torneo.
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    categories: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     tournament: Mapped[Tournament] = relationship(back_populates="days")
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="day", cascade="all, delete-orphan")
@@ -108,6 +111,26 @@ class TournamentDay(Base):
     @property
     def required(self) -> int:
         return self.referees_required if self.referees_required is not None else self.tournament.referees_required
+
+    @property
+    def effective_location(self) -> str:
+        return self.location or self.tournament.location
+
+    @property
+    def effective_categories(self) -> list:
+        return self.categories if self.categories else (self.tournament.categories or [])
+
+
+class SavedValue(Base):
+    """Lugares y categorías guardados para autocompletar en torneos y franjas."""
+    __tablename__ = "saved_values"
+    __table_args__ = (UniqueConstraint("kind", "key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)  # "location" o "category"
+    name: Mapped[str] = mapped_column(String(200))
+    key: Mapped[str] = mapped_column(String(200))  # nombre normalizado, sin tildes ni mayúsculas
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class Availability(Base):

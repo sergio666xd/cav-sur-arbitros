@@ -8,8 +8,9 @@ from ..database import get_db
 from ..deps import require_admin, require_creator
 from ..models import Assignment, Availability, MatchRecord, Tournament, TournamentDay, User
 from ..schemas import AssignmentIn, MatchIn, TournamentIn
-from ..serializers import day_info, name_key, tournament_info
+from ..serializers import day_info, fold, name_key, tournament_info
 from ..timeutil import is_open_for_availability, today_local
+from .catalog import remember
 
 router = APIRouter(tags=["tournaments"])
 
@@ -29,35 +30,70 @@ def _get_day(db: Session, day_id: int) -> TournamentDay:
 
 
 @router.get("/tournaments")
-def list_tournaments(scope: str = "upcoming", _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """scope=upcoming: torneos con algún día de hoy en adelante; scope=past: el resto; scope=all: todos."""
+def list_tournaments(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Todos los torneos (nunca se archivan) con sus próximas franjas; las pasadas solo se cuentan."""
     tournaments = db.scalars(select(Tournament).options(selectinload(Tournament.days))).all()
     today = today_local()
     avail_counts = dict(db.execute(select(Availability.day_id, func.count()).group_by(Availability.day_id)).all())
-    assigned_counts = dict(
-        db.execute(select(Assignment.day_id, func.count()).group_by(Assignment.day_id)).all()
-    )
+    assigned_counts = dict(db.execute(select(Assignment.day_id, func.count()).group_by(Assignment.day_id)).all())
 
     result = []
     for t in tournaments:
-        last = max((d.date for d in t.days), default=None)
-        upcoming = last is not None and last >= today
-        if (scope == "upcoming" and not upcoming) or (scope == "past" and upcoming):
-            continue
-        days = []
+        upcoming = []
         for d in t.days:
+            if d.date < today:
+                continue
             info = day_info(d)
             info["available_count"] = avail_counts.get(d.id, 0)
             info["assigned_count"] = assigned_counts.get(d.id, 0)
             info["open"] = is_open_for_availability(d.date)
-            days.append(info)
-        result.append({**tournament_info(t), "days": days})
-    result.sort(key=lambda x: x["days"][0]["date"] if x["days"] else "", reverse=(scope == "past"))
+            upcoming.append(info)
+        past = [d.date for d in t.days if d.date < today]
+        result.append({
+            **tournament_info(t),
+            "days": upcoming,
+            "past_count": len(past),
+            "last_past_date": max(past).isoformat() if past else None,
+        })
+    # Primero los que tienen fechas próximas (la más cercana arriba), luego el resto por nombre.
+    result.sort(key=lambda x: (0, x["days"][0]["date"], "") if x["days"] else (1, "", fold(x["name"])))
     return result
 
 
+@router.get("/tournament-days/past")
+def past_days(
+    tournament_id: int | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    """Franjas cuya fecha ya pasó (desde el día siguiente), de la más reciente a la más antigua."""
+    q = (
+        select(TournamentDay)
+        .where(TournamentDay.date < today_local())
+        .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments),
+                 selectinload(TournamentDay.match_records))
+        .order_by(TournamentDay.date.desc(), TournamentDay.start_time)
+    )
+    if tournament_id:
+        q = q.where(TournamentDay.tournament_id == tournament_id)
+    out = []
+    for d in db.scalars(q).all():
+        refs = [a for a in d.assignments if not a.user.is_chief]
+        out.append({
+            **day_info(d),
+            "tournament_id": d.tournament_id,
+            "tournament": d.tournament.name,
+            "assigned_count": len(d.assignments),
+            "records_count": len(d.match_records),
+            "records_pending": len(refs) - len(d.match_records),
+            "refereed": sum(r.refereed for r in d.match_records),
+            "scored": sum(r.scored for r in d.match_records),
+        })
+    return out
+
+
 def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
+    """Crea, actualiza o borra franjas. Las franjas ya pasadas que no vienen en el formulario se conservan."""
     existing = {d.id: d for d in t.days}
+    today = today_local()
     keep_ids = set()
     for day_in in data.days:
         if day_in.id is not None:
@@ -78,9 +114,13 @@ def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
         day.start_time = day_in.start_time
         day.end_time = day_in.end_time
         day.referees_required = day_in.referees_required
+        day.location = day_in.location
+        day.categories = day_in.categories
     for day_id, day in existing.items():
-        if day_id not in keep_ids:
+        if day_id not in keep_ids and day.date >= today:
             t.days.remove(day)
+    remember(db, "location", [t.location, *(d.location for d in data.days)])
+    remember(db, "category", [*t.categories, *(c for d in data.days for c in (d.categories or []))])
 
 
 def _apply_fields(t: Tournament, data: TournamentIn) -> None:
@@ -96,10 +136,12 @@ def _apply_fields(t: Tournament, data: TournamentIn) -> None:
 
 @router.post("/tournaments", status_code=201)
 def create_tournament(data: TournamentIn, user: User = Depends(require_creator), db: Session = Depends(get_db)):
+    if not data.days:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Añade al menos una franja.")
     t = Tournament(created_by_id=user.id, days=[])
+    db.add(t)
     _apply_fields(t, data)
     _apply_days(db, t, data)
-    db.add(t)
     db.commit()
     return {"id": t.id}
 

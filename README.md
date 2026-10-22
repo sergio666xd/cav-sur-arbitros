@@ -18,6 +18,8 @@ Todo vive en un solo proyecto de Vercel:
 
 ## Reglas principales
 
+- **Torneos reutilizables.** Un torneo nunca se archiva: se le pueden añadir fechas nuevas en cualquier momento. Desde el día siguiente, cada fecha pasa a "Fechas anteriores" (filtrable y agrupable por torneo) y conserva sus asignaciones y partidos.
+- **Lugar y categorías.** Se definen para todo el torneo y cada franja puede tener los suyos. Los lugares y categorías usados se guardan para autocompletar.
 - **Franjas.** En una misma fecha, las franjas de torneos que se superponen se combinan en un solo bloque; las que no se tocan se muestran por separado y el árbitro marca cada una. "Todo el día" cubre todas las franjas de esa fecha.
 - **Información reservada.** Si el torneo no es visible, o ese día hay más de un torneo, el árbitro solo ve fecha, franja e inscritos/requeridos.
 - **Cierre automático.** Desde las 00:00 (hora de Colombia) del día del torneo no se puede marcar ni quitar disponibilidad para ese día.
@@ -46,5 +48,5 @@ Sin `DATABASE_URL`, el backend usa un archivo SQLite local (`backend/arbitros.db
 ## Despliegue (Supabase + Vercel, un solo proyecto)
 
 1. **Supabase:** crea un proyecto y copia la cadena de conexión del *Transaction pooler* (puerto 6543) en Project Settings → Database.
-2. **Vercel:** importa este repositorio como un proyecto (framework Next.js, carpeta raíz). En Environment Variables añade `DATABASE_URL` y `SECRET_KEY` (ver `.env.example`). Vercel construye Next.js y crea la función de Python de `api/index.py` con `requirements.txt`. Las tablas se crean solas en el primer arranque.
+2. **Vercel:** importa este repositorio como un proyecto (framework Next.js, carpeta raíz). En Environment Variables añade `DATABASE_URL` y `SECRET_KEY` (ver `.env.example`). Vercel construye Next.js y crea la función de Python de `api/index.py` con `requirements.txt`. Las tablas (y las columnas nuevas de versiones posteriores) se crean solas al arrancar.
 3. **Primer Jefe:** añade también en Vercel `INITIAL_CHIEF_DOCUMENT`, `INITIAL_CHIEF_PIN` (4 dígitos), `INITIAL_CHIEF_FIRST_NAME`, `INITIAL_CHIEF_LAST_NAME` e `INITIAL_CHIEF_BIRTH_DATE` (AAAA-MM-DD). Al arrancar, la app crea ese Jefe si todavía no existe ninguno; después puedes borrar esas variables. Alternativa: desde tu computador, con `DATABASE_URL` y `SECRET_KEY` exportadas, ejecuta en `backend/` `python -m app.seed_chief --documento ... --nombre ... --apellido ... --nacimiento AAAA-MM-DD --pin ....`

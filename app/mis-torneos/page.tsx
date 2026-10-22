@@ -10,6 +10,8 @@ type Day = {
   id: number;
   date: string;
   slot_label: string;
+  effective_location: string;
+  effective_categories: string[];
   role: string | null;
   crew: { name: string; role: string | null; me: boolean }[];
   refereed: number | null;
@@ -54,7 +56,7 @@ export default function MyTournamentsPage() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-semibold">{t.name}</h2>
-                  <div className="text-sm text-stone-600">📍 {t.location}</div>
+                  {t.location && <div className="text-sm text-stone-600">📍 {t.location}</div>}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {t.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
@@ -67,6 +69,10 @@ export default function MyTournamentsPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="font-medium">{formatDate(d.date)} · {d.slot_label}</div>
                       {d.role && <Badge color="brand">{d.role}</Badge>}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-stone-600">
+                      <span>📍 {d.effective_location}</span>
+                      {d.effective_categories.map((c) => <Badge key={c} color="stone">{c}</Badge>)}
                     </div>
                     <div className="mt-2 text-sm text-stone-600">
                       <span className="text-stone-500">Equipo arbitral: </span>

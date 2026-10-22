@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Shell from "@/components/Shell";
-import { Alert, Badge, Loading, PageHeader } from "@/components/ui";
+import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { api, formatDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
@@ -140,11 +140,52 @@ function MatchEditor({ day, onSaved }: { day: DayDetail; onSaved: () => void }) 
   );
 }
 
+function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSaved: () => void }) {
+  const ownPlace = d.location || (d.categories && d.categories.length > 0);
+  return (
+    <section id={`dia-${d.id}`} className="card scroll-mt-24">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2 border-b border-stone-100 pb-3">
+        <div>
+          <h2 className="text-lg font-semibold">{formatDate(d.date)}</h2>
+          {ownPlace && (
+            <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-stone-600">
+              <span>📍 {d.effective_location}</span>
+              {d.effective_categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Badge color="brand">{d.slot_label}</Badge>
+          {d.past ? (
+            <Badge color="stone">Fecha pasada</Badge>
+          ) : (
+            <Badge color={d.open ? "green" : "stone"}>{d.open ? "Disponibilidad abierta" : "Disponibilidad cerrada"}</Badge>
+          )}
+          <span className="text-stone-500">{d.available_count} disponibles</span>
+        </div>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <AssignmentEditor day={d} t={t} onSaved={onSaved} />
+        <MatchEditor day={d} onSaved={onSaved} />
+      </div>
+    </section>
+  );
+}
+
 export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const { data: t, loading, error, reload } = useFetch<TournamentDetail>(`/tournaments/${id}`);
+  const [showPast, setShowPast] = useState(false);
+
+  // Si se llega desde "Fechas anteriores" (#dia-N), abrir esa sección y desplazarse hasta la franja.
+  useEffect(() => {
+    if (!t || typeof window === "undefined" || !window.location.hash.startsWith("#dia-")) return;
+    const dayId = Number(window.location.hash.slice(5));
+    if (t.days.some((d) => d.id === dayId && d.past)) setShowPast(true);
+    setTimeout(() => document.getElementById(`dia-${dayId}`)?.scrollIntoView({ behavior: "smooth" }), 50);
+  }, [t]);
 
   async function remove() {
     if (!confirm("¿Eliminar este torneo? Se borrarán sus asignaciones, disponibilidades y partidos registrados.")) return;
@@ -163,10 +204,10 @@ export default function TournamentDetailPage() {
         <>
           <PageHeader
             title={t.name}
-            subtitle={`📍 ${t.location}`}
+            subtitle={t.location ? `📍 ${t.location}` : "Lugar definido en cada franja"}
             action={user?.perm_create_tournaments && (
               <div className="flex gap-2">
-                <Link href={`/admin/torneos/${t.id}/editar`} className="btn-secondary">Editar</Link>
+                <Link href={`/admin/torneos/${t.id}/editar`} className="btn-secondary">Editar / añadir fechas</Link>
                 <button className="btn-danger" onClick={remove}>Eliminar</button>
               </div>
             )}
@@ -177,24 +218,34 @@ export default function TournamentDetailPage() {
             {t.has_roles && <Badge color="blue">Roles: {t.roles.join(", ")}</Badge>}
           </div>
           {t.notes && <p className="card mb-6 whitespace-pre-line text-sm text-stone-600">{t.notes}</p>}
-          <div className="space-y-6">
-            {t.days.map((d) => (
-              <section key={d.id} className="card">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-3">
-                  <h2 className="text-lg font-semibold">{formatDate(d.date)}</h2>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Badge color="brand">{d.slot_label}</Badge>
-                    <Badge color={d.open ? "green" : "stone"}>{d.open ? "Disponibilidad abierta" : "Disponibilidad cerrada"}</Badge>
-                    <span className="text-stone-500">{d.available_count} disponibles</span>
+          {(() => {
+            const upcoming = t.days.filter((d) => !d.past);
+            const past = t.days.filter((d) => d.past).reverse();
+            return (
+              <>
+                {upcoming.length === 0 ? (
+                  <Empty>
+                    Este torneo no tiene fechas próximas.
+                    {user?.perm_create_tournaments && (
+                      <> <Link href={`/admin/torneos/${t.id}/editar`} className="font-semibold text-brand-700 hover:underline">Añadir fechas</Link></>
+                    )}
+                  </Empty>
+                ) : (
+                  <div className="space-y-6">
+                    {upcoming.map((d) => <DaySection key={d.id} d={d} t={t} onSaved={reload} />)}
                   </div>
-                </div>
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <AssignmentEditor day={d} t={t} onSaved={reload} />
-                  <MatchEditor day={d} onSaved={reload} />
-                </div>
-              </section>
-            ))}
-          </div>
+                )}
+                {past.length > 0 && (
+                  <details className="mt-8" open={showPast} onToggle={(e) => setShowPast((e.target as HTMLDetailsElement).open)}>
+                    <summary className="cursor-pointer text-lg font-semibold">Fechas anteriores ({past.length})</summary>
+                    <div className="mt-4 space-y-6">
+                      {past.map((d) => <DaySection key={d.id} d={d} t={t} onSaved={reload} />)}
+                    </div>
+                  </details>
+                )}
+              </>
+            );
+          })()}
         </>
       ) : null}
     </Shell>

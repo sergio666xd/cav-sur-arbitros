@@ -126,9 +126,13 @@ class DayIn(BaseModel):
     start_time: time | None = None
     end_time: time | None = None
     referees_required: int | None = Field(default=None, ge=1, le=200)
+    location: str | None = Field(default=None, max_length=200)
+    categories: list[str] | None = None
 
     @model_validator(mode="after")
     def _times(self):
+        self.location = (self.location or "").strip() or None
+        self.categories = _clean(self.categories or []) or None
         if self.all_day:
             self.start_time = self.end_time = None
         else:
@@ -139,32 +143,49 @@ class DayIn(BaseModel):
         return self
 
 
+def _clean(items: list[str]) -> list[str]:
+    seen: list[str] = []
+    for item in items:
+        item = item.strip()
+        if item and item not in seen:
+            seen.append(item)
+    return seen
+
+
 class TournamentIn(BaseModel):
     name: str = Field(min_length=1, max_length=150)
-    location: str = Field(min_length=1, max_length=200)
+    location: str = Field(default="", max_length=200)
     categories: list[str] = Field(default_factory=list)
     referees_required: int = Field(ge=1, le=200)
     is_visible: bool = True
     has_roles: bool = False
     roles: list[str] = Field(default_factory=list)
     notes: str = ""
-    days: list[DayIn] = Field(min_length=1)
+    days: list[DayIn] = Field(default_factory=list)
 
     @field_validator("categories", "roles")
     @classmethod
     def _clean_list(cls, v: list[str]) -> list[str]:
-        seen: list[str] = []
-        for item in v:
-            item = item.strip()
-            if item and item not in seen:
-                seen.append(item)
-        return seen
+        return _clean(v)
 
     @model_validator(mode="after")
     def _check(self):
-        dates = [d.date for d in self.days]
-        if len(dates) != len(set(dates)):
-            raise ValueError("Hay días repetidos en el torneo.")
+        self.location = self.location.strip()
+        if not self.location and any(not d.location for d in self.days):
+            raise ValueError("Indica el lugar del torneo o el de cada franja.")
+        # Varias franjas el mismo día son válidas mientras no se superpongan.
+        by_date: dict = {}
+        for d in self.days:
+            by_date.setdefault(d.date, []).append(d)
+        for day_list in by_date.values():
+            if len(day_list) < 2:
+                continue
+            if any(d.all_day for d in day_list):
+                raise ValueError("Una franja de todo el día no puede compartir fecha con otra franja del mismo torneo.")
+            day_list.sort(key=lambda d: d.start_time)
+            for a, b in zip(day_list, day_list[1:]):
+                if b.start_time < a.end_time:
+                    raise ValueError("Hay franjas del mismo torneo que se superponen el mismo día.")
         if self.has_roles and not self.roles:
             self.roles = ["Principal", "Segundo", "Planillero"]
         if not self.has_roles:

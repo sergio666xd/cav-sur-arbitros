@@ -3,6 +3,7 @@ import unicodedata
 from .models import Tournament, TournamentDay, User
 from .schemas import Me, UserOut
 from .slots import day_slot
+from .timeutil import today_local
 
 
 def user_out(u: User) -> UserOut:
@@ -47,13 +48,18 @@ def day_info(d: TournamentDay) -> dict:
         "slot_label": slot.label,
         "referees_required": d.referees_required,
         "required": d.required,
+        "location": d.location,
+        "categories": d.categories,
+        "effective_location": d.effective_location,
+        "effective_categories": d.effective_categories,
+        "past": d.date < today_local(),
     }
 
 
-def _fold(text: str) -> str:
+def fold(text: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
 
 
 def name_key(u: User) -> tuple[str, str]:
     """Orden alfabético por apellido sin tener en cuenta tildes (Álvarez va antes que Bravo)."""
-    return (_fold(u.last_name), _fold(u.first_name))
+    return (fold(u.last_name), fold(u.first_name))
