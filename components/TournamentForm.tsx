@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
+import DateInput from "./DateInput";
 import PlaceInput from "./PlaceInput";
 import { Alert } from "./ui";
 
@@ -274,7 +275,7 @@ export default function TournamentForm({
               <div className="grid items-end gap-3 sm:grid-cols-6">
                 <div className="sm:col-span-2">
                   <label className="label">Fecha</label>
-                  <input className="input" type="date" value={d.date} onChange={(e) => setDay(i, { date: e.target.value })} required />
+                  <DateInput value={d.date} onChange={(v) => setDay(i, { date: v })} required />
                 </div>
                 <label className="flex items-center gap-2 pb-2 text-sm">
                   <input type="checkbox" className="h-5 w-5 accent-brand-500" checked={d.all_day} onChange={(e) => setDay(i, { all_day: e.target.checked })} />

@@ -1,4 +1,4 @@
-import { formatShortDate } from "./api";
+import { dmy, formatShortDate, formatTime } from "./api";
 
 // Dibuja en un canvas una imagen para compartir: tabla con los árbitros en filas, las franjas en
 // columnas y una X donde el árbitro marcó disponibilidad.
@@ -209,7 +209,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.fillStyle = MUTED;
   ctx.font = `400 22px ${FONT}`;
   ctx.fillText(
-    `Generado el ${new Date().toLocaleString("es-CO", { dateStyle: "long", timeStyle: "short" })}`,
+    `Generado el ${dmy(new Date())} a las ${formatTime(new Date())}`,
     left, ry + 50,
   );
 

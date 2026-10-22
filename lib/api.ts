@@ -90,22 +90,34 @@ function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function formatDate(iso: string, opts: Intl.DateTimeFormatOptions = {}): string {
-  return cap(parseDate(iso).toLocaleDateString("es-CO", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    ...opts,
-  }));
+// Todas las fechas se muestran como DD/MM/AAAA (estándar de Colombia).
+export function dmy(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
+function weekday(d: Date, style: "long" | "short"): string {
+  return cap(d.toLocaleDateString("es-CO", { weekday: style }).replace(".", ""));
+}
+
+// "Viernes 23/10/2026", o solo "23/10/2026" sin el día de la semana.
+export function formatDate(iso: string, withWeekday = true): string {
+  const d = parseDate(iso);
+  return withWeekday ? `${weekday(d, "long")} ${dmy(d)}` : dmy(d);
+}
+
+// "Vie 23/10/2026"
 export function formatShortDate(iso: string): string {
-  return cap(parseDate(iso).toLocaleDateString("es-CO", { weekday: "short", day: "numeric", month: "short" }));
+  const d = parseDate(iso);
+  return `${weekday(d, "short")} ${dmy(d)}`;
+}
+
+export function formatTime(d: Date): string {
+  return d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" });
 }
 
 export function formatDateTime(iso: string): string {
   // El backend guarda en UTC sin zona.
   const d = new Date(iso.endsWith("Z") ? iso : iso + "Z");
-  return d.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
+  return `${dmy(d)} ${formatTime(d)}`;
 }

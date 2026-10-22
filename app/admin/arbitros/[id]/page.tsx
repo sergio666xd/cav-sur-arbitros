@@ -76,7 +76,7 @@ export default function RefereeDetailPage() {
             <div className="card space-y-2 text-sm">
               <h2 className="mb-2 font-semibold">Datos</h2>
               {data.birth_date && (
-                <div><span className="text-stone-500">Nacimiento:</span> {formatDate(data.birth_date, { weekday: undefined })} ({data.age} años)</div>
+                <div><span className="text-stone-500">Nacimiento:</span> {formatDate(data.birth_date, false)} ({data.age} años)</div>
               )}
               <div><span className="text-stone-500">Registrado:</span> {formatDateTime(data.created_at)}</div>
               <h3 className="pt-3 font-semibold">Próximas disponibilidades</h3>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import AuthCard from "@/components/AuthCard";
+import DateInput from "@/components/DateInput";
 import { Alert } from "@/components/ui";
 import { api, type Me } from "@/lib/api";
 import { homeFor, useAuth } from "@/lib/auth";
@@ -62,7 +63,7 @@ export default function RegisterPage() {
         </div>
         <div>
           <label className="label">Fecha de nacimiento</label>
-          <input className="input" type="date" value={form.birth_date} onChange={set("birth_date")} required />
+          <DateInput value={form.birth_date} onChange={(v) => setForm((f) => ({ ...f, birth_date: v }))} required />
         </div>
         <div>
           <label className="label">Clave de registro</label>
