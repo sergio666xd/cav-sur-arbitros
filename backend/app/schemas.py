@@ -136,7 +136,10 @@ class DayIn(BaseModel):
         self.location = (self.location or "").strip() or None
         self.categories = _clean(self.categories or []) or None
         if self.all_day:
-            self.start_time = self.end_time = None
+            # Todo el día no tiene hora de fin, pero sí de inicio.
+            if not self.start_time:
+                raise ValueError("Indica la hora de inicio de la franja de todo el día.")
+            self.end_time = None
         else:
             if not self.start_time or not self.end_time:
                 raise ValueError("Indica hora de inicio y fin, o marca 'Todo el día'.")

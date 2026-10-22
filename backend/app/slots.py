@@ -2,7 +2,7 @@
 
 En una misma fecha, las franjas de los distintos torneos que se superponen se suman en un solo bloque;
 las que no se tocan quedan como bloques separados y el árbitro marca disponibilidad en cada uno.
-"Todo el día" cubre cualquier otra franja de esa fecha.
+"Todo el día" cubre cualquier otra franja de esa fecha; tiene hora de inicio pero no de fin.
 """
 from dataclasses import dataclass, field
 from datetime import time
@@ -19,7 +19,7 @@ class Slot:
     @property
     def label(self) -> str:
         if self.all_day or not self.start or not self.end:
-            return "Todo el día"
+            return f"Todo el día desde las {self.start.strftime('%H:%M')}" if self.start else "Todo el día"
         return f"{self.start.strftime('%H:%M')} - {self.end.strftime('%H:%M')}"
 
 
@@ -36,7 +36,7 @@ class SlotGroup:
 
 def day_slot(day: TournamentDay) -> Slot:
     if day.all_day or day.start_time is None or day.end_time is None:
-        return Slot(all_day=True)
+        return Slot(all_day=True, start=day.start_time)
     return Slot(all_day=False, start=day.start_time, end=day.end_time)
 
 
@@ -45,7 +45,8 @@ def group_days(days: list[TournamentDay]) -> list[SlotGroup]:
     if not days:
         return []
     if any(day_slot(d).all_day for d in days):
-        return [SlotGroup(Slot(all_day=True), list(days))]
+        starts = [d.start_time for d in days if d.start_time]
+        return [SlotGroup(Slot(all_day=True, start=min(starts) if starts else None), list(days))]
     groups: list[SlotGroup] = []
     for d in sorted(days, key=lambda d: (d.start_time, d.end_time)):
         last = groups[-1] if groups else None

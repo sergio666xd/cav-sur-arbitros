@@ -193,7 +193,7 @@ export default function TournamentForm({
           id: d.id,
           date: d.date,
           all_day: d.all_day,
-          start_time: d.all_day ? null : d.start_time,
+          start_time: d.start_time,
           end_time: d.all_day ? null : d.end_time,
           referees_required: d.referees_required ? Number(d.referees_required) : null,
           location: multi ? d.location.trim() : venues[0],
@@ -282,19 +282,17 @@ export default function TournamentForm({
                   <input type="checkbox" className="h-5 w-5 accent-brand-500" checked={d.all_day} onChange={(e) => setDay(i, { all_day: e.target.checked })} />
                   Todo el día
                 </label>
+                <div>
+                  <label className="label">Desde</label>
+                  <input className="input" type="time" value={d.start_time} onChange={(e) => setDay(i, { start_time: e.target.value })} required />
+                </div>
                 {!d.all_day ? (
-                  <>
-                    <div>
-                      <label className="label">Desde</label>
-                      <input className="input" type="time" value={d.start_time} onChange={(e) => setDay(i, { start_time: e.target.value })} required />
-                    </div>
-                    <div>
-                      <label className="label">Hasta</label>
-                      <input className="input" type="time" value={d.end_time} onChange={(e) => setDay(i, { end_time: e.target.value })} required />
-                    </div>
-                  </>
+                  <div>
+                    <label className="label">Hasta</label>
+                    <input className="input" type="time" value={d.end_time} onChange={(e) => setDay(i, { end_time: e.target.value })} required />
+                  </div>
                 ) : (
-                  <div className="sm:col-span-2" />
+                  <div className="hidden sm:block" />
                 )}
                 <div className="flex gap-2">
                   <div className="flex-1">

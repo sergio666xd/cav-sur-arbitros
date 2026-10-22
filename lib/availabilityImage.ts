@@ -91,8 +91,14 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
 
   // Encabezado de cada columna: fecha, franja y torneo (solo si se puede mostrar).
   ctx.font = `400 20px ${FONT}`;
-  const headLines = cols.map((c) => ({ top: c.top, label: c.label, sub: c.sub ? wrap(ctx, c.sub, colW - 20).slice(0, 3).map((l) => l.replace(/\s*·$/, "")) : [] }));
-  const headH = 24 + Math.max(30, ...headLines.map((h) => (h.top ? 30 : 0) + 30 + h.sub.length * 24)) + 16;
+  const headLines = cols.map((c) => {
+    ctx.font = `700 24px ${FONT}`;
+    const label = wrap(ctx, c.label, colW - 20);
+    ctx.font = `400 20px ${FONT}`;
+    const sub = c.sub ? wrap(ctx, c.sub, colW - 20).slice(0, 3).map((l) => l.replace(/\s*·$/, "")) : [];
+    return { top: c.top, label, sub };
+  });
+  const headH = 24 + Math.max(30, ...headLines.map((h) => (h.top ? 30 : 0) + h.label.length * 30 + h.sub.length * 24)) + 16;
 
   // Encabezado oscuro: logo a la izquierda; título, subtítulo y fecha de generación a la derecha.
   // Así todo el espacio debajo queda para la tabla.
@@ -156,8 +162,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     }
     ctx.fillStyle = "#fff";
     ctx.font = `700 24px ${FONT}`;
-    center(h.label, colX(i), colW, hy + 20);
-    hy += 30;
+    for (const l of h.label) { center(l, colX(i), colW, hy + 20); hy += 30; }
     ctx.fillStyle = "#d6d3d1";
     ctx.font = `400 20px ${FONT}`;
     for (const l of h.sub) { center(l, colX(i), colW, hy + 16); hy += 24; }

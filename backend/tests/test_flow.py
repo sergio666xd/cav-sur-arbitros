@@ -38,7 +38,7 @@ def test_full_flow(client):
         "name": "Copa Sur", "location": "Coliseo", "categories": ["Sub-15", "Mayores"], "referees_required": 4,
         "is_visible": True, "days": [
             {"date": tomorrow.isoformat(), "start_time": "08:00", "end_time": "12:00"},
-            {"date": later.isoformat(), "all_day": True, "referees_required": 6},
+            {"date": later.isoformat(), "all_day": True, "start_time": "08:00", "referees_required": 6},
         ]})
     assert r.status_code == 201, r.text
     copa = r.json()["id"]
@@ -58,7 +58,7 @@ def test_full_flow(client):
     assert d1["required"] == 7
     d2 = days[later.isoformat()]
     assert d2["tournaments"][0]["name"] == "Copa Sur"
-    assert d2["slot_label"] == "Todo el día"
+    assert d2["slot_label"] == "Todo el día desde las 08:00"
     # Un administrador ve siempre el detalle, incluso de torneos ocultos.
     caro = next(u["id"] for u in client.get("/api/users", headers=chief).json() if u["first_name"] == "Caro")
     client.patch(f"/api/users/{caro}/roles", headers=chief, json={"is_admin": True})
@@ -135,7 +135,7 @@ def test_full_flow(client):
     ref_a = login(client, "20000001", "2222")
     assert client.get("/api/tournaments", headers=ref_a).status_code == 200
     assert client.post("/api/tournaments", headers=ref_a, json={
-        "name": "X", "location": "Y", "referees_required": 1, "days": [{"date": later.isoformat(), "all_day": True}]
+        "name": "X", "location": "Y", "referees_required": 1, "days": [{"date": later.isoformat(), "all_day": True, "start_time": "08:00"}]
     }).status_code == 403
     users = client.get("/api/users", headers=ref_a).json()
     assert "age" not in users[0]
@@ -146,7 +146,7 @@ def test_closed_today_and_lockout(client):
     chief = login(client, "10000000", "1111")
     today = today_local()
     client.post("/api/tournaments", headers=chief, json={
-        "name": "Hoy", "location": "X", "referees_required": 2, "days": [{"date": today.isoformat(), "all_day": True}]})
+        "name": "Hoy", "location": "X", "referees_required": 2, "days": [{"date": today.isoformat(), "all_day": True, "start_time": "08:00"}]})
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "30000001", "Dani")
     key = client.get("/api/availability", headers=ref).json()[0]["key"]
@@ -240,7 +240,7 @@ def test_per_slot_fields_catalog_and_past_days(client):
     r = client.post("/api/tournaments", headers=chief, json={
         "name": "Liga", "location": "Coliseo Sur", "categories": ["Mayores"], "referees_required": 2,
         "days": [
-            {"date": past, "all_day": True},
+            {"date": past, "all_day": True, "start_time": "08:00"},
             {"date": soon, "start_time": "08:00", "end_time": "10:00"},
             {"date": soon, "start_time": "14:00", "end_time": "16:00", "location": "Colegio Norte", "categories": ["Sub-13"]},
         ]})
@@ -270,7 +270,7 @@ def test_per_slot_fields_catalog_and_past_days(client):
     # Editar enviando solo las próximas franjas (y una nueva) conserva la pasada.
     days = [{"id": d["id"], "date": d["date"], "start_time": d["start_time"], "end_time": d["end_time"],
              "location": d["location"], "categories": d["categories"]} for d in t["days"]]
-    days.append({"date": (today_local() + timedelta(days=10)).isoformat(), "all_day": True})
+    days.append({"date": (today_local() + timedelta(days=10)).isoformat(), "all_day": True, "start_time": "08:00"})
     r = client.put(f"/api/tournaments/{tid}", headers=chief, json={
         "name": "Liga", "location": "Coliseo Sur", "categories": ["Mayores"], "referees_required": 2, "days": days})
     assert r.status_code == 200, r.text
@@ -371,15 +371,15 @@ def test_same_day_two_venues(client):
     day = (today_local() + timedelta(days=3)).isoformat()
     base = {"name": "Copa Sedes", "referees_required": 2}
     r = client.post("/api/tournaments", headers=chief, json={**base, "days": [
-        {"date": day, "all_day": True, "location": "Colegio San José"},
-        {"date": day, "all_day": True, "location": "Polideportivo Sur"},
+        {"date": day, "all_day": True, "start_time": "08:00", "location": "Colegio San José"},
+        {"date": day, "all_day": True, "start_time": "08:00", "location": "Polideportivo Sur"},
     ]})
     assert r.status_code == 201, r.text
     detail = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()
     assert sorted(d["effective_location"] for d in detail["days"]) == ["Colegio San José", "Polideportivo Sur"]
     # En la misma sede sí se rechaza.
     r = client.post("/api/tournaments", headers=chief, json={**base, "location": "Coliseo", "days": [
-        {"date": day, "all_day": True}, {"date": day, "start_time": "08:00", "end_time": "10:00"}]})
+        {"date": day, "all_day": True, "start_time": "08:00"}, {"date": day, "start_time": "08:00", "end_time": "10:00"}]})
     assert r.status_code == 422
     board = client.get(f"/api/assignment-board?d={day}", headers=chief).json()
     assert len(board["groups"]) == 1 and len(board["groups"][0]["columns"]) == 2
@@ -391,19 +391,19 @@ def test_tournament_venues(client):
     venues = ["Colegio San José", "Polideportivo Sur"]
     base = {"name": "Copa Sedes", "referees_required": 2, "venues": venues}
     r = client.post("/api/tournaments", headers=chief, json={**base, "days": [
-        {"date": day, "all_day": True, "location": venues[0]},
-        {"date": day, "all_day": True, "location": venues[1]},
+        {"date": day, "all_day": True, "start_time": "08:00", "location": venues[0]},
+        {"date": day, "all_day": True, "start_time": "08:00", "location": venues[1]},
     ]})
     assert r.status_code == 201, r.text
     t = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()
     assert t["venues"] == venues and t["location"] == venues[0]
     assert [d["location"] for d in t["days"]] == venues
     # Con varias sedes hay que elegir la de cada franja, y debe ser una de la lista.
-    assert client.post("/api/tournaments", headers=chief, json={**base, "days": [{"date": day, "all_day": True}]}).status_code == 422
+    assert client.post("/api/tournaments", headers=chief, json={**base, "days": [{"date": day, "all_day": True, "start_time": "08:00"}]}).status_code == 422
     assert client.post("/api/tournaments", headers=chief, json={**base, "days": [
-        {"date": day, "all_day": True, "location": "Otra"}]}).status_code == 422
+        {"date": day, "all_day": True, "start_time": "08:00", "location": "Otra"}]}).status_code == 422
     # Con una sola sede se asigna sola.
-    r = client.post("/api/tournaments", headers=chief, json={**base, "venues": ["Coliseo"], "days": [{"date": day, "all_day": True}]})
+    r = client.post("/api/tournaments", headers=chief, json={**base, "venues": ["Coliseo"], "days": [{"date": day, "all_day": True, "start_time": "08:00"}]})
     t = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()
     assert t["days"][0]["location"] == "Coliseo"
     names = [c["name"] for c in client.get("/api/catalog/location", headers=chief).json()]
@@ -417,7 +417,7 @@ def test_matches_by_category(client):
     day = (today_local() + timedelta(days=2)).isoformat()
     tid = client.post("/api/tournaments", headers=chief, json={
         "name": "Copa Cat", "venues": ["Coliseo"], "categories": ["Mini", "Infantil"], "referees_required": 1,
-        "days": [{"date": day, "all_day": True}]}).json()["id"]
+        "days": [{"date": day, "all_day": True, "start_time": "08:00"}]}).json()["id"]
     key = client.get("/api/availability", headers=ref).json()[0]["key"]
     client.post(f"/api/availability/{key}", headers=ref)
     d = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
@@ -454,16 +454,16 @@ def test_availability_summary(client):
             "days": [{"date": d1, "start_time": start, "end_time": end}]})
     client.post("/api/tournaments", headers=chief, json={
         "name": "Solo Visible", "location": "Estadio, Calle 1", "referees_required": 3,
-        "days": [{"date": d2, "all_day": True}]})
+        "days": [{"date": d2, "all_day": True, "start_time": "08:00"}]})
 
     av = {(d["date"], d["slot_label"]): d for d in client.get("/api/availability", headers=ref_z).json()}
     for ref in (ref_z, ref_a):
         client.post(f"/api/availability/{av[(d1, '08:00 - 14:00')]['key']}", headers=ref)
     for ref in (ref_a, ref_z):
-        client.post(f"/api/availability/{av[(d2, 'Todo el día')]['key']}", headers=ref)
+        client.post(f"/api/availability/{av[(d2, 'Todo el día desde las 08:00')]['key']}", headers=ref)
 
     rows = client.get("/api/availability/summary", headers=chief).json()
-    assert [(r["date"], r["slot_label"]) for r in rows] == [(d1, "08:00 - 14:00"), (d2, "Todo el día")]
+    assert [(r["date"], r["slot_label"]) for r in rows] == [(d1, "08:00 - 14:00"), (d2, "Todo el día desde las 08:00")]
     # Franjas superpuestas se combinan; con varios torneos el día no se nombra ninguno.
     assert rows[0]["required"] == 4 and rows[0]["tournament"] is None
     assert [e["name"] for e in rows[0]["entries"]] == ["Zoe Zapata", "Ana Alvarez"]  # orden de registro, no alfabético
@@ -471,3 +471,17 @@ def test_availability_summary(client):
     assert [e["name"] for e in rows[1]["entries"]] == ["Ana Alvarez", "Zoe Zapata"]
     assert len(client.get(f"/api/availability/summary?d={d2}", headers=chief).json()) == 1
     assert client.get("/api/availability/summary", headers=ref_a).status_code == 403
+
+
+def test_all_day_requires_start_time(client):
+    chief = login(client, "10000000", "1111")
+    later = (today_local() + timedelta(days=5)).isoformat()
+    r = client.post("/api/tournaments", headers=chief, json={
+        "name": "Sin hora", "location": "Coliseo", "referees_required": 1, "days": [{"date": later, "all_day": True}]})
+    assert r.status_code == 422
+    r = client.post("/api/tournaments", headers=chief, json={
+        "name": "Con hora", "location": "Coliseo", "referees_required": 1,
+        "days": [{"date": later, "all_day": True, "start_time": "07:30", "end_time": "12:00"}]})
+    assert r.status_code == 201, r.text
+    day = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()["days"][0]
+    assert (day["start_time"], day["end_time"], day["slot_label"]) == ("07:30", None, "Todo el día desde las 07:30")
