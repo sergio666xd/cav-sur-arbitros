@@ -3,6 +3,7 @@
 import { CalendarDaysIcon, CheckBadgeIcon, ClipboardDocumentListIcon, FlagIcon, PuzzlePieceIcon } from "@heroicons/react/24/outline";
 import { CalendarIcon, ChevronDownIcon, ClockIcon, UserGroupIcon } from "@heroicons/react/20/solid";
 import { useState } from "react";
+import DayFilter, { uniqueDates } from "@/components/DayFilter";
 import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, StatCard, StatSkeleton } from "@/components/ui";
@@ -32,6 +33,9 @@ type Stats = { refereed: number; scored: number; other: number; days_recorded: n
 export default function MyTournamentsPage() {
   const { user } = useAuth();
   const { data, error, loading } = useFetch<Assigned[]>("/me/assignments");
+  const [day, setDay] = useState("");
+  // Para filtrar solo se ofrecen las fechas próximas.
+  const upcoming = uniqueDates((data ?? []).flatMap((t) => t.days.map((d) => d.date)).filter((d) => d >= todayIso()));
   const stats = useFetch<Stats>("/me/stats");
 
   return (
@@ -58,7 +62,8 @@ export default function MyTournamentsPage() {
         <Empty icon={CalendarDaysIcon}>Todavía no tienes torneos asignados.</Empty>
       ) : (
         <div className="space-y-3">
-          {sortDays(data).map(({ t, d }, i) => (
+          <DayFilter dates={upcoming} value={day} onChange={setDay} />
+          {sortDays(data).filter(({ d }) => !day || d.date === day).map(({ t, d }, i) => (
             <DayCard key={d.id} t={t} d={d} showMatches={!user?.is_chief} delay={Math.min(i, 8) * 60} />
           ))}
         </div>

@@ -3,6 +3,7 @@
 import { CheckIcon, HandRaisedIcon, LockClosedIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
+import DayFilter from "@/components/DayFilter";
 import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
@@ -56,8 +57,10 @@ export default function AvailabilityPage() {
     }
   }
 
+  const [day, setDay] = useState("");
   const byDate = new Map<string, Slot[]>();
   for (const s of data ?? []) byDate.set(s.date, [...(byDate.get(s.date) ?? []), s]);
+  const shownDates = [...byDate.entries()].filter(([date]) => !day || date === day);
 
   return (
     <Shell allow={(u) => u.perm_availability}>
@@ -74,7 +77,8 @@ export default function AvailabilityPage() {
         <Empty icon={CalendarDaysIcon}>No hay torneos próximos que requieran disponibilidad.</Empty>
       ) : (
         <div className="space-y-6">
-          {[...byDate.entries()].map(([date, slots], i) => (
+          <DayFilter dates={[...byDate.keys()]} value={day} onChange={setDay} />
+          {shownDates.map(([date, slots], i) => (
             <section key={date} className="animate-slide-up" style={{ animationDelay: `${Math.min(i, 6) * 60}ms` }}>
               <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{formatDate(date)}</h2>
               <div className="grid gap-3 md:grid-cols-2">

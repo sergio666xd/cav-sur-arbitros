@@ -4,6 +4,7 @@ import { CheckCircleIcon, HandRaisedIcon, MapPinIcon, PlusIcon } from "@heroicon
 import { TrophyIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import DayFilter, { uniqueDates } from "@/components/DayFilter";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { formatShortDate } from "@/lib/api";
@@ -31,12 +32,20 @@ type PastDay = Omit<DayDetail, "candidates" | "assignments" | "available_count" 
 function TournamentCards() {
   const { user } = useAuth();
   const { data, loading, error } = useFetch<Row[]>("/tournaments");
+  const [day, setDay] = useState("");
+  const dates = useMemo(() => uniqueDates((data ?? []).flatMap((t) => t.days.map((d) => d.date))), [data]);
   if (loading) return <Loading />;
   if (error) return <Alert>{error}</Alert>;
   if (!data?.length) return <Empty icon={TrophyIcon}>Todavía no hay torneos.</Empty>;
+  // Con un día elegido, solo los torneos que juegan ese día y solo sus franjas de ese día.
+  const shown = day
+    ? data.filter((t) => t.days.some((d) => d.date === day)).map((t) => ({ ...t, days: t.days.filter((d) => d.date === day) }))
+    : data;
   return (
+    <>
+    <DayFilter dates={dates} value={day} onChange={setDay} />
     <div className="grid gap-4 md:grid-cols-2">
-      {data.map((t, i) => (
+      {shown.map((t, i) => (
         <div key={t.id} className="card flex animate-slide-up flex-col hover:shadow-md" style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}>
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -90,6 +99,7 @@ function TournamentCards() {
         </div>
       ))}
     </div>
+    </>
   );
 }
 
