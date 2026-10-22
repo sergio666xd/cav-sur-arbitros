@@ -17,10 +17,11 @@ type Day = {
   crew: { name: string; role: string | null; me: boolean }[];
   refereed: number | null;
   scored: number | null;
-  by_category: { category: string; refereed: number; scored: number }[] | null;
+  other: number | null;
+  by_category: { category: string; refereed: number; scored: number; other?: number }[] | null;
 };
 type Assigned = { id: number; name: string; location: string; categories: string[]; notes: string; days: Day[] };
-type Stats = { refereed: number; scored: number; days_recorded: number; assignments: number };
+type Stats = { refereed: number; scored: number; other: number; days_recorded: number; assignments: number };
 
 export default function MyTournamentsPage() {
   const { user } = useAuth();
@@ -37,6 +38,7 @@ export default function MyTournamentsPage() {
             ["Días registrados", stats.data.days_recorded],
             ["Partidos pitados", stats.data.refereed],
             ["Partidos planillados", stats.data.scored],
+            ["Otros roles", stats.data.other],
           ].map(([label, value]) => (
             <div key={label} className="card">
               <div className="text-xs uppercase tracking-wide text-stone-500">{label}</div>
@@ -91,10 +93,11 @@ export default function MyTournamentsPage() {
                           <span className="text-stone-400">Partidos aún sin registrar</span>
                         ) : (
                           <span>
-                            🏐 {d.refereed} pitados · 📋 {d.scored} planillados
-                            {d.by_category && d.by_category.some((c) => c.refereed || c.scored) && (
+                            🏐 {d.refereed} pitados · 📋 {d.scored} planillados{d.other ? ` · 🧩 ${d.other} otros roles` : ""}
+                            {d.by_category && d.by_category.some((c) => c.refereed || c.scored || c.other) && (
                               <span className="mt-1 block text-xs text-stone-500">
-                                {d.by_category.filter((c) => c.refereed || c.scored).map((c) => `${c.category}: ${c.refereed} pit. / ${c.scored} plan.`).join(" · ")}
+                                {d.by_category.filter((c) => c.refereed || c.scored || c.other)
+                                  .map((c) => `${c.category}: ${c.refereed} pit. / ${c.scored} plan.${c.other ? ` / ${c.other} otros` : ""}`).join(" · ")}
                               </span>
                             )}
                           </span>

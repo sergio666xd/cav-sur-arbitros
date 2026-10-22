@@ -4,8 +4,12 @@ import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
+import { useSort } from "@/lib/useSort";
 
-type Row = { position: number; name: string; points: number | null; is_chief: boolean };
+type Row = {
+  position: number; name: string; points: number | null; is_chief: boolean;
+  refereed: number | null; scored: number | null; other: number | null;
+};
 
 const MEDALS = ["", "🥇", "🥈", "🥉"];
 
@@ -13,12 +17,17 @@ export default function RankingPage() {
   const { user } = useAuth();
   const { data, error, loading } = useFetch<Row[]>("/ranking");
   const me = user ? `${user.first_name} ${user.last_name}` : "";
-  // Las medallas se cuentan sin el Jefe, que siempre aparece primero.
-  let place = 0;
+  const { sorted, header } = useSort(data, {
+    position: (r) => r.position, name: (r) => r.name, refereed: (r) => r.refereed,
+    scored: (r) => r.scored, other: (r) => r.other, points: (r) => r.points,
+  });
+  // Las medallas se cuentan sin el Jefe, que siempre aparece primero, y no cambian al reordenar.
+  const medals = new Map<number, string>();
+  (data ?? []).filter((r) => !r.is_chief).slice(0, 3).forEach((r, i) => medals.set(r.position, MEDALS[i + 1]));
 
   return (
     <Shell>
-      <PageHeader title="Ranking" subtitle="Puntos acumulados por calificaciones de desempeño." />
+      <PageHeader title="Ranking" subtitle="Puntos acumulados por calificaciones de desempeño y partidos registrados." />
       {loading ? (
         <Loading />
       ) : error ? (
@@ -30,21 +39,26 @@ export default function RankingPage() {
           <table className="table">
             <thead>
               <tr>
-                <th className="w-16">#</th>
-                <th>Árbitro</th>
-                <th className="text-right">Puntos</th>
+                {header("position", "#", "w-16")}
+                {header("name", "Árbitro")}
+                {header("refereed", "Pitados", "text-right", "desc")}
+                {header("scored", "Planillados", "text-right", "desc")}
+                {header("other", "Otros roles", "text-right", "desc")}
+                {header("points", "Puntos", "text-right", "desc")}
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => {
-                if (!r.is_chief) place++;
+              {sorted.map((r) => {
                 return (
                   <tr key={r.position} className={r.name === me ? "bg-brand-50" : ""}>
                     <td className="font-semibold text-stone-500">{r.position}</td>
                     <td className="font-medium">
-                      {!r.is_chief && MEDALS[place] ? `${MEDALS[place]} ` : ""}
+                      {medals.has(r.position) ? `${medals.get(r.position)} ` : ""}
                       {r.name} {r.is_chief && <Badge color="brand">Jefe</Badge>}
                     </td>
+                    <td className="text-right text-stone-600">{r.refereed ?? "—"}</td>
+                    <td className="text-right text-stone-600">{r.scored ?? "—"}</td>
+                    <td className="text-right text-stone-600">{r.other ?? "—"}</td>
                     <td className="text-right text-lg font-bold text-brand-600">{r.points ?? "—"}</td>
                   </tr>
                 );

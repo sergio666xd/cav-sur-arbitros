@@ -424,7 +424,11 @@ def test_matches_by_category(client):
     assert r.status_code == 200, r.text
     a = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"][0]
     assert (a["refereed"], a["scored"]) == (5, 1)
-    assert a["by_category"][0] == {"category": "Mini", "refereed": 2, "scored": 1}
+    assert a["by_category"][0] == {"category": "Mini", "refereed": 2, "scored": 1, "other": 0}
     mine = client.get("/api/me/assignments", headers=ref).json()[0]["days"][0]
     assert mine["refereed"] == 5 and len(mine["by_category"]) == 2
     assert client.get("/api/me/stats", headers=ref).json()["refereed"] == 5
+    client.put(f"/api/tournament-days/{d['id']}/matches", headers=chief, json=[{"user_id": uid, "categories": [
+        {"category": "Mini", "other": 2}, {"category": "Infantil", "refereed": 1, "other": 1}]}])
+    row = next(r for r in client.get("/api/ranking", headers=ref).json() if r["name"] == "Lu Lopez")
+    assert (row["refereed"], row["scored"], row["other"]) == (1, 0, 3)

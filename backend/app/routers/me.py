@@ -32,6 +32,7 @@ def my_assignments(user: User = Depends(current_user), db: Session = Depends(get
             "crew": crew,
             "refereed": record.refereed if record else None,
             "scored": record.scored if record else None,
+            "other": (record.other or 0) if record else None,
             "by_category": record.by_category if record else None,
         })
     result = list(grouped.values())
@@ -47,6 +48,7 @@ def my_stats(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return {
         "refereed": sum(r.refereed for r in records),
         "scored": sum(r.scored for r in records),
+        "other": sum(r.other or 0 for r in records),
         "days_recorded": len(records),
         "assignments": db.query(Assignment).filter(Assignment.user_id == user.id).count(),
     }

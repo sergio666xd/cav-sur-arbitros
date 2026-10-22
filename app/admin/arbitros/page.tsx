@@ -7,6 +7,7 @@ import { RoleBadges, type UserRow } from "@/components/RoleBadges";
 import { Alert, Loading, PageHeader } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
+import { useSort } from "@/lib/useSort";
 
 export default function RefereesPage() {
   const { user } = useAuth();
@@ -17,6 +18,12 @@ export default function RefereesPage() {
     const term = q.trim().toLowerCase();
     return (data ?? []).filter((u) => !term || `${u.first_name} ${u.last_name} ${u.document}`.toLowerCase().includes(term));
   }, [data, q]);
+  const roleLabel = (u: UserRow) => (u.is_chief ? "Jefe" : [u.is_admin && "Administrador", u.is_referee && "Árbitro"].filter(Boolean).join(" "));
+  const { sorted, header } = useSort(rows, {
+    name: (u) => `${u.first_name} ${u.last_name}`, document: (u) => u.document, age: (u) => u.age, roles: roleLabel,
+    assignments: (u) => u.assignments, refereed: (u) => (u.is_chief ? null : u.refereed),
+    scored: (u) => (u.is_chief ? null : u.scored), other: (u) => (u.is_chief ? null : u.other), points: (u) => u.points,
+  });
 
   return (
     <Shell allow={(u) => u.perm_admin}>
@@ -31,18 +38,19 @@ export default function RefereesPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Documento</th>
-                {user?.is_chief && <th>Edad</th>}
-                <th>Roles</th>
-                <th className="text-right">Asignaciones</th>
-                <th className="text-right">Pitados</th>
-                <th className="text-right">Planillados</th>
-                <th className="text-right">Puntos</th>
+                {header("name", "Nombre")}
+                {header("document", "Documento")}
+                {user?.is_chief && header("age", "Edad")}
+                {header("roles", "Roles")}
+                {header("assignments", "Asignaciones", "text-right", "desc")}
+                {header("refereed", "Pitados", "text-right", "desc")}
+                {header("scored", "Planillados", "text-right", "desc")}
+                {header("other", "Otros roles", "text-right", "desc")}
+                {header("points", "Puntos", "text-right", "desc")}
               </tr>
             </thead>
             <tbody>
-              {rows.map((u) => (
+              {sorted.map((u) => (
                 <tr key={u.id} className="hover:bg-brand-50/50">
                   <td><Link href={`/admin/arbitros/${u.id}`} className="font-medium text-brand-700 hover:underline">{u.first_name} {u.last_name}</Link></td>
                   <td className="font-mono text-xs">{u.document}</td>
@@ -51,6 +59,7 @@ export default function RefereesPage() {
                   <td className="text-right">{u.assignments}</td>
                   <td className="text-right">{u.is_chief ? "—" : u.refereed}</td>
                   <td className="text-right">{u.is_chief ? "—" : u.scored}</td>
+                  <td className="text-right">{u.is_chief ? "—" : u.other}</td>
                   <td className="text-right font-semibold">{u.points ?? "—"}</td>
                 </tr>
               ))}

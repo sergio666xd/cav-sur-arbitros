@@ -91,10 +91,20 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
   );
 }
 
-type Counts = { refereed: string; scored: string };
+type Counts = { refereed: string; scored: string; other: string };
+const KINDS: { k: keyof Counts; short: string; long: string }[] = [
+  { k: "refereed", short: "Pit.", long: "Pitados" },
+  { k: "scored", short: "Plan.", long: "Planillados" },
+  { k: "other", short: "Otros", long: "Otros roles" },
+];
 
-// En torneos con roles, el Planillero planilla y los demás roles pitan.
-const isScorer = (role: string | null) => !!role && fold(role).includes("planill");
+// En torneos con roles: el Planillero planilla, Principal y Segundo pitan, y cualquier otro rol cuenta como "otros roles".
+function roleKind(role: string): keyof Counts {
+  const r = fold(role);
+  if (r.includes("planill")) return "scored";
+  if (r.includes("principal") || r.includes("segundo")) return "refereed";
+  return "other";
+}
 
 function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail; onSaved: () => void }) {
   const refs = day.assignments.filter((a) => !a.is_chief);
@@ -107,7 +117,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
       // Registros antiguos sin desglose: el total va en la primera categoría.
       const legacy = k && !a.by_category && k === keys[0] ? a : null;
       const src = c ?? legacy;
-      return [k, { refereed: String(src?.refereed ?? ""), scored: String(src?.scored ?? "") }];
+      return [k, { refereed: String(src?.refereed ?? ""), scored: String(src?.scored ?? ""), other: String(src?.other ?? "") }];
     }))])) as Record<number, Record<string, Counts>>;
   const [values, setValues] = useState(initial);
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
@@ -125,14 +135,20 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
     const next = { ...values };
     for (const a of refs) {
       if (!a.role) continue;
-      const k: keyof Counts = isScorer(a.role) ? "scored" : "refereed";
-      const other: keyof Counts = k === "scored" ? "refereed" : "scored";
-      next[a.user_id] = { ...next[a.user_id], [cat]: { ...next[a.user_id]?.[cat], [k]: v, [other]: next[a.user_id]?.[cat]?.[other] || "0" } };
+      const k = roleKind(a.role);
+      const cur = next[a.user_id]?.[cat];
+      next[a.user_id] = {
+        ...next[a.user_id],
+        [cat]: { refereed: cur?.refereed || "0", scored: cur?.scored || "0", other: cur?.other || "0", [k]: v },
+      };
     }
     setValues(next);
   }
 
   const num = (v?: string) => Number(v || 0);
+  const counts = (id: number, c: string) => ({
+    refereed: num(values[id]?.[c]?.refereed), scored: num(values[id]?.[c]?.scored), other: num(values[id]?.[c]?.other),
+  });
   const total = (id: number, k: keyof Counts) => keys.reduce((n, c) => n + num(values[id]?.[c]?.[k]), 0);
 
   async function save() {
@@ -141,8 +157,8 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
       await api(`/tournament-days/${day.id}/matches`, {
         method: "PUT",
         body: refs.map((a) => cats.length
-          ? { user_id: a.user_id, categories: cats.map((c) => ({ category: c, refereed: num(values[a.user_id]?.[c]?.refereed), scored: num(values[a.user_id]?.[c]?.scored) })) }
-          : { user_id: a.user_id, refereed: num(values[a.user_id]?.[""]?.refereed), scored: num(values[a.user_id]?.[""]?.scored) }),
+          ? { user_id: a.user_id, categories: cats.map((c) => ({ category: c, ...counts(a.user_id, c) })) }
+          : { user_id: a.user_id, ...counts(a.user_id, "") }),
       });
       setMsg({ kind: "success", text: "Partidos registrados." });
       onSaved();
@@ -164,7 +180,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
       <h3 className="mb-2 text-sm font-semibold">Partidos del día{cats.length > 0 && " por categoría"}</h3>
       {withRoles && (
         <div className="mb-3 rounded-lg bg-stone-50 p-3 text-sm">
-          <p className="mb-2 text-stone-600">Partidos jugados{cats.length > 0 && " por categoría"}: se rellenan como pitados para Principal y Segundo, y como planillados para el Planillero. Puedes ajustar cada valor después.</p>
+          <p className="mb-2 text-stone-600">Partidos jugados{cats.length > 0 && " por categoría"}: se rellenan como pitados para Principal y Segundo, como planillados para el Planillero y como otros roles para el resto. Puedes ajustar cada valor después.</p>
           <div className="flex flex-wrap gap-3">
             {keys.map((c) => (
               <label key={c} className="flex items-center gap-2">
@@ -182,19 +198,22 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
             {cats.length > 0 && (
               <tr>
                 <th />
-                {cats.map((c) => <th key={c} colSpan={2} className="border-l border-stone-100 text-center normal-case">{c}</th>)}
-                <th colSpan={2} className="border-l border-stone-100 text-center">Total</th>
+                {cats.map((c) => <th key={c} colSpan={3} className="border-l border-stone-100 text-center normal-case">{c}</th>)}
+                <th colSpan={3} className="border-l border-stone-100 text-center">Total</th>
               </tr>
             )}
             <tr>
               <th>Árbitro</th>
               {keys.map((c) => (
                 <Fragment key={c}>
-                  <th className="border-l border-stone-100 text-center" title="Pitados">{cats.length ? "Pit." : "Pitados"}</th>
-                  <th className="text-center" title="Planillados">{cats.length ? "Plan." : "Planillados"}</th>
+                  {KINDS.map((x, n) => (
+                    <th key={x.k} className={`text-center ${n === 0 ? "border-l border-stone-100" : ""}`} title={x.long}>{cats.length ? x.short : x.long}</th>
+                  ))}
                 </Fragment>
               ))}
-              {cats.length > 0 && <><th className="border-l border-stone-100 text-center">Pit.</th><th className="text-center">Plan.</th></>}
+              {cats.length > 0 && KINDS.map((x, n) => (
+                <th key={x.k} className={`text-center ${n === 0 ? "border-l border-stone-100" : ""}`} title={x.long}>{x.short}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -203,16 +222,16 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
                 <td className="whitespace-nowrap">{a.name} {a.role && <span className="text-xs text-stone-500">({a.role})</span>}</td>
                 {keys.map((c) => (
                   <Fragment key={c}>
-                    <td className="border-l border-stone-100">{cell(a.user_id, c, "refereed", `${a.name} pitados ${c}`)}</td>
-                    <td>{cell(a.user_id, c, "scored", `${a.name} planillados ${c}`)}</td>
+                    {KINDS.map((x, n) => (
+                      <td key={x.k} className={n === 0 ? "border-l border-stone-100" : ""}>
+                        {cell(a.user_id, c, x.k, `${a.name} ${x.long.toLowerCase()} ${c}`)}
+                      </td>
+                    ))}
                   </Fragment>
                 ))}
-                {cats.length > 0 && (
-                  <>
-                    <td className="border-l border-stone-100 text-center font-semibold">{total(a.user_id, "refereed")}</td>
-                    <td className="text-center font-semibold">{total(a.user_id, "scored")}</td>
-                  </>
-                )}
+                {cats.length > 0 && KINDS.map((x, n) => (
+                  <td key={x.k} className={`text-center font-semibold ${n === 0 ? "border-l border-stone-100" : ""}`}>{total(a.user_id, x.k)}</td>
+                ))}
               </tr>
             ))}
           </tbody>

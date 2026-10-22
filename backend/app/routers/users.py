@@ -44,6 +44,7 @@ def list_users(viewer: User = Depends(require_admin), db: Session = Depends(get_
             **_base(u, viewer),
             "refereed": m.get("refereed", 0),
             "scored": m.get("scored", 0),
+            "other": m.get("other", 0),
             "assignments": assigns.get(u.id, 0),
             "points": None if u.is_chief else points.get(u.id, 0),
         })
@@ -73,6 +74,7 @@ def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = 
             "role": a.role,
             "refereed": rec.refereed if rec else None,
             "scored": rec.scored if rec else None,
+            "other": (rec.other or 0) if rec else None,
             "by_category": rec.by_category if rec else None,
         })
     ratings = db.execute(
@@ -88,6 +90,7 @@ def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = 
         "assignments": history,
         "refereed": sum(r.refereed for r in recs),
         "scored": sum(r.scored for r in recs),
+        "other": sum(r.other or 0 for r in recs),
         "points": None if u.is_chief else sum(p for _, p, _ in ratings),
         "ratings": [{"score": s, "points": p, "date": c.isoformat()} for s, p, c in ratings],
     }

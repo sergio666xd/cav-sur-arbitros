@@ -13,7 +13,7 @@ import { useFetch } from "@/lib/useFetch";
 type Detail = UserRow & {
   created_at: string;
   upcoming_availability: { date: string; slot_label: string; tournament: string }[];
-  assignments: { tournament_id: number; tournament: string; date: string; role: string | null; refereed: number | null; scored: number | null }[];
+  assignments: { tournament_id: number; tournament: string; date: string; role: string | null; refereed: number | null; scored: number | null; other: number | null }[];
   ratings: { score: string; points: number; date: string }[];
 };
 
@@ -57,11 +57,12 @@ export default function RefereeDetailPage() {
         <>
           <PageHeader title={`${data.first_name} ${data.last_name}`} subtitle={`Documento ${data.document}`} action={<RoleBadges u={data} />} />
           {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             {[
               ["Asignaciones", data.assignments.length],
               ["Pitados", data.is_chief ? "—" : data.refereed],
               ["Planillados", data.is_chief ? "—" : data.scored],
+              ["Otros roles", data.is_chief ? "—" : data.other],
               ["Puntos", data.points ?? "—"],
             ].map(([l, v]) => (
               <div key={l} className="card">
@@ -141,7 +142,7 @@ export default function RefereeDetailPage() {
             <div className="card overflow-x-auto p-0">
               <table className="table">
                 <thead>
-                  <tr><th>Fecha</th><th>Torneo</th><th>Rol</th><th className="text-right">Pitados</th><th className="text-right">Planillados</th></tr>
+                  <tr><th>Fecha</th><th>Torneo</th><th>Rol</th><th className="text-right">Pitados</th><th className="text-right">Planillados</th><th className="text-right">Otros roles</th></tr>
                 </thead>
                 <tbody>
                   {data.assignments.map((a, i) => (
@@ -151,6 +152,7 @@ export default function RefereeDetailPage() {
                       <td>{a.role ? <Badge color="brand">{a.role}</Badge> : "—"}</td>
                       <td className="text-right">{a.refereed ?? "—"}</td>
                       <td className="text-right">{a.scored ?? "—"}</td>
+                      <td className="text-right">{a.other ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>

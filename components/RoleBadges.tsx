@@ -14,6 +14,7 @@ export type UserRow = {
   birth_date?: string;
   refereed: number;
   scored: number;
+  other: number;
   assignments: number;
   points: number | null;
 };

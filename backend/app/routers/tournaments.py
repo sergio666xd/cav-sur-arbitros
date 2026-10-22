@@ -88,6 +88,7 @@ def past_days(
             "records_pending": len(refs) - len(d.match_records),
             "refereed": sum(r.refereed for r in d.match_records),
             "scored": sum(r.scored for r in d.match_records),
+            "other": sum(r.other or 0 for r in d.match_records),
         })
     return out
 
@@ -225,6 +226,7 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
                 "role": a.role,
                 "refereed": rec.refereed if rec else None,
                 "scored": rec.scored if rec else None,
+                "other": (rec.other or 0) if rec else None,
                 "by_category": rec.by_category if rec else None,
             })
         info = day_info(d)
@@ -310,10 +312,12 @@ def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_
             breakdown = [c.model_dump() for c in item.categories]
         rec = records.get(item.user_id)
         if rec:
-            rec.refereed, rec.scored, rec.by_category, rec.recorded_by_id = item.refereed, item.scored, breakdown, user.id
+            rec.refereed, rec.scored, rec.other = item.refereed, item.scored, item.other
+            rec.by_category, rec.recorded_by_id = breakdown, user.id
         else:
             day.match_records.append(MatchRecord(
-                user_id=item.user_id, refereed=item.refereed, scored=item.scored, by_category=breakdown, recorded_by_id=user.id,
+                user_id=item.user_id, refereed=item.refereed, scored=item.scored, other=item.other,
+                by_category=breakdown, recorded_by_id=user.id,
             ))
     db.commit()
     return {"ok": True}

@@ -29,10 +29,13 @@ def ranking(_: User = Depends(current_user), db: Session = Depends(get_db)):
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
     referees = sorted(_ratable(db), key=lambda u: (
         -points.get(u.id, 0), -matches.get(u.id, {}).get("refereed", 0), *name_key(u)))
-    rows = [{"position": i + 1, "name": c.full_name, "points": None, "is_chief": True} for i, c in enumerate(chiefs)]
+    rows = [{"position": i + 1, "name": c.full_name, "points": None, "is_chief": True,
+             "refereed": None, "scored": None, "other": None} for i, c in enumerate(chiefs)]
     offset = len(rows)
     for i, u in enumerate(referees):
-        rows.append({"position": offset + i + 1, "name": u.full_name, "points": points.get(u.id, 0), "is_chief": False})
+        m = matches.get(u.id, {})
+        rows.append({"position": offset + i + 1, "name": u.full_name, "points": points.get(u.id, 0), "is_chief": False,
+                     "refereed": m.get("refereed", 0), "scored": m.get("scored", 0), "other": m.get("other", 0)})
     return rows
 
 
