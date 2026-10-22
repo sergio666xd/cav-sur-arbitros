@@ -1,4 +1,5 @@
 import { dmy, formatShortDate, formatTime } from "./api";
+import { shortAddress } from "./maps";
 
 // Dibuja en un canvas una imagen para compartir: tabla con los árbitros en filas, las franjas en
 // columnas y una X donde el árbitro marcó disponibilidad.
@@ -20,7 +21,7 @@ export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColu
   return rows.map((r) => ({
     top: withDate ? formatShortDate(r.date) : undefined,
     label: r.slot_label,
-    sub: r.tournament ? [r.tournament.name, r.tournament.location].filter(Boolean).join(" · ") : undefined,
+    sub: r.tournament ? [r.tournament.name, shortAddress(r.tournament.location)].filter(Boolean).join(" · ") : undefined,
     required: r.required,
     entries: r.entries,
   }));

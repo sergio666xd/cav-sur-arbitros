@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { formatShortDate } from "@/lib/api";
+import { shortAddress } from "@/lib/maps";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 import type { DayDetail, TournamentDetail } from "@/lib/types";
@@ -41,7 +42,7 @@ function TournamentCards() {
             <div>
               <Link href={`/admin/torneos/${t.id}`} className="text-lg font-semibold hover:text-brand-700 hover:underline">{t.name}</Link>
               <div className="flex items-center gap-1 text-sm text-stone-600">
-                <MapPinIcon className="h-4 w-4 shrink-0 text-brand-500" />{t.venues.length > 1 ? `${t.venues.length} sedes` : t.location}
+                <MapPinIcon className="h-4 w-4 shrink-0 text-brand-500" />{t.venues.length > 1 ? `${t.venues.length} sedes` : shortAddress(t.location)}
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
@@ -60,7 +61,7 @@ function TournamentCards() {
                     <td className="py-1.5 pr-2">{formatShortDate(d.date)}</td>
                     <td className="py-1.5 pr-2 text-stone-500">
                       {d.slot_label}
-                      {t.venues.length > 1 && <div className="flex items-center gap-1 text-xs"><MapPinIcon className="h-3 w-3 shrink-0" />{d.effective_location}</div>}
+                      {t.venues.length > 1 && <div className="flex items-center gap-1 text-xs"><MapPinIcon className="h-3 w-3 shrink-0" />{shortAddress(d.effective_location)}</div>}
                     </td>
                     <td className="py-1.5 text-right text-xs whitespace-nowrap">
                       <span title="Disponibles" className="inline-flex items-center gap-0.5 text-stone-600">
@@ -133,7 +134,7 @@ function PastDays() {
               <td className="whitespace-nowrap">{formatShortDate(d.date)}</td>
               {showTournament && <td className="font-medium">{d.tournament}</td>}
               <td>{d.slot_label}</td>
-              <td className="text-stone-600">{d.effective_location}</td>
+              <td className="text-stone-600">{shortAddress(d.effective_location)}</td>
               <td className="text-right">{d.assigned_count}/{d.required}</td>
               <td className="text-right">
                 {d.refereed} / {d.scored}

@@ -1,10 +1,12 @@
 "use client";
 
 import { CalendarDaysIcon, CheckBadgeIcon, ClipboardDocumentListIcon, FlagIcon, PuzzlePieceIcon } from "@heroicons/react/24/outline";
+import { CalendarIcon, ChevronDownIcon, ClockIcon, UserGroupIcon } from "@heroicons/react/20/solid";
+import { useState } from "react";
 import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, StatCard, StatSkeleton } from "@/components/ui";
-import { formatDate } from "@/lib/api";
+import { formatDate, todayIso } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 
@@ -52,67 +54,92 @@ export default function MyTournamentsPage() {
       ) : !data?.length ? (
         <Empty icon={CalendarDaysIcon}>Todavía no tienes torneos asignados.</Empty>
       ) : (
-        <div className="space-y-4">
-          {data.map((t, i) => (
-            <div key={t.id} className="card animate-slide-up" style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-semibold">{t.name}</h2>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {t.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
-                </div>
-              </div>
-              {t.notes && <p className="mt-2 whitespace-pre-line text-sm text-stone-600">{t.notes}</p>}
-              <div className="mt-4 space-y-3">
-                {t.days.map((d) => (
-                  <div key={d.id} className="rounded-lg border border-stone-200 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-medium">{formatDate(d.date)} · {d.slot_label}</div>
-                      {d.role && <Badge color="brand">{d.role}</Badge>}
-                    </div>
-                    <Place place={d.effective_location} className="mt-1 text-sm text-stone-600" />
-                    {d.effective_categories.length > 0 && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1">
-                        {d.effective_categories.map((c) => <Badge key={c} color="stone">{c}</Badge>)}
-                      </div>
-                    )}
-                    <div className="mt-2 text-sm text-stone-600">
-                      <span className="text-stone-500">Equipo arbitral: </span>
-                      {d.crew.map((c, i) => (
-                        <span key={i} className={c.me ? "font-semibold text-ink" : ""}>
-                          {c.name}{c.role ? ` (${c.role})` : ""}{i < d.crew.length - 1 ? ", " : ""}
-                        </span>
-                      ))}
-                    </div>
-                    {!user?.is_chief && (
-                      <div className="mt-2 text-sm">
-                        {d.refereed === null ? (
-                          <span className="text-stone-400">Partidos aún sin registrar</span>
-                        ) : (
-                          <span>
-                            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-                              <span className="inline-flex items-center gap-1"><FlagIcon className="h-4 w-4 text-brand-500" />{d.refereed} pitados</span>
-                              <span className="inline-flex items-center gap-1"><ClipboardDocumentListIcon className="h-4 w-4 text-brand-500" />{d.scored} planillados</span>
-                              {d.other ? <span className="inline-flex items-center gap-1"><PuzzlePieceIcon className="h-4 w-4 text-brand-500" />{d.other} otros roles</span> : null}
-                            </span>
-                            {d.by_category && d.by_category.some((c) => c.refereed || c.scored || c.other) && (
-                              <span className="mt-1 block text-xs text-stone-500">
-                                {d.by_category.filter((c) => c.refereed || c.scored || c.other)
-                                  .map((c) => `${c.category}: ${c.refereed} pit. / ${c.scored} plan.${c.other ? ` / ${c.other} otros` : ""}`).join(" · ")}
-                              </span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="space-y-3">
+          {sortDays(data).map(({ t, d }, i) => (
+            <DayCard key={d.id} t={t} d={d} showMatches={!user?.is_chief} delay={Math.min(i, 8) * 60} />
           ))}
         </div>
       )}
     </Shell>
+  );
+}
+
+// Un día asignado por tarjeta: primero los próximos (del más cercano al más lejano), luego los pasados.
+function sortDays(data: Assigned[]) {
+  const today = todayIso();
+  const all = data.flatMap((t) => t.days.map((d) => ({ t, d })));
+  const upcoming = all.filter((x) => x.d.date >= today).sort((a, b) => a.d.date.localeCompare(b.d.date));
+  const past = all.filter((x) => x.d.date < today).sort((a, b) => b.d.date.localeCompare(a.d.date));
+  return [...upcoming, ...past];
+}
+
+function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatches: boolean; delay: number }) {
+  const [open, setOpen] = useState(false);
+  const [crewOpen, setCrewOpen] = useState(false);
+  const categories = d.effective_categories.length ? d.effective_categories : t.categories;
+  return (
+    <div className="card animate-slide-up p-0 hover:shadow-md" style={{ animationDelay: `${delay}ms` }}>
+      <div className="cursor-pointer p-4 sm:p-5" onClick={() => setOpen(!open)}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-semibold">{t.name}</h2>
+            {d.role && <div className="mt-1"><Badge color="brand">{d.role}</Badge></div>}
+          </div>
+          <button type="button" className="rounded-md p-1 text-stone-500 transition hover:bg-stone-100" aria-expanded={open}
+            aria-label={open ? "Ocultar detalle" : "Ver detalle"} onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+            <ChevronDownIcon className={`h-5 w-5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+        <div className="mt-3 space-y-1 text-sm text-stone-700">
+          <div className="flex items-center gap-1"><CalendarIcon className="h-4 w-4 shrink-0 text-brand-500" />{formatDate(d.date)}</div>
+          <div className="flex items-center gap-1"><ClockIcon className="h-4 w-4 shrink-0 text-brand-500" />{d.slot_label}</div>
+          <div onClick={(e) => e.stopPropagation()}><Place place={d.effective_location} /></div>
+        </div>
+      </div>
+      {open && (
+        <div className="animate-slide-down space-y-3 border-t border-stone-100 px-4 py-4 text-sm sm:px-5">
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-1">{categories.map((c) => <Badge key={c} color="stone">{c}</Badge>)}</div>
+          )}
+          {t.notes && <p className="whitespace-pre-line text-stone-600">{t.notes}</p>}
+          {showMatches && (
+            d.refereed === null ? (
+              <div className="text-stone-400">Partidos aún sin registrar</div>
+            ) : (
+              <div>
+                <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="inline-flex items-center gap-1"><FlagIcon className="h-4 w-4 text-brand-500" />{d.refereed} pitados</span>
+                  <span className="inline-flex items-center gap-1"><ClipboardDocumentListIcon className="h-4 w-4 text-brand-500" />{d.scored} planillados</span>
+                  {d.other ? <span className="inline-flex items-center gap-1"><PuzzlePieceIcon className="h-4 w-4 text-brand-500" />{d.other} otros roles</span> : null}
+                </span>
+                {d.by_category && d.by_category.some((c) => c.refereed || c.scored || c.other) && (
+                  <span className="mt-1 block text-xs text-stone-500">
+                    {d.by_category.filter((c) => c.refereed || c.scored || c.other)
+                      .map((c) => `${c.category}: ${c.refereed} pit. / ${c.scored} plan.${c.other ? ` / ${c.other} otros` : ""}`).join(" · ")}
+                  </span>
+                )}
+              </div>
+            )
+          )}
+          <div className="rounded-lg border border-stone-200">
+            <button type="button" className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left font-medium transition hover:bg-stone-50"
+              aria-expanded={crewOpen} onClick={() => setCrewOpen(!crewOpen)}>
+              <span className="inline-flex items-center gap-2"><UserGroupIcon className="h-4 w-4 text-brand-500" />Equipo arbitral ({d.crew.length})</span>
+              <ChevronDownIcon className={`h-4 w-4 text-stone-500 transition-transform duration-200 ${crewOpen ? "rotate-180" : ""}`} />
+            </button>
+            {crewOpen && (
+              <ul className="animate-slide-down divide-y divide-stone-100 border-t border-stone-100">
+                {d.crew.map((c, i) => (
+                  <li key={i} className={`flex items-center justify-between gap-2 px-3 py-2 ${c.me ? "font-semibold" : ""}`}>
+                    <span>{c.name}{c.me ? " (tú)" : ""}</span>
+                    {c.role && <Badge color={c.me ? "brand" : "stone"}>{c.role}</Badge>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -90,6 +90,13 @@ function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// Fecha de hoy (local) como AAAA-MM-DD.
+export function todayIso(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 // Todas las fechas se muestran como DD/MM/AAAA (estándar de Colombia).
 export function dmy(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");

@@ -6,6 +6,11 @@ export const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 // Los marcadores avanzados requieren un Map ID; DEMO_MAP_ID sirve mientras no se cree uno propio.
 export const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 
+/** Dirección corta: hasta la primera coma (de cada sede si vienen varias separadas por " / "). */
+export function shortAddress(place: string): string {
+  return place.split(" / ").map((p) => p.split(",")[0].trim()).join(" / ");
+}
+
 export function mapsLink(place: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
 }
