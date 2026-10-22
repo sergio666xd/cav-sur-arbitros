@@ -53,13 +53,22 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
     result = []
     for d, days in by_date.items():
         # Solo se muestran los detalles si ese día hay un único torneo y es visible.
+        # Un administrador los ve siempre.
         single = len({x.tournament_id for x in days}) == 1 and days[0].tournament.is_visible
         for g in group_days(days):
-            tournament = None
-            if single:
-                locations = list(dict.fromkeys(x.effective_location for x in g.days))
-                categories = list(dict.fromkeys(c for x in g.days for c in x.effective_categories))
-                tournament = {"name": days[0].tournament.name, "location": " / ".join(locations), "categories": categories}
+            tournaments = []
+            if single or user.admin:
+                by_tournament: dict[int, list[TournamentDay]] = defaultdict(list)
+                for x in g.days:
+                    by_tournament[x.tournament_id].append(x)
+                for tdays in by_tournament.values():
+                    t = tdays[0].tournament
+                    tournaments.append({
+                        "name": t.name,
+                        "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)),
+                        "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)),
+                        "visible": t.is_visible,
+                    })
             registered = set().union(*(users_by_day[x.id] for x in g.days))
             result.append({
                 "key": g.key,
@@ -71,7 +80,7 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
                 "registered": len(registered),
                 "mine": user.id in registered,
                 "open": is_open_for_availability(d),
-                "tournament": tournament,
+                "tournaments": tournaments,
             })
     result.sort(key=lambda x: (x["date"], x["start_time"] or ""))
     return result

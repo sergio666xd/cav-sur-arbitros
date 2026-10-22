@@ -53,12 +53,19 @@ def test_full_flow(client):
     days = {d["date"]: d for d in r.json()}
     assert len(r.json()) == 2
     d1 = days[tomorrow.isoformat()]
-    assert d1["tournament"] is None
+    assert d1["tournaments"] == []
     assert d1["slot_label"] == "08:00 - 18:00"
     assert d1["required"] == 7
     d2 = days[later.isoformat()]
-    assert d2["tournament"]["name"] == "Copa Sur"
+    assert d2["tournaments"][0]["name"] == "Copa Sur"
     assert d2["slot_label"] == "Todo el día"
+    # Un administrador ve siempre el detalle, incluso de torneos ocultos.
+    caro = next(u["id"] for u in client.get("/api/users", headers=chief).json() if u["first_name"] == "Caro")
+    client.patch(f"/api/users/{caro}/roles", headers=chief, json={"is_admin": True})
+    mine = {d["date"]: d for d in client.get("/api/availability", headers=ref_c).json()}
+    assert [(x["name"], x["visible"]) for x in mine[tomorrow.isoformat()]["tournaments"]] == [
+        ("Copa Sur", True), ("Final Especial", False)]
+    client.patch(f"/api/users/{caro}/roles", headers=chief, json={"is_admin": False})
 
     for h in (ref_a, ref_b, ref_c):
         assert client.post(f"/api/availability/{d1['key']}", headers=h).status_code == 204
@@ -186,7 +193,7 @@ def test_separate_slots(client):
     slots = client.get("/api/availability", headers=ref).json()
     assert [s["slot_label"] for s in slots] == ["08:00 - 11:00", "14:00 - 20:00"]
     assert slots[1]["required"] == 4
-    assert all(s["tournament"] is None for s in slots)
+    assert all(s["tournaments"] == [] for s in slots)
     assert client.post(f"/api/availability/{slots[0]['key']}", headers=ref).status_code == 204
     slots = client.get("/api/availability", headers=ref).json()
     assert [s["mine"] for s in slots] == [True, False]
@@ -275,7 +282,7 @@ def test_per_slot_fields_catalog_and_past_days(client):
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "60000001", "Fer")
     slots = [s for s in client.get("/api/availability", headers=ref).json() if s["date"] == soon]
-    assert [s["tournament"]["location"] for s in slots] == ["Coliseo Sur", "Colegio Norte"]
+    assert [s["tournaments"][0]["location"] for s in slots] == ["Coliseo Sur", "Colegio Norte"]
 
 
 def test_migration_adds_new_columns():

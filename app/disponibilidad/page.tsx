@@ -16,7 +16,7 @@ type Slot = {
   registered: number;
   mine: boolean;
   open: boolean;
-  tournament: { name: string; location: string; categories: string[] } | null;
+  tournaments: { name: string; location: string; categories: string[]; visible: boolean }[];
 };
 
 type Referee = { name: string; since: string };
@@ -81,16 +81,20 @@ export default function AvailabilityPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="text-lg font-semibold">{s.slot_label}</div>
-                          {s.tournament ? (
-                            <div className="mt-1 text-sm text-stone-600">
-                              <div className="font-medium text-ink">{s.tournament.name}</div>
-                              <Place place={s.tournament.location} />
-                              {s.tournament.categories.length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {s.tournament.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
+                          {s.tournaments.length ? (
+                            s.tournaments.map((t) => (
+                              <div key={t.name} className="mt-2 text-sm text-stone-600">
+                                <div className="font-medium text-ink">
+                                  {t.name} {!t.visible && <Badge color="stone">Oculto</Badge>}
                                 </div>
-                              )}
-                            </div>
+                                <Place place={t.location} />
+                                {t.categories.length > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {t.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
+                                  </div>
+                                )}
+                              </div>
+                            ))
                           ) : (
                             <div className="mt-1 text-sm italic text-stone-500">Detalles del torneo reservados</div>
                           )}
