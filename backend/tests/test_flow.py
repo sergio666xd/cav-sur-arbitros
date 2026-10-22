@@ -161,6 +161,19 @@ def test_code_revoke_and_invalid(client):
         "code": "ZZZZZZ", "pin": "1234"})
     assert r.status_code == 400
 
+    # Historial: las claves revocadas se pueden eliminar; la vigente no.
+    client.post("/api/codes", headers=chief)
+    client.delete("/api/codes/active", headers=chief)
+    live = client.post("/api/codes", headers=chief).json()
+    old = client.get("/api/codes/history", headers=chief).json()
+    assert len(old) == 2 and all(c["revoked"] for c in old)
+    assert client.delete(f"/api/codes/{live['id']}", headers=chief).status_code == 409
+    assert client.delete(f"/api/codes/{old[0]['id']}", headers=chief).status_code == 204
+    assert len(client.get("/api/codes/history", headers=chief).json()) == 1
+    assert client.delete("/api/codes/history", headers=chief).status_code == 204
+    assert client.get("/api/codes/history", headers=chief).json() == []
+    assert client.get("/api/codes/active", headers=chief).json()["code"] == live["code"]
+
 
 def test_separate_slots(client):
     chief = login(client, "10000000", "1111")

@@ -97,11 +97,13 @@ class TokenOut(BaseModel):
 
 # ---------- Claves de registro ----------
 class CodeOut(BaseModel):
+    id: int
     code: str
     created_at: datetime
     expires_at: datetime
     created_by: str
     uses: int
+    revoked: bool = False
 
 
 # ---------- Usuarios ----------

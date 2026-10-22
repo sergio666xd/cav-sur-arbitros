@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Shell from "@/components/Shell";
-import { Alert, Loading, PageHeader } from "@/components/ui";
+import { Alert, Badge, Loading, PageHeader } from "@/components/ui";
 import { api, formatDateTime } from "@/lib/api";
 import { useFetch } from "@/lib/useFetch";
 
-type Code = { code: string; created_at: string; expires_at: string; created_by: string; uses: number };
+type Code = { id: number; revoked: boolean; code: string; created_at: string; expires_at: string; created_by: string; uses: number };
 
 function remaining(expires: string, now: number) {
   const ms = new Date(expires + "Z").getTime() - now;
@@ -16,11 +16,65 @@ function remaining(expires: string, now: number) {
   return `${h} h ${m} min`;
 }
 
+function History({ version }: { version: number }) {
+  const { data, reload } = useFetch<Code[]>(`/codes/history?v=${version}`);
+  const [err, setErr] = useState<string | null>(null);
+  if (!data || data.length === 0) return null;
+
+  async function run(path: string, question: string) {
+    if (!confirm(question)) return;
+    setErr(null);
+    try {
+      await api(path, { method: "DELETE" });
+      await reload();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+
+  return (
+    <section className="card mt-8 max-w-3xl p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 px-4 py-3">
+        <h2 className="font-semibold">Claves anteriores</h2>
+        <button className="btn-ghost text-sm text-red-700" onClick={() => run("/codes/history", `¿Eliminar las ${data.length} claves anteriores? No se puede deshacer.`)}>
+          Eliminar todas
+        </button>
+      </div>
+      {err && <div className="p-4"><Alert>{err}</Alert></div>}
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr><th>Clave</th><th>Estado</th><th>Creada</th><th>Por</th><th className="text-right">Registros</th><th /></tr>
+          </thead>
+          <tbody>
+            {data.map((c) => (
+              <tr key={c.id}>
+                <td className="font-mono font-semibold">{c.code}</td>
+                <td><Badge color={c.revoked ? "red" : "stone"}>{c.revoked ? "Revocada" : "Caducada"}</Badge></td>
+                <td className="whitespace-nowrap">{formatDateTime(c.created_at)}</td>
+                <td>{c.created_by}</td>
+                <td className="text-right">{c.uses}</td>
+                <td className="text-right">
+                  <button className="btn-ghost px-2 py-1 text-sm text-red-700" title="Eliminar"
+                    onClick={() => run(`/codes/${c.id}`, `¿Eliminar la clave ${c.code}?`)}>
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default function CodePage() {
   const { data, loading, error, reload } = useFetch<Code | null>("/codes/active");
   const [msg, setMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
@@ -41,6 +95,7 @@ export default function CodePage() {
     if (!confirm("¿Revocar la clave vigente? Nadie más podrá registrarse con ella.")) return;
     await api("/codes/active", { method: "DELETE" });
     await reload();
+    setVersion((v) => v + 1);
   }
 
   async function copy(code: string) {
@@ -86,6 +141,7 @@ export default function CodePage() {
           <button className="btn-primary" onClick={create}>Generar clave</button>
         </div>
       )}
+      <History version={version} />
     </Shell>
   );
 }

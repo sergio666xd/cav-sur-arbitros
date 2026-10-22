@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from ..config import REGISTRATION_CODE_HOURS
@@ -24,7 +24,7 @@ def _active(db: Session) -> RegistrationCode | None:
 
 
 def _out(c: RegistrationCode) -> CodeOut:
-    return CodeOut(code=c.code, created_at=c.created_at, expires_at=c.expires_at,
+    return CodeOut(id=c.id, revoked=c.revoked, code=c.code, created_at=c.created_at, expires_at=c.expires_at,
                    created_by=c.created_by.full_name, uses=c.uses)
 
 
@@ -55,3 +55,31 @@ def revoke_code(_: User = Depends(require_admin), db: Session = Depends(get_db))
     if code:
         code.revoked = True
         db.commit()
+
+
+def _inactive():
+    return or_(RegistrationCode.revoked.is_(True), RegistrationCode.expires_at <= utcnow())
+
+
+@router.get("/history", response_model=list[CodeOut])
+def history(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Claves revocadas o caducadas, de la más reciente a la más antigua."""
+    codes = db.scalars(select(RegistrationCode).where(_inactive()).order_by(RegistrationCode.created_at.desc())).all()
+    return [_out(c) for c in codes]
+
+
+@router.delete("/history", status_code=204)
+def delete_history(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    db.execute(delete(RegistrationCode).where(_inactive()))
+    db.commit()
+
+
+@router.delete("/{code_id}", status_code=204)
+def delete_code(code_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    code = db.get(RegistrationCode, code_id)
+    if not code:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Clave no encontrada.")
+    if not code.revoked and code.expires_at > utcnow():
+        raise HTTPException(status.HTTP_409_CONFLICT, "La clave está vigente. Revócala antes de eliminarla.")
+    db.delete(code)
+    db.commit()
