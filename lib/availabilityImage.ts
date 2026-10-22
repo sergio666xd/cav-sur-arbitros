@@ -81,13 +81,15 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.font = `500 24px ${FONT}`;
   const numW = 64;
   const nameW = Math.max(300, ...rows.map(([, p]) => ctx.measureText(p.name).width + 40));
-  const tableW = numW + nameW + COL * cols.length;
-  const W = Math.max(1080, tableW + PAD * 2);
-  const left = (W - tableW) / 2;
+  // La tabla ocupa todo el ancho: las columnas de franjas se reparten el espacio sobrante.
+  const W = Math.max(1080, numW + nameW + COL * cols.length + PAD * 2);
+  const tableW = W - PAD * 2;
+  const colW = cols.length ? (tableW - numW - nameW) / cols.length : 0;
+  const left = PAD;
 
   // Encabezado de cada columna: fecha, franja y torneo (solo si se puede mostrar).
   ctx.font = `400 20px ${FONT}`;
-  const headLines = cols.map((c) => ({ top: c.top, label: c.label, sub: c.sub ? wrap(ctx, c.sub, COL - 20).slice(0, 3) : [] }));
+  const headLines = cols.map((c) => ({ top: c.top, label: c.label, sub: c.sub ? wrap(ctx, c.sub, colW - 20).slice(0, 3) : [] }));
   const headH = 24 + Math.max(30, ...headLines.map((h) => (h.top ? 30 : 0) + 30 + h.sub.length * 24)) + 16;
 
   const HEADER = 170;
@@ -122,7 +124,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ctx.fillText(spec.subtitle, PAD, y + 28);
   }
 
-  const colX = (i: number) => left + numW + nameW + i * COL;
+  const colX = (i: number) => left + numW + nameW + i * colW;
   const center = (text: string, x: number, w: number, yy: number) => ctx.fillText(text, x + (w - ctx.measureText(text).width) / 2, yy);
 
   // Encabezado de la tabla.
@@ -137,16 +139,16 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     if (h.top) {
       ctx.fillStyle = "#fdba74";
       ctx.font = `700 22px ${FONT}`;
-      center(h.top, colX(i), COL, hy + 18);
+      center(h.top, colX(i), colW, hy + 18);
       hy += 30;
     }
     ctx.fillStyle = "#fff";
     ctx.font = `700 24px ${FONT}`;
-    center(h.label, colX(i), COL, hy + 20);
+    center(h.label, colX(i), colW, hy + 20);
     hy += 30;
     ctx.fillStyle = "#d6d3d1";
     ctx.font = `400 20px ${FONT}`;
-    for (const l of h.sub) { center(l, colX(i), COL, hy + 16); hy += 24; }
+    for (const l of h.sub) { center(l, colX(i), colW, hy + 16); hy += 24; }
   });
 
   // Filas de árbitros.
@@ -168,10 +170,10 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     cols.forEach((_, i) => {
       if (!marked[i].has(uid)) return;
       ctx.fillStyle = MARK;
-      ctx.fillRect(colX(i), ry, COL, ROW);
+      ctx.fillRect(colX(i), ry, colW, ROW);
       ctx.fillStyle = INK;
       ctx.font = `800 26px ${FONT}`;
-      center("X", colX(i), COL, ry + 32);
+      center("X", colX(i), colW, ry + 32);
     });
     ry += ROW;
   });
@@ -189,7 +191,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ctx.fillText(label, left + numW + 16, ry + 31);
     cols.forEach((c, i) => {
       ctx.fillStyle = label === "Disponibles" && marked[i].size < c.required ? BRAND : INK;
-      center(String(value(i)), colX(i), COL, ry + 31);
+      center(String(value(i)), colX(i), colW, ry + 31);
     });
     ry += ROW;
   }
@@ -207,7 +209,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.fillStyle = MUTED;
   ctx.font = `400 22px ${FONT}`;
   ctx.fillText(
-    `Numerados por orden de registro · Generado el ${new Date().toLocaleString("es-CO", { dateStyle: "long", timeStyle: "short" })}`,
+    `Generado el ${new Date().toLocaleString("es-CO", { dateStyle: "long", timeStyle: "short" })}`,
     left, ry + 50,
   );
 
