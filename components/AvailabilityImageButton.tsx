@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { renderAvailabilityImage, type ImageSpec } from "@/lib/availabilityImage";
 
 // Botón que genera la imagen de disponibilidad y la muestra para descargar o compartir.
-export default function AvailabilityImageButton({ spec, fileName, className = "btn-secondary" }: {
-  spec: () => ImageSpec;
+export default function AvailabilityImageButton({ spec, fileName, label = "🖼️ Imagen de disponibilidad", className = "btn-secondary" }: {
+  spec: () => ImageSpec | Promise<ImageSpec>;
   fileName: string;
+  label?: string;
   className?: string;
 }) {
   const [file, setFile] = useState<File | null>(null);
@@ -20,7 +21,7 @@ export default function AvailabilityImageButton({ spec, fileName, className = "b
     setBusy(true);
     setError(null);
     try {
-      const blob = await renderAvailabilityImage(spec());
+      const blob = await renderAvailabilityImage(await spec());
       const f = new File([blob], `${fileName}.png`, { type: "image/png" });
       setFile(f);
       setUrl(URL.createObjectURL(f));
@@ -41,7 +42,7 @@ export default function AvailabilityImageButton({ spec, fileName, className = "b
   return (
     <>
       <button className={className} onClick={generate} disabled={busy}>
-        {busy ? "Generando..." : "🖼️ Imagen de disponibilidad"}
+        {busy ? "Generando..." : label}
       </button>
       {error && <span className="text-sm text-red-700">{error}</span>}
       {url && file && (

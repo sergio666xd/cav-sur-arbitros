@@ -1,7 +1,27 @@
+import { formatDate } from "./api";
+
 // Dibuja en un canvas una imagen para compartir con la lista de árbitros disponibles.
 
 export type ImageSection = { heading: string; sub?: string; names: string[]; required: number };
 export type ImageSpec = { title: string; subtitle?: string; sections: ImageSection[] };
+
+// Fila de /availability/summary: una franja combinada tal como la ve un árbitro.
+export type SummaryRow = {
+  date: string;
+  slot_label: string;
+  required: number;
+  tournament: { name: string; location: string } | null;
+  names: string[];
+};
+
+export function summarySections(rows: SummaryRow[], withDate: boolean): ImageSection[] {
+  return rows.map((r) => ({
+    heading: withDate ? `${formatDate(r.date)} · ${r.slot_label}` : r.slot_label,
+    sub: r.tournament ? [r.tournament.name, r.tournament.location].filter(Boolean).join(" · ") : undefined,
+    required: r.required,
+    names: r.names,
+  }));
+}
 
 const W = 1080;
 const PAD = 64;

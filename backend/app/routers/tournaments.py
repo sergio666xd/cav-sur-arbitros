@@ -345,14 +345,12 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
         cols = sorted(g.days, key=lambda x: (x.start_time or time.min, fold(x.tournament.name)))
         people: dict[int, User] = {c.id: c for c in chiefs}
         available: dict[int, list[int]] = defaultdict(list)
-        available_at: dict[int, dict[str, str]] = defaultdict(dict)
         assigned: dict[int, dict[str, str | None]] = defaultdict(dict)
         for day in cols:
             for a in day.availabilities:
                 if a.user.active:
                     people[a.user_id] = a.user
                     available[a.user_id].append(day.id)
-                    available_at[a.user_id][str(day.id)] = a.created_at.isoformat()
             for a in day.assignments:
                 people[a.user_id] = a.user
                 assigned[a.user_id][str(day.id)] = a.role
@@ -364,7 +362,6 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                 **day_info(day),
                 "tournament_id": day.tournament_id,
                 "tournament": day.tournament.name,
-                "is_visible": day.tournament.is_visible,
                 "has_roles": day.tournament.has_roles,
                 "roles": day.tournament.roles or [],
             } for day in cols],
@@ -373,7 +370,6 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                 "name": u.full_name,
                 "is_chief": u.is_chief,
                 "available_day_ids": available.get(u.id, []),
-                "available_at": available_at.get(u.id, {}),
                 "assigned": assigned.get(u.id, {}),
             } for u in rows],
         })

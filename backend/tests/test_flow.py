@@ -432,3 +432,35 @@ def test_matches_by_category(client):
         {"category": "Mini", "other": 2}, {"category": "Infantil", "refereed": 1, "other": 1}]}])
     row = next(r for r in client.get("/api/ranking", headers=ref).json() if r["name"] == "Lu Lopez")
     assert (row["refereed"], row["scored"], row["other"]) == (1, 0, 3)
+
+
+def test_availability_summary(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref_z = _register(client, code, "40000001", "Zoe", "Zapata")
+    ref_a = _register(client, code, "40000002", "Ana", "Alvarez")
+    d1 = (today_local() + timedelta(days=2)).isoformat()
+    d2 = (today_local() + timedelta(days=3)).isoformat()
+    for name, start, end in [("Liga Norte", "08:00", "12:00"), ("Copa Sur", "10:00", "14:00")]:
+        client.post("/api/tournaments", headers=chief, json={
+            "name": name, "location": "Coliseo", "referees_required": 2,
+            "days": [{"date": d1, "start_time": start, "end_time": end}]})
+    client.post("/api/tournaments", headers=chief, json={
+        "name": "Solo Visible", "location": "Estadio, Calle 1", "referees_required": 3,
+        "days": [{"date": d2, "all_day": True}]})
+
+    av = {(d["date"], d["slot_label"]): d for d in client.get("/api/availability", headers=ref_z).json()}
+    for ref in (ref_z, ref_a):
+        client.post(f"/api/availability/{av[(d1, '08:00 - 14:00')]['key']}", headers=ref)
+    for ref in (ref_a, ref_z):
+        client.post(f"/api/availability/{av[(d2, 'Todo el día')]['key']}", headers=ref)
+
+    rows = client.get("/api/availability/summary", headers=chief).json()
+    assert [(r["date"], r["slot_label"]) for r in rows] == [(d1, "08:00 - 14:00"), (d2, "Todo el día")]
+    # Franjas superpuestas se combinan; con varios torneos el día no se nombra ninguno.
+    assert rows[0]["required"] == 4 and rows[0]["tournament"] is None
+    assert rows[0]["names"] == ["Zoe Zapata", "Ana Alvarez"]  # orden de registro, no alfabético
+    assert rows[1]["tournament"] == {"name": "Solo Visible", "location": "Estadio"}
+    assert rows[1]["names"] == ["Ana Alvarez", "Zoe Zapata"]
+    assert len(client.get(f"/api/availability/summary?d={d2}", headers=chief).json()) == 1
+    assert client.get("/api/availability/summary", headers=ref_a).status_code == 403

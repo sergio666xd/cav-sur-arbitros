@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
+import { summarySections, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
@@ -12,7 +13,6 @@ type Column = {
   id: number;
   tournament_id: number;
   tournament: string;
-  is_visible: boolean;
   has_roles: boolean;
   roles: string[];
   all_day: boolean;
@@ -28,7 +28,6 @@ type BoardRow = {
   name: string;
   is_chief: boolean;
   available_day_ids: number[];
-  available_at: Record<string, string>;
   assigned: Record<string, string | null>;
 };
 
@@ -210,21 +209,21 @@ export default function AssignmentBoardPage() {
         action={data && data.groups.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <AvailabilityImageButton
+              label="🖼️ Imagen de esta fecha"
               fileName={`disponibilidad-${data.date}`}
-              spec={() => ({
+              spec={async () => ({
                 title: "Árbitros disponibles",
                 subtitle: formatDate(data.date),
-                // Es para compartir: de un torneo oculto solo se muestra la franja.
-                sections: data.groups.flatMap((g) => g.columns.map((c) => ({
-                  heading: c.is_visible ? c.tournament : c.slot_label,
-                  sub: c.is_visible ? [c.slot_label, c.effective_location.split(",")[0]].filter(Boolean).join(" · ") : undefined,
-                  required: c.required,
-                  // En orden de registro de la disponibilidad: el 1 es quien la marcó primero.
-                  names: g.rows
-                    .filter((r) => !r.is_chief && r.available_day_ids.includes(c.id))
-                    .sort((a, b) => a.available_at[c.id].localeCompare(b.available_at[c.id]))
-                    .map((r) => r.name),
-                }))),
+                sections: summarySections(await api<SummaryRow[]>(`/availability/summary?d=${data.date}`), false),
+              })}
+            />
+            <AvailabilityImageButton
+              label="🖼️ Todas las fechas"
+              fileName="disponibilidad-proximas-fechas"
+              spec={async () => ({
+                title: "Árbitros disponibles",
+                subtitle: "Próximas fechas",
+                sections: summarySections(await api<SummaryRow[]>("/availability/summary"), true),
               })}
             />
             <button className="btn-primary" disabled={busy || !dirty} onClick={save}>
