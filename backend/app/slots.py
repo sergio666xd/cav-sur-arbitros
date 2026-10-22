@@ -11,6 +11,16 @@ from datetime import time
 END_OF_DAY = time.max
 
 
+def clock(t: time) -> str:
+    """Hora en formato de 12 horas, como se usa en Colombia: "7:00 a. m."."""
+    return f"{t.hour % 12 or 12}:{t.minute:02d} {'a. m.' if t.hour < 12 else 'p. m.'}"
+
+
+def at_clock(t: time) -> str:
+    """ "las 7:00 a. m." o "la 1:00 p. m."."""
+    return f"{'la' if t.hour % 12 == 1 else 'las'} {clock(t)}"
+
+
 def end_or_max(t: time | None) -> time:
     """Hora de fin para comparar: sin hora de fin, la franja sigue hasta el final del día."""
     return t or END_OF_DAY
@@ -27,10 +37,10 @@ class Slot:
     @property
     def label(self) -> str:
         if self.all_day or not self.start:
-            return f"Todo el día desde las {self.start.strftime('%H:%M')}" if self.start else "Todo el día"
+            return f"Todo el día desde {at_clock(self.start)}" if self.start else "Todo el día"
         if not self.end:
-            return f"Desde las {self.start.strftime('%H:%M')}"
-        return f"{self.start.strftime('%H:%M')} - {self.end.strftime('%H:%M')}"
+            return f"Desde {at_clock(self.start)}"
+        return f"{clock(self.start)} - {clock(self.end)}"
 
 
 @dataclass

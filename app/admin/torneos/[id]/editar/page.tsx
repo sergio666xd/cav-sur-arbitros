@@ -41,7 +41,7 @@ export default function EditTournamentPage() {
   return (
     <Shell allow={(u) => u.perm_create_tournaments}>
       <BackLink href={`/admin/torneos/${id}`}>Volver al torneo</BackLink>
-      <PageHeader title="Editar torneo y fechas" subtitle="Añade nuevas fechas para reutilizar el torneo. Las disponibilidades se conservan al editar una franja; si cambias su fecha, se quitan sus asignaciones." />
+      <PageHeader title="Editar torneo y fechas" subtitle="Añade nuevas fechas para reutilizar el torneo. Al editar una franja, incluso su fecha, se conservan sus disponibilidades y asignaciones." />
       {loading ? (
         <Loading variant="form" />
       ) : error ? (

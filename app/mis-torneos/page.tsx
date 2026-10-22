@@ -6,7 +6,7 @@ import { useState } from "react";
 import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, StatCard, StatSkeleton } from "@/components/ui";
-import { formatDate, todayIso } from "@/lib/api";
+import { atClock, formatDate, todayIso } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 
@@ -70,9 +70,9 @@ export default function MyTournamentsPage() {
 // En Mis torneos la hora es de citación: "Llegar a las ...".
 function arrival(d: Day) {
   if (!d.start_time) return d.slot_label;
-  const at = `Llegar a las ${d.start_time}`;
-  if (d.all_day) return `Todo el día, ${at.charAt(0).toLowerCase()}${at.slice(1)}`;
-  return d.end_time ? `${at}, hasta las ${d.end_time}` : at;
+  const at = `Llegar a ${atClock(d.start_time)}`;
+  if (d.all_day) return `Todo el día, llegar a ${atClock(d.start_time)}`;
+  return d.end_time ? `${at}, hasta ${atClock(d.end_time)}` : at;
 }
 
 // Un día asignado por tarjeta: primero los próximos (del más cercano al más lejano), luego los pasados.
