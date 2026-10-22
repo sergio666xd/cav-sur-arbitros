@@ -346,6 +346,7 @@ export default function TournamentDetailPage() {
                       title: t.name,
                       subtitle: "Árbitros con disponibilidad",
                       columns: t.days.filter((d) => !d.past).map((d) => ({
+                        date: d.date,
                         top: formatShortDate(d.date),
                         label: d.slot_label,
                         sub: t.is_visible ? shortAddress(d.effective_location) : undefined,

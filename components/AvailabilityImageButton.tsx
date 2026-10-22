@@ -2,6 +2,7 @@
 
 import { ArrowDownTrayIcon, PhotoIcon, ShareIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useState } from "react";
+import { formatShortDate } from "@/lib/api";
 import { renderAvailabilityImage, type ImageSpec } from "@/lib/availabilityImage";
 import { Portal, Spinner } from "./ui";
 
@@ -16,19 +17,45 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Datos de la imagen y fechas elegidas; al cambiar la selección se vuelve a dibujar.
+  const [base, setBase] = useState<ImageSpec | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+
+  const dates = base ? [...new Set(base.columns.map((c) => c.date).filter((d): d is string => !!d))].sort() : [];
+
+  async function render(s: ImageSpec, sel: string[]) {
+    const blob = await renderAvailabilityImage({ ...s, columns: s.columns.filter((c) => !c.date || sel.includes(c.date)) });
+    const f = new File([blob], `${fileName}.png`, { type: "image/png" });
+    setFile(f);
+    setUrl(URL.createObjectURL(f));
+  }
 
   async function generate() {
     setBusy(true);
     setError(null);
     try {
-      const blob = await renderAvailabilityImage(await spec());
-      const f = new File([blob], `${fileName}.png`, { type: "image/png" });
-      setFile(f);
-      setUrl(URL.createObjectURL(f));
+      const s = await spec();
+      const all = [...new Set(s.columns.map((c) => c.date).filter((d): d is string => !!d))];
+      setBase(s);
+      setSelected(all);
+      await render(s, all);
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleDate(d: string) {
+    if (!base || busy) return;
+    const sel = selected.includes(d) ? selected.filter((x) => x !== d) : [...selected, d];
+    if (sel.length === 0) return; // Siempre al menos una fecha.
+    setSelected(sel);
+    setBusy(true);
+    try {
+      await render(base, sel);
     } finally {
       setBusy(false);
     }
@@ -37,6 +64,7 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
   function close() {
     setFile(null);
     setUrl(null);
+    setBase(null);
   }
 
   const canShare = typeof navigator !== "undefined" && !!file && !!navigator.canShare?.({ files: [file] });
@@ -58,7 +86,27 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
-            <div className="min-h-0 overflow-y-auto bg-stone-100 p-4">
+            {dates.length > 1 && (
+              <div className="border-b border-stone-200 px-4 py-3">
+                <div className="mb-2 text-xs font-medium text-stone-500">Fechas incluidas</div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Fechas incluidas">
+                  {dates.map((d) => {
+                    const on = selected.includes(d);
+                    return (
+                      <button key={d} type="button" aria-pressed={on} disabled={on && selected.length === 1}
+                        title={on && selected.length === 1 ? "Debe quedar al menos una fecha" : undefined}
+                        onClick={() => toggleDate(d)}
+                        className={`rounded-full border px-3 py-1 text-sm transition active:scale-95 ${
+                          on ? "border-brand-500 bg-brand-500 text-white" : "border-stone-300 bg-white text-stone-600 hover:border-brand-400"
+                        }`}>
+                        {formatShortDate(d)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className={`min-h-0 overflow-y-auto bg-stone-100 p-4 transition-opacity ${busy ? "opacity-60" : ""}`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt="Lista de árbitros con disponibilidad" className="w-full animate-fade-in rounded-lg shadow" />
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckIcon, ClipboardDocumentIcon, KeyIcon, LinkIcon, NoSymbolIcon, PlusIcon, TrashIcon } from "@heroicons/react/20/solid";
+import { ArrowDownTrayIcon, CheckIcon, ClipboardDocumentIcon, KeyIcon, LinkIcon, NoSymbolIcon, PlusIcon, TrashIcon } from "@heroicons/react/20/solid";
+import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Loading, PageHeader, Spinner } from "@/components/ui";
@@ -15,6 +16,24 @@ function remaining(expires: string, now: number) {
   const h = Math.floor(ms / 3_600_000);
   const m = Math.floor((ms % 3_600_000) / 60_000);
   return `${h} h ${m} min`;
+}
+
+// Código QR del enlace de registro, para escanearlo con el celular o descargarlo.
+function RegistrationQr({ link, code }: { link: string; code: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    QRCode.toDataURL(link, { width: 480, margin: 2, color: { dark: "#1c1917" } }).then(setSrc).catch(() => setSrc(null));
+  }, [link]);
+  if (!src) return <div className="mx-auto mt-4 h-48 w-48 animate-pulse rounded-lg bg-stone-100" />;
+  return (
+    <div className="mt-4 flex flex-col items-center gap-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="Código QR del enlace de registro" className="h-48 w-48 animate-fade-in rounded-lg border border-stone-200" />
+      <a href={src} download={`registro-cav-sur-${code}.png`} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+        <ArrowDownTrayIcon className="h-3.5 w-3.5" />Descargar QR
+      </a>
+    </div>
+  );
 }
 
 function History({ version }: { version: number }) {
@@ -68,6 +87,10 @@ function History({ version }: { version: number }) {
       </div>
     </section>
   );
+}
+
+function registrationLink(code: string) {
+  return `${window.location.origin}/registro?clave=${code}`;
 }
 
 export default function CodePage() {
@@ -139,18 +162,19 @@ export default function CodePage() {
               <span key={i} className="inline-block animate-pop" style={{ animationDelay: `${i * 50}ms` }}>{ch}</span>
             ))}
           </button>
-          <div className={`inline-flex items-center gap-1 text-xs ${copied === "clave" ? "text-green-700" : "text-stone-500"}`}>
+          <div className={`flex items-center justify-center gap-1 text-xs ${copied === "clave" ? "text-green-700" : "text-stone-500"}`}>
             {copied === "clave" ? <><CheckIcon className="h-3.5 w-3.5 animate-pop" />¡Copiada!</> : <><ClipboardDocumentIcon className="h-3.5 w-3.5" />Toca la clave para copiarla</>}
           </div>
           <button
             className="btn-secondary mt-4"
-            onClick={() => copy(`${window.location.origin}/registro?clave=${data.code}`, "enlace")}
+            onClick={() => copy(registrationLink(data.code), "enlace")}
           >
             {copied === "enlace"
               ? <><CheckIcon className="h-4 w-4 animate-pop text-green-600" />¡Enlace copiado!</>
               : <><LinkIcon className="h-4 w-4" />Copiar enlace de registro</>}
           </button>
-          <p className="mt-1 text-xs text-stone-500">Abre el formulario de registro con la clave ya escrita.</p>
+          <p className="mt-1 text-xs text-stone-500">Abre el formulario de registro con la clave ya escrita. También puedes escanear el QR.</p>
+          <RegistrationQr link={registrationLink(data.code)} code={data.code} />
           <dl className="mt-4 grid grid-cols-2 gap-2 text-left text-sm">
             <dt className="text-stone-500">Caduca en</dt><dd className="font-medium">{remaining(data.expires_at, now)}</dd>
             <dt className="text-stone-500">Caduca el</dt><dd>{formatDateTime(data.expires_at)}</dd>
