@@ -2,11 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401  (registra las tablas)
+from .bootstrap import ensure_initial_chief
 from .config import CORS_ORIGINS
 from .database import Base, engine
 from .routers import auth, availability, codes, me, ratings, tournaments, users
 
 Base.metadata.create_all(bind=engine)
+ensure_initial_chief()
 
 app = FastAPI(title="CAV-Sur Árbitros", docs_url="/api/docs", openapi_url="/api/openapi.json")
 app.add_middleware(

@@ -183,3 +183,25 @@ def test_separate_slots(client):
         detail = client.get(f"/api/tournaments/{t['id']}", headers=chief).json()
         names = [c["name"] for c in detail["days"][0]["candidates"] if not c["is_chief"]]
         assert names == (["Eva Test"] if t["name"] == "Mañana" else [])
+
+
+def test_initial_chief_from_env(client, monkeypatch):
+    from app.bootstrap import ensure_initial_chief
+    from app.database import SessionLocal
+    from app.models import User
+
+    # Ya hay un Jefe (el del fixture): no se crea otro.
+    monkeypatch.setenv("INITIAL_CHIEF_DOCUMENT", "99999999")
+    monkeypatch.setenv("INITIAL_CHIEF_PIN", "4321")
+    ensure_initial_chief()
+    assert client.post("/api/auth/login", json={"document": "99999999", "pin": "4321"}).status_code == 401
+
+    # Sin Jefe, se crea con los datos del entorno.
+    with SessionLocal() as db:
+        db.query(User).delete()
+        db.commit()
+    monkeypatch.setenv("INITIAL_CHIEF_FIRST_NAME", "Sergio")
+    ensure_initial_chief()
+    r = client.post("/api/auth/login", json={"document": "99999999", "pin": "4321"})
+    assert r.status_code == 200
+    assert r.json()["user"]["is_chief"] is True
