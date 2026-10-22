@@ -1,0 +1,112 @@
+"use client";
+
+import { MapPinIcon } from "@heroicons/react/20/solid";
+import { useEffect, useRef, useState } from "react";
+import { MAP_ID, loadGeocoding, loadMapsLib, loadMarker, loadPlaces, placeLabel } from "@/lib/maps";
+import { Modal, Spinner } from "./ui";
+
+const BOGOTA = { lat: 4.711, lng: -74.0721 };
+
+type Picked = { label: string; pos: google.maps.LatLngLiteral };
+
+/** Ventana con un mapa: clic (o arrastrar el marcador) para elegir el lugar. */
+export default function MapPicker({ open, initial, onClose, onPick }: {
+  open: boolean; initial: string; onClose: () => void; onPick: (place: string) => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [picked, setPicked] = useState<Picked | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [resolving, setResolving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setPicked(null);
+    setStatus("loading");
+    (async () => {
+      const [maps, markers, places, geocoding] = await Promise.all([loadMapsLib(), loadMarker(), loadPlaces(), loadGeocoding()]);
+      if (cancelled || !box.current) return;
+      if (!maps || !markers) return setStatus("error");
+
+      // Centrar en el lugar escrito, si Google lo encuentra.
+      let center: google.maps.LatLngLiteral = BOGOTA;
+      let zoom = 12;
+      if (initial.trim() && places) {
+        try {
+          const { places: found } = await places.Place.searchByText({ textQuery: initial, fields: ["location"], maxResultCount: 1, region: "co" });
+          const loc = found[0]?.location;
+          if (loc) { center = loc.toJSON(); zoom = 16; }
+        } catch { /* se queda en Bogotá */ }
+      }
+      if (cancelled || !box.current) return;
+
+      const map = new maps.Map(box.current, { center, zoom, mapId: MAP_ID, streetViewControl: false, mapTypeControl: false, clickableIcons: true });
+      const marker = new markers.AdvancedMarkerElement({ gmpDraggable: true });
+      const geocoder = geocoding ? new geocoding.Geocoder() : null;
+
+      async function describe(pos: google.maps.LatLngLiteral, placeId?: string) {
+        setResolving(true);
+        let label = "";
+        try {
+          if (placeId && places) {
+            const p = new places.Place({ id: placeId });
+            await p.fetchFields({ fields: ["displayName", "formattedAddress"] });
+            label = placeLabel(p.displayName, p.formattedAddress);
+          } else if (geocoder) {
+            const { results } = await geocoder.geocode({ location: pos });
+            label = results[0]?.formatted_address ?? "";
+          }
+        } catch { /* sin dirección: se usan las coordenadas */ }
+        if (!cancelled) {
+          setPicked({ pos, label: label || `${pos.lat.toFixed(6)},${pos.lng.toFixed(6)}` });
+          setResolving(false);
+        }
+      }
+
+      function place(pos: google.maps.LatLngLiteral, placeId?: string) {
+        marker.position = pos;
+        marker.map = map;
+        describe(pos, placeId);
+      }
+
+      map.addListener("click", (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent) => {
+        if (!e.latLng) return;
+        const placeId = "placeId" in e ? e.placeId ?? undefined : undefined;
+        if (placeId) e.stop(); // Evita la ventanita de información de Google.
+        place(e.latLng.toJSON(), placeId);
+      });
+      marker.addListener("dragend", () => {
+        const p = marker.position;
+        if (p) place(p instanceof google.maps.LatLng ? p.toJSON() : { lat: Number(p.lat), lng: Number(p.lng) });
+      });
+      setStatus("ready");
+    })();
+    return () => { cancelled = true; };
+  }, [open, initial]);
+
+  return (
+    <Modal open={open} onClose={onClose} title="Elegir en el mapa">
+      <p className="mb-2 text-sm text-stone-500">Haz clic en el lugar (o en un sitio marcado en el mapa). Puedes arrastrar el marcador para ajustarlo.</p>
+      <div className="relative h-80 overflow-hidden rounded-lg border border-stone-200 bg-stone-100">
+        <div ref={box} className="h-full w-full" />
+        {status !== "ready" && (
+          <div className="absolute inset-0 grid place-items-center text-sm text-stone-500">
+            {status === "loading" ? <span className="inline-flex items-center gap-2"><Spinner />Cargando mapa...</span> : "No se pudo cargar Google Maps."}
+          </div>
+        )}
+      </div>
+      <div className="mt-3 min-h-10 text-sm">
+        {resolving ? <span className="inline-flex items-center gap-2 text-stone-500"><Spinner />Buscando dirección...</span>
+          : picked ? <span className="inline-flex animate-fade-in items-start gap-1"><MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />{picked.label}</span>
+          : <span className="text-stone-400">Aún no has elegido un punto.</span>}
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
+        <button type="button" className="btn-primary" disabled={!picked || resolving}
+          onClick={() => { if (picked) { onPick(picked.label); onClose(); } }}>
+          Usar este lugar
+        </button>
+      </div>
+    </Modal>
+  );
+}

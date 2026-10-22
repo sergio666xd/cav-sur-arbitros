@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+/* Paleta derivada del naranja #f65a03 */
+@theme {
+  --color-brand-50: #fff4ec;
+  --color-brand-100: #ffe5d2;
+  --color-brand-200: #ffc8a3;
+  --color-brand-300: #ffa36b;
+  --color-brand-400: #fd7a35;
+  --color-brand-500: #f65a03;
+  --color-brand-600: #dc4a00;
+  --color-brand-700: #b53b03;
+  --color-brand-800: #8f300b;
+  --color-brand-900: #74290c;
+  --color-brand-950: #3f1204;
+  --color-ink: #1b1f24;
+  --color-night: #1b1f24;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --animate-fade-in: fade-in 0.25s ease-out both;
+  --animate-slide-up: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-down: slide-down 0.2s ease-out both;
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-pop: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  /* Las animaciones terminan en transform: none para no afectar a elementos fixed dentro. */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes slide-down {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+  }
+  @keyframes pop {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+}
+
+/* Quien prefiere menos movimiento no ve animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* En monitores grandes todo (texto, espacios y ancho máximo) crece con el tamaño base. */
+@media (min-width: 1536px) {
+  html { font-size: 112.5%; }
+}
+@media (min-width: 1800px) {
+  html { font-size: 125%; }
+}
+@media (min-width: 2400px) {
+  html { font-size: 150%; }
+}
+
+body {
+  @apply bg-stone-50 text-ink antialiased;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+}
+@utility btn-primary {
+  @apply btn bg-brand-500 text-white shadow-sm hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500;
+}
+@utility btn-secondary {
+  @apply btn border border-stone-300 bg-white text-ink hover:bg-stone-100;
+}
+@utility btn-danger {
+  @apply btn bg-red-600 text-white hover:bg-red-700;
+}
+@utility btn-ghost {
+  @apply btn text-brand-700 hover:bg-brand-50;
+}
+@utility card {
+  @apply rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition-shadow duration-200;
+}
+@utility input {
+  @apply w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200;
+}
+@utility label {
+  @apply mb-1 block text-sm font-medium text-stone-700;
+}
+@utility badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}
+@utility table {
+  @apply w-full text-left text-sm;
+  & th {
+    @apply border-b border-stone-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-stone-500;
+  }
+  & td {
+    @apply border-b border-stone-100 px-3 py-2;
+  }
+  & tbody tr {
+    @apply transition-colors duration-150 hover:bg-stone-50;
+  }
+}
+
+/* Bloque gris con brillo que se mueve, para los skeletons. */
+@utility skeleton {
+  @apply animate-shimmer rounded-md bg-stone-200;
+  background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.6) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+}
