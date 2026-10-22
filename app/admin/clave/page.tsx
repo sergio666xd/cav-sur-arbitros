@@ -72,7 +72,7 @@ function History({ version }: { version: number }) {
 export default function CodePage() {
   const { data, loading, error, reload } = useFetch<Code | null>("/codes/active");
   const [msg, setMsg] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"clave" | "enlace" | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [version, setVersion] = useState(0);
 
@@ -98,11 +98,11 @@ export default function CodePage() {
     setVersion((v) => v + 1);
   }
 
-  async function copy(code: string) {
+  async function copy(text: string, what: "clave" | "enlace") {
     try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      setTimeout(() => setCopied(null), 1500);
     } catch {
       /* el navegador no permite copiar */
     }
@@ -122,11 +122,18 @@ export default function CodePage() {
       ) : data ? (
         <div className="card max-w-lg text-center">
           <div className="text-sm text-stone-500">Clave vigente</div>
-          <button onClick={() => copy(data.code)} title="Copiar"
+          <button onClick={() => copy(data.code, "clave")} title="Copiar"
             className="my-3 font-mono text-5xl font-bold tracking-[0.3em] text-brand-600 hover:text-brand-700">
             {data.code}
           </button>
-          <div className="text-xs text-stone-500">{copied ? "¡Copiada!" : "Toca la clave para copiarla"}</div>
+          <div className="text-xs text-stone-500">{copied === "clave" ? "¡Copiada!" : "Toca la clave para copiarla"}</div>
+          <button
+            className="btn-secondary mt-4"
+            onClick={() => copy(`${window.location.origin}/registro?clave=${data.code}`, "enlace")}
+          >
+            {copied === "enlace" ? "¡Enlace copiado!" : "🔗 Copiar enlace de registro"}
+          </button>
+          <p className="mt-1 text-xs text-stone-500">Abre el formulario de registro con la clave ya escrita.</p>
           <dl className="mt-4 grid grid-cols-2 gap-2 text-left text-sm">
             <dt className="text-stone-500">Caduca en</dt><dd className="font-medium">{remaining(data.expires_at, now)}</dd>
             <dt className="text-stone-500">Caduca el</dt><dd>{formatDateTime(data.expires_at)}</dd>

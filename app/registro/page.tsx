@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AuthCard from "@/components/AuthCard";
 import { Alert } from "@/components/ui";
 import { api, type Me } from "@/lib/api";
@@ -14,6 +14,12 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ first_name: "", last_name: "", document: "", birth_date: "", code: "", pin: "", pin2: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Enlace compartido desde Clave de registro: /registro?clave=ABC123
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("clave");
+    if (code) setForm((f) => ({ ...f, code: code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) }));
+  }, []);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
