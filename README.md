@@ -2,8 +2,11 @@
 
 Aplicación web para gestionar las disponibilidades, asignaciones, partidos y ranking de los árbitros de voleibol de CAV-Sur.
 
+Todo vive en un solo proyecto de Vercel:
+
+- Raíz (`app/`, `components/`, `lib/`): Next.js (App Router) + Tailwind, interfaz en español.
 - `backend/`: API en FastAPI + SQLAlchemy (PostgreSQL en Supabase; SQLite en local).
-- `frontend/`: Next.js (App Router) + Tailwind, interfaz en español. Reenvía `/api/*` al backend, así el navegador solo ve un dominio.
+- `api/index.py`: función de Python de Vercel que sirve la API; `vercel.json` le envía todas las rutas `/api/*`.
 
 ## Roles
 
@@ -25,25 +28,23 @@ Aplicación web para gestionar las disponibilidades, asignaciones, partidos y ra
 ## Desarrollo local
 
 ```bash
-# Backend
-cd backend
+# Una vez
 python -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt
-python -m app.seed_chief --documento 12345678 --nombre Nombre --apellido Apellido --nacimiento 1990-01-01 --pin 1234
-uvicorn app.main:app --reload --port 8000     # API en http://localhost:8000/api/docs
-pytest                                        # pruebas
-
-# Frontend (otra terminal)
-cd frontend
+pip install -r backend/requirements-dev.txt
 npm install
-npm run dev                                   # http://localhost:3000
+cd backend && python -m app.seed_chief --documento 12345678 --nombre Nombre --apellido Apellido --nacimiento 1990-01-01 --pin 1234 && cd ..
+
+# Cada vez (dos terminales)
+npm run dev:api     # FastAPI en http://localhost:8000 (docs en /api/docs)
+npm run dev         # Next.js en http://localhost:3000, reenvía /api/* a FastAPI
+
+npm run test:api    # pruebas del backend
 ```
 
 Sin `DATABASE_URL`, el backend usa un archivo SQLite local (`backend/arbitros.db`).
 
-## Despliegue (Supabase + Vercel)
+## Despliegue (Supabase + Vercel, un solo proyecto)
 
 1. **Supabase:** crea un proyecto y copia la cadena de conexión del *Transaction pooler* (puerto 6543) en Project Settings → Database.
-2. **Backend en Vercel:** nuevo proyecto desde este repositorio con *Root Directory* = `backend` (Vercel detecta FastAPI por `index.py`). Variables de entorno: `DATABASE_URL` y `SECRET_KEY` (ver `backend/.env.example`). Las tablas se crean solas en el primer arranque.
-3. **Frontend en Vercel:** otro proyecto desde el mismo repositorio con *Root Directory* = `frontend`. Variable de entorno: `BACKEND_URL` = URL del proyecto del backend.
-4. **Primer Jefe:** desde tu computador, con la misma `DATABASE_URL` y `SECRET_KEY` exportadas, ejecuta `python -m app.seed_chief ...` dentro de `backend/`.
+2. **Vercel:** importa este repositorio como un proyecto (framework Next.js, carpeta raíz). En Environment Variables añade `DATABASE_URL` y `SECRET_KEY` (ver `.env.example`). Vercel construye Next.js y crea la función de Python de `api/index.py` con `requirements.txt`. Las tablas se crean solas en el primer arranque.
+3. **Primer Jefe:** desde tu computador, con la misma `DATABASE_URL` y `SECRET_KEY` exportadas, ejecuta dentro de `backend/`: `python -m app.seed_chief --documento ... --nombre ... --apellido ... --nacimiento AAAA-MM-DD --pin ....`

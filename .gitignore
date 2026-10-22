@@ -8,4 +8,6 @@ __pycache__/
 !.env.example
 node_modules/
 .next/
+next-env.d.ts
+*.tsbuildinfo
 .vercel/

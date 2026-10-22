@@ -1,12 +1,14 @@
 {
-  "name": "cav-sur-arbitros-frontend",
+  "name": "cav-sur-arbitros",
   "private": true,
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
+    "dev:api": "cd backend && uvicorn app.main:app --reload --port 8000",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:api": "cd backend && pytest"
   },
   "dependencies": {
     "next": "^16.4.2",
