@@ -52,9 +52,9 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
 
     result = []
     for d, days in by_date.items():
-        # Solo se muestran los detalles si ese día hay un único torneo y es visible.
-        # Un administrador los ve siempre.
-        single = len({x.tournament_id for x in days}) == 1 and days[0].tournament.is_visible
+        # Solo se nombra el torneo si es el único de ese día. Si no es visible, solo se muestra su nombre.
+        # Un administrador ve siempre todos los detalles.
+        single = len({x.tournament_id for x in days}) == 1
         for g in group_days(days):
             tournaments = []
             if single or user.admin:
@@ -63,10 +63,11 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
                     by_tournament[x.tournament_id].append(x)
                 for tdays in by_tournament.values():
                     t = tdays[0].tournament
+                    details = t.is_visible or user.admin
                     tournaments.append({
                         "name": t.name,
-                        "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)),
-                        "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)),
+                        "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)) if details else "",
+                        "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)) if details else [],
                         "visible": t.is_visible,
                     })
             registered = set().union(*(users_by_day[x.id] for x in g.days))
@@ -105,8 +106,9 @@ def availability_summary(d: date | None = None, _: User = Depends(require_admin)
 
     result = []
     for day, days in sorted(by_date.items()):
-        # Mismas reglas que ve el árbitro: el torneo solo se nombra si es el único del día y es visible.
-        single = len({x.tournament_id for x in days}) == 1 and days[0].tournament.is_visible
+        # Mismas reglas que ve el árbitro: el torneo solo se nombra si es el único del día,
+        # y si no es visible se muestra solo su nombre.
+        single = len({x.tournament_id for x in days}) == 1
         for g in group_days(days):
             people: dict[int, tuple] = {}
             for x in g.days:
@@ -115,8 +117,9 @@ def availability_summary(d: date | None = None, _: User = Depends(require_admin)
                         people[uid] = (at, u)
             tournament = None
             if single:
+                t = days[0].tournament
                 locations = list(dict.fromkeys(x.effective_location.split(",")[0] for x in g.days if x.effective_location))
-                tournament = {"name": days[0].tournament.name, "location": " / ".join(locations)}
+                tournament = {"name": t.name, "location": " / ".join(locations) if t.is_visible else ""}
             result.append({
                 "date": day.isoformat(),
                 "slot_label": g.slot.label,

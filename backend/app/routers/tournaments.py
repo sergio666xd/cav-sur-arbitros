@@ -105,8 +105,7 @@ def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "Un día no pertenece a este torneo.")
             keep_ids.add(day.id)
             if day.date != day_in.date:
-                # Cambió la fecha: las disponibilidades y asignaciones de ese día ya no valen.
-                day.availabilities.clear()
+                # Cambió la fecha: las disponibilidades se conservan, pero las asignaciones y partidos de ese día ya no valen.
                 day.assignments.clear()
                 day.match_records.clear()
         else:

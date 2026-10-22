@@ -7,6 +7,7 @@ import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
 import { api, formatDate, formatDateTime } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 
 type Slot = {
@@ -24,6 +25,7 @@ type Slot = {
 type Referee = { name: string; since: string };
 
 export default function AvailabilityPage() {
+  const { user } = useAuth();
   const { data, error, loading, reload } = useFetch<Slot[]>("/availability");
   const [busy, setBusy] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -87,7 +89,7 @@ export default function AvailabilityPage() {
                             s.tournaments.map((t) => (
                               <div key={t.name} className="mt-2 text-sm text-stone-600">
                                 <div className="font-medium text-ink">
-                                  {t.name} {!t.visible && <Badge color="stone">Oculto</Badge>}
+                                  {t.name} {!t.visible && user?.perm_admin && <Badge color="stone">Oculto</Badge>}
                                 </div>
                                 <Place place={t.location} />
                                 {t.categories.length > 0 && (

@@ -247,7 +247,7 @@ export default function TournamentForm({
         </div>
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.is_visible} onChange={(e) => setV({ ...v, is_visible: e.target.checked })} />
-          <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán la fecha y la franja.</span></span>
+          <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán el nombre del torneo, la fecha y la franja.</span></span>
         </label>
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.has_roles} onChange={(e) => setV({ ...v, has_roles: e.target.checked })} />

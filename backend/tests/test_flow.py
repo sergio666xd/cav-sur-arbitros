@@ -506,3 +506,37 @@ def test_slot_without_end_time(client):
         "name": "Choque", "location": "X", "referees_required": 1,
         "days": [{"date": d, "start_time": "08:00"}, {"date": d, "start_time": "20:00", "end_time": "22:00"}]})
     assert r.status_code == 422
+
+
+def test_hidden_tournament_shows_only_name(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=4)).isoformat()
+    client.post("/api/tournaments", headers=chief, json={
+        "name": "Copa Secreta", "location": "Coliseo Norte, Calle 1", "categories": ["mini"], "referees_required": 1,
+        "is_visible": False, "days": [{"date": d, "start_time": "09:00"}]})
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "70000001", "Gabi")
+    slot = client.get("/api/availability", headers=ref).json()[0]
+    assert slot["tournaments"] == [{"name": "Copa Secreta", "location": "", "categories": [], "visible": False}]
+    rows = client.get(f"/api/availability/summary?d={d}", headers=chief).json()
+    assert rows[0]["tournament"] == {"name": "Copa Secreta", "location": ""}
+
+
+def test_editing_slot_keeps_availability(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=4)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 2,
+        "days": [{"date": d, "start_time": "09:00", "end_time": "12:00"}]}).json()["id"]
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "80000001", "Hugo")
+    key = client.get("/api/availability", headers=ref).json()[0]["key"]
+    assert client.post(f"/api/availability/{key}", headers=ref).status_code == 204
+    day_id = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["id"]
+    later = (today_local() + timedelta(days=5)).isoformat()
+    # Cambian hora, sede y fecha: la disponibilidad marcada se conserva.
+    r = client.put(f"/api/tournaments/{tid}", headers=chief, json={
+        "name": "T", "venues": ["A", "B"], "referees_required": 2,
+        "days": [{"id": day_id, "date": later, "start_time": "10:00", "location": "B"}]})
+    assert r.status_code == 200, r.text
+    slots = client.get("/api/availability", headers=ref).json()
+    assert [(s["date"], s["mine"]) for s in slots] == [(later, True)]
