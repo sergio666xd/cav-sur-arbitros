@@ -82,36 +82,9 @@ function GroupTable({ group, date, dirty, sel, setSel }: { group: Group; date: s
     <section className="card overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-stone-50 px-4 py-3">
         <h2 className="flex items-center gap-1.5 font-semibold"><ClockIcon className="h-5 w-5 text-brand-500" />{group.slot_label}</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs text-stone-500">
-            {group.rows.filter((r) => !r.is_chief).length} árbitro(s) disponibles · {cols.length} torneo(s)
-          </span>
-          {group.rows.some((r) => cols.some((c) => String(c.id) in r.assigned)) && (
-            // Usa las asignaciones guardadas, por eso pide guardar antes.
-            <AvailabilityImageButton
-              label="Imagen de asignación"
-              className="btn-secondary px-3 py-1.5 text-xs"
-              disabled={dirty}
-              title={dirty ? "Guarda los cambios para generar la imagen" : undefined}
-              fileName={`asignacion-${date}-${group.key}`}
-              spec={() => ({
-                kind: "assignment",
-                title: "Árbitros asignados",
-                subtitle: `${formatDate(date)} · ${group.slot_label}`,
-                columns: cols.map((c) => ({
-                  // En una franja combinada cada torneo puede tener su propio horario.
-                  top: c.slot_label !== group.slot_label ? c.slot_label : undefined,
-                  label: c.tournament,
-                  sub: c.visible ? shortAddress(c.effective_location) : undefined,
-                  required: c.required,
-                  entries: group.rows
-                    .filter((r) => String(c.id) in r.assigned)
-                    .map((r) => ({ user_id: r.user_id, name: r.name, at: "", mark: r.assigned[String(c.id)] ?? undefined })),
-                })),
-              })}
-            />
-          )}
-        </div>
+        <span className="text-xs text-stone-500">
+          {group.rows.filter((r) => !r.is_chief).length} árbitro(s) disponibles · {cols.length} torneo(s)
+        </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-max text-sm">
@@ -129,6 +102,29 @@ function GroupTable({ group, date, dirty, sel, setSel }: { group: Group; date: s
                     <div className={`mt-1 text-xs font-medium ${count >= c.required ? "text-green-700" : "text-brand-700"}`}>
                       {count} de {c.required} asignados
                     </div>
+                    {group.rows.some((r) => String(c.id) in r.assigned) && (
+                      // Usa las asignaciones guardadas, por eso pide guardar antes.
+                      <AvailabilityImageButton
+                        label="Imagen"
+                        className="btn-secondary mt-2 px-2 py-1 text-xs"
+                        disabled={dirty}
+                        title={dirty ? "Guarda los cambios para generar la imagen" : "Imagen de asignación de esta franja"}
+                        fileName={`asignacion-${date}-${c.id}`}
+                        spec={() => ({
+                          kind: "assignment",
+                          title: c.tournament,
+                          subtitle: `${formatDate(date)} · ${c.slot_label}`,
+                          columns: [{
+                            label: "Asignados",
+                            sub: c.visible ? shortAddress(c.effective_location) : undefined,
+                            required: c.required,
+                            entries: group.rows
+                              .filter((r) => String(c.id) in r.assigned)
+                              .map((r) => ({ user_id: r.user_id, name: r.name, at: "", mark: r.assigned[String(c.id)] ?? undefined })),
+                          }],
+                        })}
+                      />
+                    )}
                   </th>
                 );
               })}

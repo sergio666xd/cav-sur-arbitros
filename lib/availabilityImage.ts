@@ -3,7 +3,7 @@ import { shortAddress } from "./maps";
 
 // Dibuja en un canvas una imagen para compartir: tabla con los árbitros en filas, las franjas en
 // columnas y una X donde el árbitro marcó disponibilidad. En modo "assignment" muestra en cambio a
-// los árbitros asignados, con su rol (o una X si no tiene).
+// los árbitros asignados, con su rol (o una X si no tiene), y sin totales.
 
 // at: cuándo marcó disponibilidad (ordena las filas). mark: rol asignado.
 export type ImageEntry = { user_id: number; name: string; at: string; mark?: string };
@@ -123,7 +123,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const textH = titleLines.length * 48 + subLines.length * 34 + 30;
   const HEADER = Math.max(170, textH + 60);
   const tableTop = HEADER + 8 + 32;
-  const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + 2 * ROW;
+  const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + (assignment ? 0 : 2 * ROW);
   canvas.width = W;
   canvas.height = tableBottom + PAD;
 
@@ -208,10 +208,9 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ry += ROW;
   });
 
-  // Totales: disponibles o asignados (en naranja si no alcanzan) y solicitados.
-  const count = assignment ? "Asignados" : "Disponibles";
-  const totals: [string, (i: number) => number][] = [
-    [count, (i) => marked[i].size],
+  // Totales (solo en disponibilidad): disponibles (en naranja si no alcanzan) y solicitados.
+  const totals: [string, (i: number) => number][] = assignment ? [] : [
+    ["Disponibles", (i) => marked[i].size],
     ["Solicitados", (i) => cols[i].required],
   ];
   for (const [label, value] of totals) {
@@ -221,7 +220,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ctx.font = `700 24px ${FONT}`;
     ctx.fillText(label, left + numW + 16, ry + 31);
     cols.forEach((c, i) => {
-      ctx.fillStyle = label === count && marked[i].size < c.required ? BRAND : INK;
+      ctx.fillStyle = label === "Disponibles" && marked[i].size < c.required ? BRAND : INK;
       center(String(value(i)), colX(i), colW, ry + 31);
     });
     ry += ROW;
