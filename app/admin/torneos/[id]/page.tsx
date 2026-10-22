@@ -1,6 +1,6 @@
 "use client";
 
-import { ExclamationTriangleIcon, MapPinIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/20/solid";
+import { ChevronDownIcon, ExclamationTriangleIcon, MapPinIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
@@ -257,19 +257,26 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
 
 function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSaved: () => void }) {
   const ownPlace = d.location || (d.categories && d.categories.length > 0);
+  // Cerrada por defecto; se abre si se llega a esta franja con #dia-N.
+  const [open, setOpen] = useState(() => typeof window !== "undefined" && window.location.hash === `#dia-${d.id}`);
+  const assigned = d.assignments.length;
   return (
-    <section id={`dia-${d.id}`} className="card scroll-mt-24 animate-slide-up">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-2 border-b border-stone-100 pb-3">
-        <div>
+    <section id={`dia-${d.id}`} className="card scroll-mt-24 animate-slide-up p-0 hover:shadow-md">
+      <div className="cursor-pointer p-4 sm:p-5" onClick={() => setOpen(!open)}>
+        <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold">{formatDate(d.date)}</h2>
-          <Place place={d.effective_location} className="mt-1 text-sm text-stone-600" />
-          {ownPlace && d.effective_categories.length > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              {d.effective_categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
-            </div>
-          )}
+          <button type="button" className="rounded-md p-1 text-stone-500 transition hover:bg-stone-100" aria-expanded={open}
+            aria-label={open ? "Ocultar asignación" : "Ver asignación"} onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+            <ChevronDownIcon className={`h-5 w-5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div onClick={(e) => e.stopPropagation()}><Place place={d.effective_location} className="mt-1 text-sm text-stone-600" /></div>
+        {ownPlace && d.effective_categories.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            {d.effective_categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
+          </div>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <Badge color="brand">{d.slot_label}</Badge>
           {d.past ? (
             <Badge color="stone">Fecha pasada</Badge>
@@ -277,11 +284,15 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
             <Badge color={d.open ? "green" : "stone"}>{d.open ? "Disponibilidad abierta" : "Disponibilidad cerrada"}</Badge>
           )}
           <span className="text-stone-500">{d.available_count} disponibles</span>
+          <span className={`font-medium ${assigned >= d.required ? "text-green-700" : "text-brand-700"}`}>{assigned} de {d.required} asignados</span>
         </div>
       </div>
-      <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
-        <AssignmentEditor day={d} t={t} onSaved={onSaved} />
-        <MatchEditor day={d} t={t} onSaved={onSaved} />
+      {/* Oculta en vez de desmontada, para no perder cambios sin guardar al plegarla. */}
+      <div className={open ? "animate-slide-down border-t border-stone-100 p-4 sm:p-5" : "hidden"}>
+        <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+          <AssignmentEditor day={d} t={t} onSaved={onSaved} />
+          <MatchEditor day={d} t={t} onSaved={onSaved} />
+        </div>
       </div>
     </section>
   );
