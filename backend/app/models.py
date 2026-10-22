@@ -74,7 +74,8 @@ class Tournament(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(150))
-    location: Mapped[str] = mapped_column(String(200), default="")
+    location: Mapped[str] = mapped_column(String(200), default="")  # Sede principal (la primera de `venues`).
+    venues: Mapped[list | None] = mapped_column(JSON, nullable=True)
     categories: Mapped[list] = mapped_column(JSON, default=list)
     referees_required: Mapped[int] = mapped_column(Integer, default=1)
     is_visible: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -87,6 +88,17 @@ class Tournament(Base):
     days: Mapped[list["TournamentDay"]] = relationship(
         back_populates="tournament", cascade="all, delete-orphan", order_by="TournamentDay.date"
     )
+
+    @property
+    def venue_list(self) -> list[str]:
+        """Sedes del torneo. Los torneos creados antes de las sedes las toman de su lugar y el de sus franjas."""
+        if self.venues:
+            return list(self.venues)
+        out: list[str] = []
+        for v in [self.location, *(d.location for d in self.days)]:
+            if v and v not in out:
+                out.append(v)
+        return out
 
 
 class TournamentDay(Base):

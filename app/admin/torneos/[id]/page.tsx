@@ -205,7 +205,7 @@ export default function TournamentDetailPage() {
         <>
           <PageHeader
             title={t.name}
-            subtitle={t.location ? `📍 ${t.location}` : "Lugar definido en cada franja"}
+            subtitle={t.venues.length > 1 ? `📍 ${t.venues.length} sedes: ${t.venues.map((v) => v.split(",")[0]).join(" · ")}` : `📍 ${t.location}`}
             action={user?.perm_create_tournaments && (
               <div className="flex gap-2">
                 <Link href={`/admin/torneos/${t.id}/editar`} className="btn-secondary">Editar / añadir fechas</Link>

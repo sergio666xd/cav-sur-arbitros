@@ -57,7 +57,6 @@ export default function MyTournamentsPage() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-semibold">{t.name}</h2>
-                  {t.location && <div className="text-sm text-stone-600">📍 {t.location}</div>}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {t.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}

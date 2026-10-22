@@ -12,13 +12,13 @@ export type DayForm = {
   start_time: string;
   end_time: string;
   referees_required: string;
-  custom: boolean; // lugar y categorías propios de la franja
-  location: string;
+  custom: boolean; // categorías propias de la franja
+  location: string; // sede elegida entre las del torneo
   categories: string[];
 };
 export type TournamentFormValue = {
   name: string;
-  location: string;
+  venues: string[];
   categories: string[];
   referees_required: number;
   is_visible: boolean;
@@ -43,7 +43,7 @@ export const emptyDay: DayForm = {
 
 export const emptyTournament: TournamentFormValue = {
   name: "",
-  location: "",
+  venues: [""],
   categories: [],
   referees_required: 4,
   is_visible: true,
@@ -147,10 +147,37 @@ export default function TournamentForm({
     setV({ ...v, days: [...v.days, last ? { ...last, id: undefined, date: nextDate(last.date) } : { ...emptyDay }] });
   }
 
+  const venues = v.venues.map((x) => x.trim()).filter(Boolean);
+  const multi = venues.length > 1;
+
+  function setVenue(i: number, value: string) {
+    const old = v.venues[i];
+    setV({
+      ...v,
+      venues: v.venues.map((x, j) => (j === i ? value : x)),
+      // Las franjas que tenían esta sede siguen con ella aunque cambie el texto.
+      days: v.days.map((d) => (old && d.location === old ? { ...d, location: value } : d)),
+    });
+  }
+
+  function removeVenue(i: number) {
+    const old = v.venues[i];
+    const rest = v.venues.filter((_, j) => j !== i);
+    setV({
+      ...v,
+      venues: rest.length ? rest : [""],
+      days: v.days.map((d) => (d.location === old ? { ...d, location: "" } : d)),
+    });
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!v.location.trim() && v.days.some((d) => !d.custom || !d.location.trim())) {
-      setError("Indica el lugar del torneo o el de cada franja.");
+    if (!venues.length) {
+      setError("Añade al menos una sede del torneo.");
+      return;
+    }
+    if (multi && v.days.some((d) => !venues.includes(d.location.trim()))) {
+      setError("Elige la sede de cada franja.");
       return;
     }
     setBusy(true);
@@ -158,6 +185,7 @@ export default function TournamentForm({
     try {
       await onSubmit({
         ...v,
+        venues,
         roles: v.has_roles ? v.roles : [],
         days: v.days.map((d) => ({
           id: d.id,
@@ -166,7 +194,7 @@ export default function TournamentForm({
           start_time: d.all_day ? null : d.start_time,
           end_time: d.all_day ? null : d.end_time,
           referees_required: d.referees_required ? Number(d.referees_required) : null,
-          location: d.custom ? d.location : null,
+          location: multi ? d.location.trim() : venues[0],
           categories: d.custom && d.categories.length ? d.categories : null,
         })),
       });
@@ -183,10 +211,24 @@ export default function TournamentForm({
           <label className="label">Nombre del torneo</label>
           <input className="input" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required />
         </div>
-        <div>
-          <label className="label">Lugar del torneo</label>
-          <PlaceInput value={v.location} onChange={(location) => setV({ ...v, location })} saved={locations}
-            placeholder="Se usa en todas las franjas salvo que indiques otro" />
+        <div className="md:col-span-2">
+          <label className="label">Sedes del torneo</label>
+          <div className="space-y-2">
+            {v.venues.map((venue, i) => (
+              <div key={i} className="flex gap-2">
+                <div className="flex-1">
+                  <PlaceInput value={venue} onChange={(x) => setVenue(i, x)} saved={locations.filter((l) => !v.venues.includes(l))}
+                    placeholder={i === 0 ? "Sede principal" : "Otra sede"} required={i === 0} />
+                </div>
+                {v.venues.length > 1 && (
+                  <button type="button" className="btn-ghost px-2 text-red-600" title="Quitar sede" onClick={() => removeVenue(i)}>✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button type="button" className="btn-ghost mt-2 px-2 text-sm text-brand-700" onClick={() => setV({ ...v, venues: [...v.venues, ""] })}>
+            + Añadir sede
+          </button>
         </div>
         <div>
           <label className="label">Árbitros requeridos por franja</label>
@@ -262,23 +304,30 @@ export default function TournamentForm({
                     onClick={() => setV({ ...v, days: v.days.filter((_, j) => j !== i) })}>✕</button>
                 </div>
               </div>
-              <label className="mt-3 flex items-center gap-2 text-sm text-stone-600">
-                <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.custom}
-                  onChange={(e) => setDay(i, { custom: e.target.checked })} />
-                Lugar y categorías propios para esta franja
-              </label>
+              <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+                {multi ? (
+                  <div className="flex min-w-64 flex-1 items-center gap-2">
+                    <label className="label mb-0 shrink-0">Sede</label>
+                    <select className="input py-1.5" value={venues.includes(d.location) ? d.location : ""}
+                      onChange={(e) => setDay(i, { location: e.target.value })} required>
+                      <option value="" disabled>Elige la sede...</option>
+                      {venues.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                  </div>
+                ) : venues[0] ? (
+                  <span className="text-sm text-stone-500">📍 {venues[0]}</span>
+                ) : null}
+                <label className="flex items-center gap-2 text-sm text-stone-600">
+                  <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.custom}
+                    onChange={(e) => setDay(i, { custom: e.target.checked })} />
+                  Categorías propias para esta franja
+                </label>
+              </div>
               {d.custom && (
-                <div className="mt-3 grid gap-3 border-t border-stone-100 pt-3 md:grid-cols-2">
-                  <div>
-                    <label className="label">Lugar de la franja</label>
-                    <PlaceInput value={d.location} onChange={(location) => setDay(i, { location })} saved={locations}
-                      placeholder={v.location || "Lugar"} required={!v.location.trim()} />
-                  </div>
-                  <div>
-                    <label className="label">Categorías de la franja</label>
-                    <ListInput value={d.categories} onChange={(c) => setDay(i, { categories: c })}
-                      placeholder={v.categories.join(", ") || "Categoría"} suggestions={categories} />
-                  </div>
+                <div className="mt-3 border-t border-stone-100 pt-3">
+                  <label className="label">Categorías de la franja</label>
+                  <ListInput value={d.categories} onChange={(c) => setDay(i, { categories: c })}
+                    placeholder={v.categories.join(", ") || "Categoría"} suggestions={categories} />
                 </div>
               )}
             </div>

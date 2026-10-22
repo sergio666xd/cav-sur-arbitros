@@ -12,7 +12,7 @@ import type { TournamentDetail } from "@/lib/types";
 function toForm(t: TournamentDetail): TournamentFormValue {
   return {
     name: t.name,
-    location: t.location,
+    venues: t.venues.length ? t.venues : [""],
     categories: t.categories,
     referees_required: t.referees_required,
     is_visible: t.is_visible,
@@ -27,8 +27,8 @@ function toForm(t: TournamentDetail): TournamentFormValue {
       start_time: d.start_time ?? "08:00",
       end_time: d.end_time ?? "18:00",
       referees_required: d.referees_required ? String(d.referees_required) : "",
-      custom: !!(d.location || d.categories?.length),
-      location: d.location ?? "",
+      custom: !!d.categories?.length,
+      location: d.location ?? t.location,
       categories: d.categories ?? [],
     })),
   };

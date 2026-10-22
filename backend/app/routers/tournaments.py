@@ -121,13 +121,14 @@ def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
     for day_id, day in existing.items():
         if day_id not in keep_ids and day.date >= today:
             t.days.remove(day)
-    remember(db, "location", [t.location, *(d.location for d in data.days)])
+    remember(db, "location", t.venue_list)
     remember(db, "category", [*t.categories, *(c for d in data.days for c in (d.categories or []))])
 
 
 def _apply_fields(t: Tournament, data: TournamentIn) -> None:
     t.name = data.name.strip()
-    t.location = data.location.strip()
+    t.venues = data.venues
+    t.location = data.venues[0]
     t.categories = data.categories
     t.referees_required = data.referees_required
     t.is_visible = data.is_visible

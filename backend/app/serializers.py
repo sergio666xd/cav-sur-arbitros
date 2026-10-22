@@ -28,6 +28,7 @@ def tournament_info(t: Tournament) -> dict:
         "id": t.id,
         "name": t.name,
         "location": t.location,
+        "venues": t.venue_list,
         "categories": t.categories or [],
         "referees_required": t.referees_required,
         "is_visible": t.is_visible,

@@ -376,3 +376,28 @@ def test_same_day_two_venues(client):
     assert r.status_code == 422
     board = client.get(f"/api/assignment-board?d={day}", headers=chief).json()
     assert len(board["groups"]) == 1 and len(board["groups"][0]["columns"]) == 2
+
+
+def test_tournament_venues(client):
+    chief = login(client, "10000000", "1111")
+    day = (today_local() + timedelta(days=4)).isoformat()
+    venues = ["Colegio San José", "Polideportivo Sur"]
+    base = {"name": "Copa Sedes", "referees_required": 2, "venues": venues}
+    r = client.post("/api/tournaments", headers=chief, json={**base, "days": [
+        {"date": day, "all_day": True, "location": venues[0]},
+        {"date": day, "all_day": True, "location": venues[1]},
+    ]})
+    assert r.status_code == 201, r.text
+    t = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()
+    assert t["venues"] == venues and t["location"] == venues[0]
+    assert [d["location"] for d in t["days"]] == venues
+    # Con varias sedes hay que elegir la de cada franja, y debe ser una de la lista.
+    assert client.post("/api/tournaments", headers=chief, json={**base, "days": [{"date": day, "all_day": True}]}).status_code == 422
+    assert client.post("/api/tournaments", headers=chief, json={**base, "days": [
+        {"date": day, "all_day": True, "location": "Otra"}]}).status_code == 422
+    # Con una sola sede se asigna sola.
+    r = client.post("/api/tournaments", headers=chief, json={**base, "venues": ["Coliseo"], "days": [{"date": day, "all_day": True}]})
+    t = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()
+    assert t["days"][0]["location"] == "Coliseo"
+    names = [c["name"] for c in client.get("/api/catalog/location", headers=chief).json()]
+    assert set(venues + ["Coliseo"]) <= set(names)

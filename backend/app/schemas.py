@@ -156,7 +156,8 @@ def _clean(items: list[str]) -> list[str]:
 
 class TournamentIn(BaseModel):
     name: str = Field(min_length=1, max_length=150)
-    location: str = Field(default="", max_length=200)
+    venues: list[str] = Field(default_factory=list)
+    location: str = Field(default="", max_length=200)  # Compatibilidad: una sola sede.
     categories: list[str] = Field(default_factory=list)
     referees_required: int = Field(ge=1, le=200)
     is_visible: bool = True
@@ -165,30 +166,41 @@ class TournamentIn(BaseModel):
     notes: str = ""
     days: list[DayIn] = Field(default_factory=list)
 
-    @field_validator("categories", "roles")
+    @field_validator("venues", "categories", "roles")
     @classmethod
     def _clean_list(cls, v: list[str]) -> list[str]:
         return _clean(v)
 
     @model_validator(mode="after")
     def _check(self):
-        self.location = self.location.strip()
-        if not self.location and any(not d.location for d in self.days):
-            raise ValueError("Indica el lugar del torneo o el de cada franja.")
+        explicit = bool(_clean(self.venues))
+        # Sin lista de sedes (formato anterior), las sedes son el lugar general y el de las franjas.
+        self.venues = _clean(self.venues) or _clean([self.location, *(d.location or "" for d in self.days)])
+        if not self.venues:
+            raise ValueError("Añade al menos una sede del torneo.")
+        if any(len(v) > 200 for v in self.venues):
+            raise ValueError("El nombre de una sede es demasiado largo.")
+        self.location = self.venues[0]
+        for d in self.days:
+            if not d.location:
+                if explicit and len(self.venues) > 1:
+                    raise ValueError("Elige la sede de cada franja.")
+                d.location = self.venues[0]
+            elif d.location not in self.venues:
+                raise ValueError(f"La sede '{d.location}' no está en la lista de sedes del torneo.")
         # Varias franjas el mismo día son válidas si no se superponen o si son en sedes distintas.
         by_place: dict = {}
         for d in self.days:
-            place = " ".join((d.location or self.location).lower().split())
-            by_place.setdefault((d.date, place), []).append(d)
+            by_place.setdefault((d.date, d.location), []).append(d)
         for day_list in by_place.values():
             if len(day_list) < 2:
                 continue
             if any(d.all_day for d in day_list):
-                raise ValueError("Una franja de todo el día no puede compartir fecha y lugar con otra franja del mismo torneo.")
+                raise ValueError("Una franja de todo el día no puede compartir fecha y sede con otra franja del mismo torneo.")
             day_list.sort(key=lambda d: d.start_time)
             for a, b in zip(day_list, day_list[1:]):
                 if b.start_time < a.end_time:
-                    raise ValueError("Hay franjas del mismo torneo que se superponen el mismo día en el mismo lugar.")
+                    raise ValueError("Hay franjas del mismo torneo que se superponen el mismo día en la misma sede.")
         if self.has_roles and not self.roles:
             self.roles = ["Principal", "Segundo", "Planillero"]
         if not self.has_roles:

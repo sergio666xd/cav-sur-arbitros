@@ -31,6 +31,7 @@ export type TournamentDetail = {
   id: number;
   name: string;
   location: string;
+  venues: string[];
   categories: string[];
   referees_required: number;
   is_visible: boolean;

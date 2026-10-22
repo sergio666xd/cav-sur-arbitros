@@ -38,7 +38,7 @@ function TournamentCards() {
           <div className="flex items-start justify-between gap-2">
             <div>
               <Link href={`/admin/torneos/${t.id}`} className="text-lg font-semibold hover:text-brand-700 hover:underline">{t.name}</Link>
-              {t.location && <div className="text-sm text-stone-600">📍 {t.location}</div>}
+              <div className="text-sm text-stone-600">📍 {t.venues.length > 1 ? `${t.venues.length} sedes` : t.location}</div>
             </div>
             <div className="flex flex-col items-end gap-1">
               {!t.is_visible && <Badge color="stone">Oculto</Badge>}
@@ -56,7 +56,7 @@ function TournamentCards() {
                     <td className="py-1.5 pr-2">{formatShortDate(d.date)}</td>
                     <td className="py-1.5 pr-2 text-stone-500">
                       {d.slot_label}
-                      {d.location && <div className="text-xs">📍 {d.effective_location}</div>}
+                      {t.venues.length > 1 && <div className="text-xs">📍 {d.effective_location}</div>}
                     </td>
                     <td className="py-1.5 text-right text-xs whitespace-nowrap">
                       <span title="Disponibles">🙋 {d.available_count}</span>{" "}
