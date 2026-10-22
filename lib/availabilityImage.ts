@@ -5,7 +5,8 @@ import { shortAddress } from "./maps";
 // columnas y una X donde el árbitro marcó disponibilidad.
 
 export type ImageEntry = { user_id: number; name: string; at: string };
-export type ImageColumn = { top?: string; label: string; sub?: string; required: number; entries: ImageEntry[] };
+// date (AAAA-MM-DD) permite elegir qué fechas incluir al generar la imagen.
+export type ImageColumn = { date?: string; top?: string; label: string; sub?: string; required: number; entries: ImageEntry[] };
 export type ImageSpec = { title: string; subtitle?: string; columns: ImageColumn[] };
 
 // Fila de /availability/summary: una franja combinada tal como la ve un árbitro.
@@ -19,6 +20,7 @@ export type SummaryRow = {
 
 export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColumn[] {
   return rows.map((r) => ({
+    date: r.date,
     top: withDate ? formatShortDate(r.date) : undefined,
     label: r.slot_label,
     sub: r.tournament ? [r.tournament.name, shortAddress(r.tournament.location)].filter(Boolean).join(" · ") : undefined,
