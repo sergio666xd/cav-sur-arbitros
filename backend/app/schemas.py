@@ -175,19 +175,20 @@ class TournamentIn(BaseModel):
         self.location = self.location.strip()
         if not self.location and any(not d.location for d in self.days):
             raise ValueError("Indica el lugar del torneo o el de cada franja.")
-        # Varias franjas el mismo día son válidas mientras no se superpongan.
-        by_date: dict = {}
+        # Varias franjas el mismo día son válidas si no se superponen o si son en sedes distintas.
+        by_place: dict = {}
         for d in self.days:
-            by_date.setdefault(d.date, []).append(d)
-        for day_list in by_date.values():
+            place = " ".join((d.location or self.location).lower().split())
+            by_place.setdefault((d.date, place), []).append(d)
+        for day_list in by_place.values():
             if len(day_list) < 2:
                 continue
             if any(d.all_day for d in day_list):
-                raise ValueError("Una franja de todo el día no puede compartir fecha con otra franja del mismo torneo.")
+                raise ValueError("Una franja de todo el día no puede compartir fecha y lugar con otra franja del mismo torneo.")
             day_list.sort(key=lambda d: d.start_time)
             for a, b in zip(day_list, day_list[1:]):
                 if b.start_time < a.end_time:
-                    raise ValueError("Hay franjas del mismo torneo que se superponen el mismo día.")
+                    raise ValueError("Hay franjas del mismo torneo que se superponen el mismo día en el mismo lugar.")
         if self.has_roles and not self.roles:
             self.roles = ["Principal", "Segundo", "Planillero"]
         if not self.has_roles:

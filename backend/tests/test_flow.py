@@ -357,3 +357,22 @@ def test_assignment_board(client):
     detail = client.get(f"/api/tournaments/{t2}", headers=chief).json()
     assert len(detail["days"][0]["assignments"]) == 2
     assert t1
+
+
+def test_same_day_two_venues(client):
+    chief = login(client, "10000000", "1111")
+    day = (today_local() + timedelta(days=3)).isoformat()
+    base = {"name": "Copa Sedes", "referees_required": 2}
+    r = client.post("/api/tournaments", headers=chief, json={**base, "days": [
+        {"date": day, "all_day": True, "location": "Colegio San José"},
+        {"date": day, "all_day": True, "location": "Polideportivo Sur"},
+    ]})
+    assert r.status_code == 201, r.text
+    detail = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()
+    assert sorted(d["effective_location"] for d in detail["days"]) == ["Colegio San José", "Polideportivo Sur"]
+    # En la misma sede sí se rechaza.
+    r = client.post("/api/tournaments", headers=chief, json={**base, "location": "Coliseo", "days": [
+        {"date": day, "all_day": True}, {"date": day, "start_time": "08:00", "end_time": "10:00"}]})
+    assert r.status_code == 422
+    board = client.get(f"/api/assignment-board?d={day}", headers=chief).json()
+    assert len(board["groups"]) == 1 and len(board["groups"][0]["columns"]) == 2
