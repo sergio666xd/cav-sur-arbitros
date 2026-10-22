@@ -80,11 +80,12 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
 
   ctx.font = `500 24px ${FONT}`;
   const numW = 64;
-  const nameW = Math.max(300, ...rows.map(([, p]) => ctx.measureText(p.name).width + 40));
-  // La tabla ocupa todo el ancho: las columnas de franjas se reparten el espacio sobrante.
-  const W = Math.max(1080, numW + nameW + COL * cols.length + PAD * 2);
+  const minNameW = Math.max(300, ...rows.map(([, p]) => ctx.measureText(p.name).width + 40));
+  // La tabla ocupa todo el ancho; el espacio sobrante es para la columna de árbitros.
+  const W = Math.max(1080, numW + minNameW + COL * cols.length + PAD * 2);
   const tableW = W - PAD * 2;
-  const colW = cols.length ? (tableW - numW - nameW) / cols.length : 0;
+  const colW = COL;
+  const nameW = tableW - numW - colW * cols.length;
   const left = PAD;
 
   // Encabezado de cada columna: fecha, franja y torneo (solo si se puede mostrar).
