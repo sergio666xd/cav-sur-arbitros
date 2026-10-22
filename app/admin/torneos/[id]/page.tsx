@@ -7,7 +7,7 @@ import Place from "@/components/Place";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
-import { api, formatDate } from "@/lib/api";
+import { api, formatDate, formatShortDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fold } from "@/lib/text";
 import { useFetch } from "@/lib/useFetch";
@@ -318,15 +318,14 @@ export default function TournamentDetailPage() {
                       // Es para compartir: si el torneo está oculto solo se muestran los días.
                       title: t.is_visible ? t.name : "Árbitros disponibles",
                       subtitle: t.is_visible ? "Árbitros con disponibilidad" : undefined,
-                      sections: t.days.filter((d) => !d.past).map((d) => ({
-                        heading: `${formatDate(d.date)} · ${d.slot_label}`,
+                      columns: t.days.filter((d) => !d.past).map((d) => ({
+                        top: formatShortDate(d.date),
+                        label: d.slot_label,
                         sub: t.is_visible ? d.effective_location.split(",")[0] : undefined,
                         required: d.required,
-                        // En orden de registro de la disponibilidad: el 1 es quien la marcó primero.
-                        names: d.candidates
+                        entries: d.candidates
                           .filter((c) => !c.is_chief && c.available_at)
-                          .sort((a, b) => a.available_at!.localeCompare(b.available_at!))
-                          .map((c) => c.name),
+                          .map((c) => ({ user_id: c.user_id, name: c.name, at: c.available_at! })),
                       })),
                     })}
                   />

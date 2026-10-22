@@ -459,8 +459,8 @@ def test_availability_summary(client):
     assert [(r["date"], r["slot_label"]) for r in rows] == [(d1, "08:00 - 14:00"), (d2, "Todo el día")]
     # Franjas superpuestas se combinan; con varios torneos el día no se nombra ninguno.
     assert rows[0]["required"] == 4 and rows[0]["tournament"] is None
-    assert rows[0]["names"] == ["Zoe Zapata", "Ana Alvarez"]  # orden de registro, no alfabético
+    assert [e["name"] for e in rows[0]["entries"]] == ["Zoe Zapata", "Ana Alvarez"]  # orden de registro, no alfabético
     assert rows[1]["tournament"] == {"name": "Solo Visible", "location": "Estadio"}
-    assert rows[1]["names"] == ["Ana Alvarez", "Zoe Zapata"]
+    assert [e["name"] for e in rows[1]["entries"]] == ["Ana Alvarez", "Zoe Zapata"]
     assert len(client.get(f"/api/availability/summary?d={d2}", headers=chief).json()) == 1
     assert client.get("/api/availability/summary", headers=ref_a).status_code == 403

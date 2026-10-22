@@ -114,7 +114,8 @@ def availability_summary(d: date | None = None, _: User = Depends(require_admin)
                 "start_time": g.slot.start.strftime("%H:%M") if g.slot.start else None,
                 "required": sum(x.required for x in g.days),
                 "tournament": tournament,
-                "names": [u.full_name for _, u in sorted(people.values(), key=lambda p: p[0])],
+                "entries": [{"user_id": u.id, "name": u.full_name, "at": at.isoformat()}
+                            for at, u in sorted(people.values(), key=lambda p: p[0])],
             })
     result.sort(key=lambda x: (x["date"], x["start_time"] or ""))
     return result

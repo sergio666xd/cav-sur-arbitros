@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
-import { summarySections, type SummaryRow } from "@/lib/availabilityImage";
+import { summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
@@ -214,7 +214,7 @@ export default function AssignmentBoardPage() {
               spec={async () => ({
                 title: "Árbitros disponibles",
                 subtitle: formatDate(data.date),
-                sections: summarySections(await api<SummaryRow[]>(`/availability/summary?d=${data.date}`), false),
+                columns: summaryColumns(await api<SummaryRow[]>(`/availability/summary?d=${data.date}`), false),
               })}
             />
             <AvailabilityImageButton
@@ -223,7 +223,7 @@ export default function AssignmentBoardPage() {
               spec={async () => ({
                 title: "Árbitros disponibles",
                 subtitle: "Próximas fechas",
-                sections: summarySections(await api<SummaryRow[]>("/availability/summary"), true),
+                columns: summaryColumns(await api<SummaryRow[]>("/availability/summary"), true),
               })}
             />
             <button className="btn-primary" disabled={busy || !dirty} onClick={save}>
