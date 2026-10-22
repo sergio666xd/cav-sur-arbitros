@@ -25,7 +25,7 @@ function toForm(t: TournamentDetail): TournamentFormValue {
       date: d.date,
       all_day: d.all_day,
       start_time: d.start_time ?? "08:00",
-      end_time: d.end_time ?? "18:00",
+      end_time: d.end_time ?? "",
       referees_required: d.referees_required ? String(d.referees_required) : "",
       custom: !!d.categories?.length,
       location: d.location ?? t.location,

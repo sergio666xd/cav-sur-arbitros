@@ -141,9 +141,10 @@ class DayIn(BaseModel):
                 raise ValueError("Indica la hora de inicio de la franja de todo el día.")
             self.end_time = None
         else:
-            if not self.start_time or not self.end_time:
-                raise ValueError("Indica hora de inicio y fin, o marca 'Todo el día'.")
-            if self.end_time <= self.start_time:
+            # La hora de fin es opcional: a veces solo se sabe la hora de citación.
+            if not self.start_time:
+                raise ValueError("Indica la hora de inicio de la franja.")
+            if self.end_time and self.end_time <= self.start_time:
                 raise ValueError("La hora de fin debe ser posterior a la de inicio.")
         return self
 
@@ -202,7 +203,7 @@ class TournamentIn(BaseModel):
                 raise ValueError("Una franja de todo el día no puede compartir fecha y sede con otra franja del mismo torneo.")
             day_list.sort(key=lambda d: d.start_time)
             for a, b in zip(day_list, day_list[1:]):
-                if b.start_time < a.end_time:
+                if b.start_time < (a.end_time or time.max):  # sin hora de fin, hasta las 23:59
                     raise ValueError("Hay franjas del mismo torneo que se superponen el mismo día en la misma sede.")
         if self.has_roles and not self.roles:
             self.roles = ["Principal", "Segundo", "Planillero"]

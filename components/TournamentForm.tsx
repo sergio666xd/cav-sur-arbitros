@@ -36,7 +36,7 @@ export const emptyDay: DayForm = {
   date: "",
   all_day: false,
   start_time: "08:00",
-  end_time: "18:00",
+  end_time: "",
   referees_required: "",
   custom: false,
   location: "",
@@ -194,7 +194,7 @@ export default function TournamentForm({
           date: d.date,
           all_day: d.all_day,
           start_time: d.start_time,
-          end_time: d.all_day ? null : d.end_time,
+          end_time: d.all_day || !d.end_time ? null : d.end_time,
           referees_required: d.referees_required ? Number(d.referees_required) : null,
           location: multi ? d.location.trim() : venues[0],
           categories: d.custom && d.categories.length ? d.categories : null,
@@ -288,8 +288,8 @@ export default function TournamentForm({
                 </div>
                 {!d.all_day ? (
                   <div>
-                    <label className="label">Hasta</label>
-                    <input className="input" type="time" value={d.end_time} onChange={(e) => setDay(i, { end_time: e.target.value })} required />
+                    <label className="label" title="Si no se sabe, déjala vacía: se toma hasta las 23:59">Hasta (opcional)</label>
+                    <input className="input" type="time" value={d.end_time} onChange={(e) => setDay(i, { end_time: e.target.value })} />
                   </div>
                 ) : (
                   <div className="hidden sm:block" />

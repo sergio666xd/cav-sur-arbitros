@@ -485,3 +485,24 @@ def test_all_day_requires_start_time(client):
     assert r.status_code == 201, r.text
     day = client.get(f"/api/tournaments/{r.json()['id']}", headers=chief).json()["days"][0]
     assert (day["start_time"], day["end_time"], day["slot_label"]) == ("07:30", None, "Todo el día desde las 07:30")
+
+
+def test_slot_without_end_time(client):
+    # Sin hora de fin es una hora de citación: la franja cuenta hasta las 23:59.
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=3)).isoformat()
+    for name, start, end in (("Mañana", "08:00", "10:00"), ("Citación", "10:00", None), ("Noche", "19:00", "21:00")):
+        r = client.post("/api/tournaments", headers=chief, json={
+            "name": name, "location": "X", "referees_required": 1, "days": [{"date": d, "start_time": start, "end_time": end}]})
+        assert r.status_code == 201, r.text
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "60000001", "Fabi")
+    slots = client.get("/api/availability", headers=ref).json()
+    # 08:00-10:00 solo se toca en el borde con la citación; la de la noche queda dentro de ella.
+    assert [s["slot_label"] for s in slots] == ["08:00 - 10:00", "Desde las 10:00"]
+    assert slots[1]["required"] == 2
+    # Dos franjas del mismo torneo en la misma sede: la abierta choca con cualquiera posterior.
+    r = client.post("/api/tournaments", headers=chief, json={
+        "name": "Choque", "location": "X", "referees_required": 1,
+        "days": [{"date": d, "start_time": "08:00"}, {"date": d, "start_time": "20:00", "end_time": "22:00"}]})
+    assert r.status_code == 422
