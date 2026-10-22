@@ -14,6 +14,9 @@ type Day = {
   id: number;
   date: string;
   slot_label: string;
+  all_day: boolean;
+  start_time: string | null;
+  end_time: string | null;
   effective_location: string;
   effective_categories: string[];
   role: string | null;
@@ -64,6 +67,14 @@ export default function MyTournamentsPage() {
   );
 }
 
+// En Mis torneos la hora es de citación: "Llegar a las ...".
+function arrival(d: Day) {
+  if (!d.start_time) return d.slot_label;
+  const at = `Llegar a las ${d.start_time}`;
+  if (d.all_day) return `Todo el día, ${at.charAt(0).toLowerCase()}${at.slice(1)}`;
+  return d.end_time ? `${at}, hasta las ${d.end_time}` : at;
+}
+
 // Un día asignado por tarjeta: primero los próximos (del más cercano al más lejano), luego los pasados.
 function sortDays(data: Assigned[]) {
   const today = todayIso();
@@ -92,7 +103,7 @@ function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatche
         </div>
         <div className="mt-3 space-y-1 text-sm text-stone-700">
           <div className="flex items-center gap-1"><CalendarIcon className="h-4 w-4 shrink-0 text-brand-500" />{formatDate(d.date)}</div>
-          <div className="flex items-center gap-1"><ClockIcon className="h-4 w-4 shrink-0 text-brand-500" />{d.slot_label}</div>
+          <div className="flex items-center gap-1"><ClockIcon className="h-4 w-4 shrink-0 text-brand-500" />{arrival(d)}</div>
           <div onClick={(e) => e.stopPropagation()}><Place place={d.effective_location} /></div>
         </div>
       </div>
