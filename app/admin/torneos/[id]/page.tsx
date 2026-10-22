@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { api, formatDate } from "@/lib/api";
@@ -147,9 +148,9 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2 border-b border-stone-100 pb-3">
         <div>
           <h2 className="text-lg font-semibold">{formatDate(d.date)}</h2>
-          {ownPlace && (
-            <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-stone-600">
-              <span>📍 {d.effective_location}</span>
+          <Place place={d.effective_location} className="mt-1 text-sm text-stone-600" />
+          {ownPlace && d.effective_categories.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
               {d.effective_categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
             </div>
           )}

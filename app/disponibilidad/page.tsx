@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader } from "@/components/ui";
 import { api, formatDate, formatDateTime } from "@/lib/api";
@@ -83,7 +84,7 @@ export default function AvailabilityPage() {
                           {s.tournament ? (
                             <div className="mt-1 text-sm text-stone-600">
                               <div className="font-medium text-ink">{s.tournament.name}</div>
-                              <div>📍 {s.tournament.location}</div>
+                              <Place place={s.tournament.location} />
                               {s.tournament.categories.length > 0 && (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {s.tournament.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}

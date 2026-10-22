@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { api } from "@/lib/api";
+import PlaceInput from "./PlaceInput";
 import { Alert } from "./ui";
 
 export type DayForm = {
@@ -122,19 +123,6 @@ function ListInput({
   );
 }
 
-function LocationInput({ value, onChange, placeholder, required, options }: {
-  value: string; onChange: (v: string) => void; placeholder?: string; required?: boolean; options: string[];
-}) {
-  const listId = useId();
-  return (
-    <>
-      <input className="input" value={value} placeholder={placeholder} list={listId} required={required}
-        onChange={(e) => onChange(e.target.value)} autoComplete="off" />
-      <datalist id={listId}>{options.map((o) => <option key={o} value={o} />)}</datalist>
-    </>
-  );
-}
-
 export default function TournamentForm({
   initial,
   submitLabel,
@@ -197,7 +185,7 @@ export default function TournamentForm({
         </div>
         <div>
           <label className="label">Lugar del torneo</label>
-          <LocationInput value={v.location} onChange={(location) => setV({ ...v, location })} options={locations}
+          <PlaceInput value={v.location} onChange={(location) => setV({ ...v, location })} saved={locations}
             placeholder="Se usa en todas las franjas salvo que indiques otro" />
         </div>
         <div>
@@ -283,7 +271,7 @@ export default function TournamentForm({
                 <div className="mt-3 grid gap-3 border-t border-stone-100 pt-3 md:grid-cols-2">
                   <div>
                     <label className="label">Lugar de la franja</label>
-                    <LocationInput value={d.location} onChange={(location) => setDay(i, { location })} options={locations}
+                    <PlaceInput value={d.location} onChange={(location) => setDay(i, { location })} saved={locations}
                       placeholder={v.location || "Lugar"} required={!v.location.trim()} />
                   </div>
                   <div>

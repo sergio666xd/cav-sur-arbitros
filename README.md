@@ -50,3 +50,12 @@ Sin `DATABASE_URL`, el backend usa un archivo SQLite local (`backend/arbitros.db
 1. **Supabase:** crea un proyecto y copia la cadena de conexión del *Transaction pooler* (puerto 6543) en Project Settings → Database.
 2. **Vercel:** importa este repositorio como un proyecto (framework Next.js, carpeta raíz). En Environment Variables añade `DATABASE_URL` y `SECRET_KEY` (ver `.env.example`). Vercel construye Next.js y crea la función de Python de `api/index.py` con `requirements.txt`. Las tablas (y las columnas nuevas de versiones posteriores) se crean solas al arrancar.
 3. **Primer Jefe:** añade también en Vercel `INITIAL_CHIEF_DOCUMENT`, `INITIAL_CHIEF_PIN` (4 dígitos), `INITIAL_CHIEF_FIRST_NAME`, `INITIAL_CHIEF_LAST_NAME` e `INITIAL_CHIEF_BIRTH_DATE` (AAAA-MM-DD). Al arrancar, la app crea ese Jefe si todavía no existe ninguno; después puedes borrar esas variables. Alternativa: desde tu computador, con `DATABASE_URL` y `SECRET_KEY` exportadas, ejecuta en `backend/` `python -m app.seed_chief --documento ... --nombre ... --apellido ... --nacimiento AAAA-MM-DD --pin ....`
+
+## Google Maps (opcional)
+
+Con la variable `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` el campo "Lugar" sugiere direcciones de Google (además de los lugares guardados) y cada lugar muestra un botón "Ver mapa". Sin la clave todo funciona igual, con un enlace "Abrir en Google Maps".
+
+1. En [Google Cloud Console](https://console.cloud.google.com/) crea un proyecto (requiere cuenta de facturación; el uso de este tamaño suele quedar dentro del crédito gratuito mensual).
+2. Habilita **Places API (New)** y **Maps Embed API**.
+3. En *Credenciales* crea una clave de API, restríngela a esas dos APIs y a los sitios web `https://*.vercel.app/*` (y tu dominio, si tienes uno).
+4. Añádela en Vercel como `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` y vuelve a desplegar (las variables `NEXT_PUBLIC_` se leen al compilar).

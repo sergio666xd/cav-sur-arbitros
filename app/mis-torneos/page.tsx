@@ -1,5 +1,6 @@
 "use client";
 
+import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/api";
@@ -70,10 +71,12 @@ export default function MyTournamentsPage() {
                       <div className="font-medium">{formatDate(d.date)} · {d.slot_label}</div>
                       {d.role && <Badge color="brand">{d.role}</Badge>}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-stone-600">
-                      <span>📍 {d.effective_location}</span>
-                      {d.effective_categories.map((c) => <Badge key={c} color="stone">{c}</Badge>)}
-                    </div>
+                    <Place place={d.effective_location} className="mt-1 text-sm text-stone-600" />
+                    {d.effective_categories.length > 0 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {d.effective_categories.map((c) => <Badge key={c} color="stone">{c}</Badge>)}
+                      </div>
+                    )}
                     <div className="mt-2 text-sm text-stone-600">
                       <span className="text-stone-500">Equipo arbitral: </span>
                       {d.crew.map((c, i) => (

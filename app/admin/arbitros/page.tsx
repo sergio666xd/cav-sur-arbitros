@@ -44,7 +44,7 @@ export default function RefereesPage() {
             <tbody>
               {rows.map((u) => (
                 <tr key={u.id} className="hover:bg-brand-50/50">
-                  <td><Link href={`/admin/arbitros/${u.id}`} className="font-medium text-brand-700 hover:underline">{u.last_name}, {u.first_name}</Link></td>
+                  <td><Link href={`/admin/arbitros/${u.id}`} className="font-medium text-brand-700 hover:underline">{u.first_name} {u.last_name}</Link></td>
                   <td className="font-mono text-xs">{u.document}</td>
                   {user?.is_chief && <td>{u.age}</td>}
                   <td><RoleBadges u={u} /></td>
