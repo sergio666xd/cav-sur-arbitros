@@ -24,7 +24,7 @@ export default function Place({ place, className = "", defaultOpen = false }: { 
       </span>
       {embed && open && (
         <div className="mt-2 overflow-hidden rounded-lg border border-stone-200">
-          <iframe title={`Mapa de ${place}`} src={embed} className="h-56 w-full" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+          <iframe title={`Mapa de ${place}`} src={embed} className="h-56 w-full" loading="lazy" allowFullScreen />
           <a href={mapsLink(place)} target="_blank" rel="noreferrer" className="block bg-stone-50 px-3 py-1.5 text-right text-xs text-brand-700 hover:underline">
             Abrir en Google Maps ↗
           </a>

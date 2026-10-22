@@ -53,9 +53,9 @@ Sin `DATABASE_URL`, el backend usa un archivo SQLite local (`backend/arbitros.db
 
 ## Google Maps (opcional)
 
-Con la variable `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` el campo "Lugar" sugiere direcciones de Google (además de los lugares guardados) y cada lugar muestra un botón "Ver mapa". Sin la clave todo funciona igual, con un enlace "Abrir en Google Maps".
+Con la variable `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` el campo "Lugar" sugiere direcciones de Google (además de los lugares guardados), tiene un botón "Mapa" para elegir el punto con un clic, y cada lugar muestra un botón "Ver mapa". Sin la clave todo funciona igual, con un enlace "Abrir en Google Maps".
 
 1. En [Google Cloud Console](https://console.cloud.google.com/) crea un proyecto (requiere cuenta de facturación; el uso de este tamaño suele quedar dentro del crédito gratuito mensual).
-2. Habilita **Places API (New)** y **Maps Embed API**.
-3. En *Credenciales* crea una clave de API, restríngela a esas dos APIs y a los sitios web `https://*.vercel.app/*` (y tu dominio, si tienes uno).
+2. Habilita **Maps JavaScript API**, **Places API (New)**, **Maps Embed API** y **Geocoding API** (esta última convierte el punto elegido en el mapa en una dirección; sin ella se guardan las coordenadas).
+3. En *Credenciales* crea una clave de API, restríngela a esas cuatro APIs y a los sitios web `cavsur.vercel.app/*` (con `/*` al final, para que sirva en todas las páginas; añade `cavsur-*.vercel.app/*` si quieres usarla en las vistas previas).
 4. Añádela en Vercel como `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` y vuelve a desplegar (las variables `NEXT_PUBLIC_` se leen al compilar).

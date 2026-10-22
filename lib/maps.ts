@@ -13,25 +13,44 @@ export function mapsEmbed(place: string): string | null {
   return `https://www.google.com/maps/embed/v1/place?key=${MAPS_KEY}&language=es&q=${encodeURIComponent(place)}`;
 }
 
-let loading: Promise<google.maps.PlacesLibrary | null> | null = null;
+let loading: Promise<boolean> | null = null;
 
-/** Carga la librería Places (API nueva) una sola vez. Devuelve null si no hay clave o falla. */
-export function loadPlaces(): Promise<google.maps.PlacesLibrary | null> {
-  if (!MAPS_KEY || typeof window === "undefined") return Promise.resolve(null);
+/** Carga el script de Google Maps una sola vez. Devuelve false si no hay clave o falla. */
+function loadMaps(): Promise<boolean> {
+  if (!MAPS_KEY || typeof window === "undefined") return Promise.resolve(false);
   if (!loading) {
     loading = new Promise((resolve) => {
       const cb = "__cavMapsReady";
-      (window as unknown as Record<string, () => void>)[cb] = () => {
-        google.maps.importLibrary("places").then((lib) => resolve(lib as google.maps.PlacesLibrary), () => resolve(null));
-      };
+      (window as unknown as Record<string, () => void>)[cb] = () => resolve(true);
       const s = document.createElement("script");
       s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&loading=async&language=es&region=CO&callback=${cb}`;
       s.async = true;
-      s.onerror = () => resolve(null);
+      s.onerror = () => resolve(false);
       document.head.appendChild(s);
     });
   }
   return loading;
+}
+
+async function lib<T>(name: string): Promise<T | null> {
+  if (!(await loadMaps())) return null;
+  try {
+    return (await google.maps.importLibrary(name)) as T;
+  } catch {
+    return null;
+  }
+}
+
+export const loadPlaces = () => lib<google.maps.PlacesLibrary>("places");
+export const loadMapsLib = () => lib<google.maps.MapsLibrary>("maps");
+export const loadGeocoding = () => lib<google.maps.GeocodingLibrary>("geocoding");
+
+/** "Nombre, dirección" sin repetir el nombre si la dirección ya empieza por él. */
+export function placeLabel(name: string | null | undefined, address: string | null | undefined): string {
+  const n = (name ?? "").trim();
+  const a = (address ?? "").trim();
+  if (!a) return n;
+  return !n || a.startsWith(n) ? a : `${n}, ${a}`;
 }
 
 export type PlaceSuggestion = { text: string; secondary: string; pick: () => Promise<string> };
@@ -60,10 +79,7 @@ export async function suggestPlaces(
         pick: async () => {
           const place = p.toPlace();
           await place.fetchFields({ fields: ["displayName", "formattedAddress"] });
-          const name = place.displayName ?? p.mainText?.text ?? "";
-          const addr = place.formattedAddress ?? "";
-          if (!addr) return name || p.text.text;
-          return !name || addr.startsWith(name) ? addr : `${name}, ${addr}`;
+          return placeLabel(place.displayName ?? p.mainText?.text, place.formattedAddress) || p.text.text;
         },
       }];
     });

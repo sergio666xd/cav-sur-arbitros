@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import MapPicker from "./MapPicker";
 import { MAPS_KEY, newSession, suggestPlaces, type PlaceSuggestion } from "@/lib/maps";
 import { fold } from "@/lib/text";
 
@@ -13,6 +14,7 @@ export default function PlaceInput({ value, onChange, placeholder, required, sav
   const [open, setOpen] = useState(false);
   const [google, setGoogle] = useState<PlaceSuggestion[]>([]);
   const [active, setActive] = useState(-1);
+  const [picker, setPicker] = useState(false);
   const session = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const typed = useRef(false);
 
@@ -46,25 +48,35 @@ export default function PlaceInput({ value, onChange, placeholder, required, sav
 
   return (
     <div className="relative">
-      <input
-        className="input"
-        value={value}
-        placeholder={placeholder}
-        required={required}
-        autoComplete="off"
-        role="combobox"
-        aria-expanded={open && options.length > 0}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={(e) => { typed.current = true; setActive(-1); setOpen(true); onChange(e.target.value); }}
-        onKeyDown={(e) => {
-          if (!open || options.length === 0) return;
-          if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, options.length - 1)); }
-          else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
-          else if (e.key === "Enter" && active >= 0) { e.preventDefault(); choose(options[active]); }
-          else if (e.key === "Escape") setOpen(false);
-        }}
-      />
+      <div className="flex gap-2">
+        <input
+          className="input"
+          value={value}
+          placeholder={placeholder}
+          required={required}
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={open && options.length > 0}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onChange={(e) => { typed.current = true; setActive(-1); setOpen(true); onChange(e.target.value); }}
+          onKeyDown={(e) => {
+            if (!open || options.length === 0) return;
+            if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, options.length - 1)); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+            else if (e.key === "Enter" && active >= 0) { e.preventDefault(); choose(options[active]); }
+            else if (e.key === "Escape") setOpen(false);
+          }}
+        />
+        {MAPS_KEY && (
+          <button type="button" className="btn-secondary shrink-0 px-3" title="Elegir en el mapa" onClick={() => setPicker(true)}>
+            🗺️<span className="ml-1 hidden sm:inline">Mapa</span>
+          </button>
+        )}
+      </div>
+      {MAPS_KEY && (
+        <MapPicker open={picker} initial={value} onClose={() => setPicker(false)} onPick={(p) => { typed.current = false; onChange(p); }} />
+      )}
       {open && options.length > 0 && (
         <ul className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 text-sm shadow-lg" role="listbox">
           {options.map((o, i) => (
