@@ -34,11 +34,14 @@ def _get_day(db: Session, day_id: int, user: User) -> TournamentDay:
 
 
 def _admins(db: Session, ids: list[int]) -> list[User]:
-    """Administradores (no Jefe) a los que se asigna un torneo."""
+    """Administradores a los que se asigna un torneo.
+
+    El Jefe y el rol system ya gestionan todos los torneos: si vienen, no hace falta asignarlos.
+    """
     users = [db.get(User, i) for i in dict.fromkeys(ids)]
-    if any(u is None or not u.is_admin or u.chief_powers for u in users):
+    if any(u is None or not u.admin for u in users):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se pueden asignar administradores.")
-    return users
+    return [u for u in users if not u.chief_powers]
 
 
 @router.get("/tournaments")

@@ -436,7 +436,7 @@ export default function TournamentForm({
 function AdminPicker({ value, onChange }: { value: number[]; onChange: (ids: number[]) => void }) {
   const [admins, setAdmins] = useState<UserRow[] | null>(null);
   useEffect(() => {
-    api<UserRow[]>("/users").then((u) => setAdmins(u.filter((x) => x.is_admin && !x.is_chief && x.active))).catch(() => setAdmins([]));
+    api<UserRow[]>("/users").then((u) => setAdmins(u.filter((x) => x.is_admin && !x.is_chief && !x.is_system && x.active))).catch(() => setAdmins([]));
   }, []);
   const toggle = (id: number) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
   return (
