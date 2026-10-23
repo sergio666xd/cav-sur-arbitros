@@ -10,6 +10,7 @@ import { Alert, Spinner } from "./ui";
 
 export type DayForm = {
   id?: number;
+  key?: number; // Clave estable en la lista (solo en el formulario).
   date: string;
   all_day: boolean;
   start_time: string;
@@ -34,6 +35,8 @@ export type TournamentFormValue = {
 };
 
 export const DEFAULT_ROLES = ["Principal", "Segundo", "Planillero"];
+
+let nextKey = 1;
 
 export const emptyDay: DayForm = {
   date: "",
@@ -149,9 +152,15 @@ export default function TournamentForm({
 
   const setDay = (i: number, patch: Partial<DayForm>) => setV({ ...v, days: v.days.map((d, j) => (j === i ? { ...d, ...patch } : d)) });
 
-  function addDay() {
+  // El botón de arriba añade la franja al principio (copia de la primera, misma fecha) y el de abajo al final.
+  function addDay(atStart = false) {
+    const first = v.days[0];
+    if (atStart && first) {
+      setV({ ...v, days: [{ ...first, id: undefined, key: nextKey++ }, ...v.days] });
+      return;
+    }
     const last = v.days[v.days.length - 1];
-    setV({ ...v, days: [...v.days, last ? { ...last, id: undefined, date: nextDate(last.date) } : { ...emptyDay }] });
+    setV({ ...v, days: [...v.days, last ? { ...last, id: undefined, key: nextKey++, date: nextDate(last.date) } : { ...emptyDay, key: nextKey++ }] });
   }
 
   const venues = v.venues.map((x) => x.trim()).filter(Boolean);
@@ -274,7 +283,7 @@ export default function TournamentForm({
       <div className="card">
         <div className="mb-1 flex items-center justify-between">
           <h2 className="font-semibold">Fechas y franjas</h2>
-          <button type="button" className="btn-secondary" onClick={addDay}><PlusIcon className="h-4 w-4" />Añadir franja</button>
+          <button type="button" className="btn-secondary" onClick={() => addDay(true)}><PlusIcon className="h-4 w-4" />Añadir franja</button>
         </div>
         {pastCount > 0 && (
           <p className="mb-3 text-sm text-stone-500">Este torneo tiene {pastCount} fecha(s) anterior(es); se conservan con sus asignaciones y partidos.</p>
@@ -282,7 +291,7 @@ export default function TournamentForm({
         {v.days.length === 0 && <p className="py-4 text-sm text-stone-500">Sin fechas próximas. Añade una franja para reutilizar el torneo.</p>}
         <div className="mt-3 space-y-3">
           {v.days.map((d, i) => (
-            <div key={i} className="animate-slide-down rounded-lg border border-stone-200 p-3">
+            <div key={d.key ?? (d.id ? `id${d.id}` : `i${i}`)} className="animate-slide-down rounded-lg border border-stone-200 p-3">
               <div className="grid items-end gap-3 sm:grid-cols-6">
                 <div className="sm:col-span-2">
                   <label className="label">Fecha</label>
@@ -348,6 +357,11 @@ export default function TournamentForm({
             </div>
           ))}
         </div>
+        {v.days.length > 0 && (
+          <div className="mt-3 flex justify-end">
+            <button type="button" className="btn-secondary" onClick={() => addDay()}><PlusIcon className="h-4 w-4" />Añadir franja</button>
+          </div>
+        )}
       </div>
       {error && <Alert>{error}</Alert>}
       <button className="btn-primary" disabled={busy}>{busy ? <><Spinner />Guardando...</> : submitLabel}</button>
