@@ -1,7 +1,9 @@
+from collections import defaultdict
 from datetime import date, time, timedelta
 
 from app.database import SessionLocal
-from app.models import TournamentDay, User
+from app.models import Availability, TournamentDay, User
+from app.slots import group_days
 from app.timeutil import today_local
 
 from .conftest import login
@@ -22,6 +24,31 @@ def _register(client, code, doc, first, last="Test"):
     })
     assert r.status_code == 201, r.text
     return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def _open_windows(client, chief):
+    """Habilita una disponibilidad por cada bloque de franjas superpuestas, como hacía el sistema anterior.
+
+    Oculta el nombre de los torneos si hay más de uno en la fecha.
+    """
+    by_date = defaultdict(list)
+    with SessionLocal() as db:
+        for d in db.query(TournamentDay).filter(TournamentDay.date >= today_local(), TournamentDay.hidden.isnot(True)).all():
+            by_date[d.date].append(d)
+        specs = []
+        for date, days in by_date.items():
+            single = len({d.tournament_id for d in days}) == 1
+            for g in group_days(days):
+                specs.append({
+                    "date": date.isoformat(), "all_day": g.slot.all_day,
+                    "hidden_tournament_ids": [] if single else list({d.tournament_id for d in g.days}),
+                    "start_time": g.slot.start.strftime("%H:%M") if g.slot.start and not g.slot.all_day else None,
+                    "end_time": g.slot.end.strftime("%H:%M") if g.slot.end and not g.slot.all_day else None,
+                    "day_ids": [d.id for d in g.days],
+                })
+    for spec in specs:
+        r = client.post("/api/availability-windows", headers=chief, json=spec)
+        assert r.status_code == 201, r.text
 
 
 def test_full_flow(client):
@@ -57,6 +84,7 @@ def test_full_flow(client):
         "has_roles": True, "days": [{"date": tomorrow.isoformat(), "start_time": "11:00", "end_time": "18:00"}]})
     assert r.status_code == 201, r.text
     especial = r.json()["id"]
+    _open_windows(client, chief)
 
     # Vista del árbitro: el día con dos torneos se agrupa.
     r = client.get("/api/availability", headers=ref_a)
@@ -68,7 +96,7 @@ def test_full_flow(client):
     assert d1["required"] == 7
     d2 = days[later.isoformat()]
     assert d2["tournaments"][0]["name"] == "Copa Sur"
-    assert d2["slot_label"] == "Todo el día desde las 8:00 a. m."
+    assert d2["slot_label"] == "Todo el día"
     # Un administrador ve siempre el detalle, incluso de torneos ocultos.
     caro = next(u["id"] for u in client.get("/api/users", headers=chief).json() if u["first_name"] == "Caro")
     client.patch(f"/api/users/{caro}/roles", headers=chief, json={"is_admin": True})
@@ -171,6 +199,7 @@ def test_closed_today_and_lockout(client):
     today = today_local()
     client.post("/api/tournaments", headers=chief, json={
         "name": "Hoy", "location": "X", "referees_required": 2, "days": [{"date": today.isoformat(), "all_day": True, "start_time": "08:00"}]})
+    _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "30000001", "Dani")
     key = client.get("/api/availability", headers=ref).json()[0]["key"]
@@ -212,6 +241,7 @@ def test_separate_slots(client):
     for name, start, end in (("Mañana", "08:00", "11:00"), ("Tarde", "14:00", "18:00"), ("Tarde 2", "17:00", "20:00")):
         client.post("/api/tournaments", headers=chief, json={
             "name": name, "location": "X", "referees_required": 2, "days": [{"date": d, "start_time": start, "end_time": end}]})
+    _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "50000001", "Eva")
     slots = client.get("/api/availability", headers=ref).json()
@@ -302,11 +332,13 @@ def test_per_slot_fields_catalog_and_past_days(client):
     assert len(detail["days"]) == 4
     assert sum(d["past"] for d in detail["days"]) == 1
 
-    # El árbitro ve el lugar de cada franja.
+    # El árbitro no ve el lugar en Disponibilidad, solo las categorías de cada franja.
+    _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "60000001", "Fer")
     slots = [s for s in client.get("/api/availability", headers=ref).json() if s["date"] == soon]
-    assert [s["tournaments"][0]["location"] for s in slots] == ["Coliseo Sur", "Colegio Norte"]
+    assert all("location" not in t for s in slots for t in s["tournaments"])
+    assert [s["tournaments"][0]["categories"] for s in slots] == [["Mayores"], ["Sub-13"]]
 
 
 def test_migration_adds_new_columns():
@@ -344,6 +376,7 @@ def test_assignment_board(client):
     client.post("/api/tournaments", headers=chief, json={
         "name": "Nocturno", "location": "Cancha", "referees_required": 2,
         "days": [{"date": day, "start_time": "19:00", "end_time": "22:00"}]})
+    _open_windows(client, chief)
 
     av = {d["slot_label"]: d for d in client.get("/api/availability", headers=ref_a).json()}
     client.post(f"/api/availability/{av['8:00 a. m. - 2:00 p. m.']['key']}", headers=ref_a)
@@ -442,6 +475,7 @@ def test_matches_by_category(client):
     tid = client.post("/api/tournaments", headers=chief, json={
         "name": "Copa Cat", "venues": ["Coliseo"], "categories": ["Mini", "Infantil"], "referees_required": 1,
         "days": [{"date": day, "all_day": True, "start_time": "08:00"}]}).json()["id"]
+    _open_windows(client, chief)
     key = client.get("/api/availability", headers=ref).json()[0]["key"]
     client.post(f"/api/availability/{key}", headers=ref)
     d = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
@@ -481,17 +515,18 @@ def test_availability_summary(client):
     client.post("/api/tournaments", headers=chief, json={
         "name": "Solo Visible", "location": "Estadio, Calle 1", "referees_required": 3,
         "days": [{"date": d2, "all_day": True, "start_time": "08:00"}]})
+    _open_windows(client, chief)
 
     av = {(d["date"], d["slot_label"]): d for d in client.get("/api/availability", headers=ref_z).json()}
     for ref in (ref_z, ref_a):
         client.post(f"/api/availability/{av[(d1, '8:00 a. m. - 2:00 p. m.')]['key']}", headers=ref)
     for ref in (ref_a, ref_z):
-        client.post(f"/api/availability/{av[(d2, 'Todo el día desde las 8:00 a. m.')]['key']}", headers=ref)
+        client.post(f"/api/availability/{av[(d2, 'Todo el día')]['key']}", headers=ref)
 
     rows = client.get("/api/availability/summary", headers=chief).json()
-    assert [(r["date"], r["slot_label"]) for r in rows] == [(d1, "8:00 a. m. - 2:00 p. m."), (d2, "Todo el día desde las 8:00 a. m.")]
-    # Franjas superpuestas se combinan; con varios torneos el día no se nombra ninguno.
-    assert rows[0]["required"] == 4 and rows[0]["tournament"] is None
+    assert [(r["date"], r["slot_label"]) for r in rows] == [(d1, "8:00 a. m. - 2:00 p. m."), (d2, "Todo el día")]
+    # Franjas superpuestas se combinan; con los nombres ocultos solo se dice cuántos torneos son.
+    assert rows[0]["required"] == 4 and rows[0]["tournament"] == {"name": "2 torneos", "location": ""}
     assert [e["name"] for e in rows[0]["entries"]] == ["Zoe Zapata", "Ana Alvarez"]  # orden de registro, no alfabético
     assert rows[1]["tournament"] == {"name": "Solo Visible", "location": "Estadio"}
     assert [e["name"] for e in rows[1]["entries"]] == ["Ana Alvarez", "Zoe Zapata"]
@@ -521,6 +556,7 @@ def test_slot_without_end_time(client):
         r = client.post("/api/tournaments", headers=chief, json={
             "name": name, "location": "X", "referees_required": 1, "days": [{"date": d, "start_time": start, "end_time": end}]})
         assert r.status_code == 201, r.text
+    _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "60000001", "Fabi")
     slots = client.get("/api/availability", headers=ref).json()
@@ -540,19 +576,21 @@ def test_hidden_tournament_shows_only_name(client):
     client.post("/api/tournaments", headers=chief, json={
         "name": "Copa Secreta", "location": "Coliseo Norte, Calle 1", "categories": ["mini"], "referees_required": 1,
         "is_visible": False, "days": [{"date": d, "start_time": "09:00"}]})
+    _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "70000001", "Gabi")
     slot = client.get("/api/availability", headers=ref).json()[0]
-    assert slot["tournaments"] == [{"name": "Copa Secreta", "location": "", "categories": [], "visible": False}]
+    assert slot["tournaments"] == [{"name": "Copa Secreta", "categories": [], "visible": False, "name_hidden": False}]
     rows = client.get(f"/api/availability/summary?d={d}", headers=chief).json()
     assert rows[0]["tournament"] == {"name": "Copa Secreta", "location": ""}
 
 
-def test_editing_slot_keeps_availability(client):
+def test_editing_slot_keeps_assignment(client):
     chief = login(client, "10000000", "1111")
     d = (today_local() + timedelta(days=4)).isoformat()
     tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 2,
         "days": [{"date": d, "start_time": "09:00", "end_time": "12:00"}]}).json()["id"]
+    _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "80000001", "Hugo")
     key = client.get("/api/availability", headers=ref).json()[0]["key"]
@@ -562,15 +600,15 @@ def test_editing_slot_keeps_availability(client):
                 if c["name"].startswith("Hugo"))
     assert client.put(f"/api/tournament-days/{day_id}/assignments", headers=chief, json=[{"user_id": hugo}]).status_code == 200
     later = (today_local() + timedelta(days=5)).isoformat()
-    # Cambian hora, sede y fecha: la disponibilidad y la asignación se conservan.
+    # Cambian hora, sede y fecha: la asignación se conserva; la inscripción sigue en su disponibilidad.
     r = client.put(f"/api/tournaments/{tid}", headers=chief, json={
         "name": "T", "venues": ["A", "B"], "referees_required": 2,
         "days": [{"id": day_id, "date": later, "start_time": "10:00", "location": "B"}]})
     assert r.status_code == 200, r.text
-    slots = client.get("/api/availability", headers=ref).json()
-    assert [(s["date"], s["mine"]) for s in slots] == [(later, True)]
+    assert [(s["date"], s["mine"]) for s in client.get("/api/availability", headers=ref).json()] == [(d, True)]
     day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
     assert [a["user_id"] for a in day["assignments"]] == [hugo]
+    assert day["has_window"] is False and day["candidates"][0]["is_chief"] and len(day["candidates"]) == 1
 
 
 def test_required_can_be_hidden(client):
@@ -578,6 +616,7 @@ def test_required_can_be_hidden(client):
     d = (today_local() + timedelta(days=4)).isoformat()
     tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 3,
         "show_required": False, "days": [{"date": d, "start_time": "09:00"}]}).json()["id"]
+    _open_windows(client, chief)
     assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["show_required"] is False
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "90000001", "Iris")
@@ -613,6 +652,7 @@ def test_confirm_assignment(client):
     d = (today_local() + timedelta(days=4)).isoformat()
     tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
         "days": [{"date": d, "start_time": "09:00"}]}).json()["id"]
+    _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "91000001", "Juan")
     key = client.get("/api/availability", headers=ref).json()[0]["key"]
@@ -726,6 +766,7 @@ def test_suspend_and_delete_user(client):
     tid = client.post("/api/tournaments", headers=chief, json={
         "name": "Copa Borrar", "venues": ["Coliseo"], "referees_required": 1,
         "days": [{"date": (today_local() + timedelta(days=3)).isoformat(), "all_day": True, "start_time": "08:00"}]}).json()["id"]
+    _open_windows(client, chief)
     key = client.get("/api/availability", headers=ref).json()[0]["key"]
     client.post(f"/api/availability/{key}", headers=ref)
     d = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
@@ -848,6 +889,116 @@ def test_hidden_slot(client):
         "name": "Evento privado", "location": "Club", "referees_required": 2,
         "days": [{"id": d["id"], "date": day, "start_time": "09:00", "end_time": "12:00"}]})
     assert r.status_code == 200, r.text
+    _open_windows(client, chief)
     assert any(a["date"] == day and a["start_time"] == "09:00" for a in client.get("/api/availability", headers=ref_a).json())
     r = client.put(f"/api/tournament-days/{d['id']}/assignments", headers=chief, json=[{"user_id": ids["Ana Alvarez"]}])
     assert r.status_code == 400
+
+
+def test_availability_windows(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ana = _register(client, code, "93000001", "Ana", "Alvarez")
+    beto = _register(client, code, "93000002", "Beto", "Bravo")
+    d = (today_local() + timedelta(days=6)).isoformat()
+    t1 = client.post("/api/tournaments", headers=chief, json={"name": "Liga", "location": "A", "referees_required": 2,
+        "days": [{"date": d, "start_time": "08:00", "end_time": "12:00"}]}).json()["id"]
+    t2 = client.post("/api/tournaments", headers=chief, json={"name": "Copa", "location": "B", "referees_required": 3,
+        "days": [{"date": d, "start_time": "10:00", "end_time": "13:00"}, {"date": d, "start_time": "15:00", "end_time": "18:00"}]}).json()["id"]
+    liga = client.get(f"/api/tournaments/{t1}", headers=chief).json()["days"][0]
+    copa_m, copa_t = client.get(f"/api/tournaments/{t2}", headers=chief).json()["days"]
+    assert liga["has_window"] is False
+
+    # Sin disponibilidades habilitadas, el árbitro no ve nada y nadie es candidato.
+    assert client.get("/api/availability", headers=ana).json() == []
+    slots = client.get(f"/api/availability-windows/slots?d={d}", headers=chief).json()
+    assert [(s["tournament"], s["slot_label"]) for s in slots] == [
+        ("Liga", "8:00 a. m. - 12:00 p. m."), ("Copa", "10:00 a. m. - 1:00 p. m."), ("Copa", "3:00 p. m. - 6:00 p. m.")]
+    assert client.get(f"/api/availability-windows/slots?d={d}", headers=ana).status_code == 403
+
+    # Una franja que no cabe en el horario se rechaza.
+    morning = {"date": d, "start_time": "08:00", "end_time": "12:00", "day_ids": [liga["id"], copa_m["id"]],
+              "hidden_tournament_ids": [t2, 999999]}
+    assert client.post("/api/availability-windows", headers=chief, json=morning).status_code == 400
+    morning["end_time"] = "13:00"
+    r = client.post("/api/availability-windows", headers=chief, json=morning)
+    assert r.status_code == 201, r.text
+    w1 = r.json()
+    assert (w1["slot_label"], w1["required"], [x["tournament"] for x in w1["days"]]) == ("8:00 a. m. - 1:00 p. m.", 5, ["Liga", "Copa"])
+    # Solo se guarda el nombre oculto de torneos que están en la disponibilidad.
+    assert w1["hidden_tournament_ids"] == [t2]
+    w2 = client.post("/api/availability-windows", headers=chief, json={
+        "date": d, "all_day": True, "day_ids": [copa_t["id"]]}).json()
+    assert w2["slot_label"] == "Todo el día" and w2["required"] == 3
+
+    view = client.get("/api/availability", headers=ana).json()
+    assert [(v["slot_label"], v["required"], [t["name"] for t in v["tournaments"]]) for v in view] == [
+        ("Todo el día", 3, ["Copa"]), ("8:00 a. m. - 1:00 p. m.", 5, ["Liga"])]
+    assert [v["hidden_count"] for v in view] == [0, 1]
+
+    # Ana se inscribe en la mañana; Beto en todo el día.
+    assert client.post(f"/api/availability/{w1['id']}", headers=ana).status_code == 204
+    assert client.post(f"/api/availability/{w2['id']}", headers=beto).status_code == 204
+    detail = client.get(f"/api/tournaments/{t2}", headers=chief).json()
+    cands = {x["id"]: [c["name"] for c in x["candidates"] if not c["is_chief"]] for x in detail["days"]}
+    assert cands == {copa_m["id"]: ["Ana Alvarez", "Beto Bravo"], copa_t["id"]: ["Beto Bravo"]}
+    ids = {c["name"]: c["user_id"] for x in detail["days"] for c in x["candidates"]}
+
+    # Ana no cubre la tarde.
+    r = client.put(f"/api/tournament-days/{copa_t['id']}/assignments", headers=chief, json=[{"user_id": ids["Ana Alvarez"]}])
+    assert r.status_code == 400 and "no tiene una disponibilidad" in r.json()["detail"]
+    # No se puede asignar en dos franjas que se cruzan (Liga 8-12 y Copa 10-13).
+    assert client.put(f"/api/tournament-days/{liga['id']}/assignments", headers=chief,
+                      json=[{"user_id": ids["Ana Alvarez"]}]).status_code == 200
+    r = client.put(f"/api/tournament-days/{copa_m['id']}/assignments", headers=chief, json=[{"user_id": ids["Ana Alvarez"]}])
+    assert r.status_code == 400 and "se cruza" in r.json()["detail"]
+    assert "Liga" == next(c for c in client.get(f"/api/tournaments/{t2}", headers=chief).json()["days"][0]["candidates"]
+                          if c["name"] == "Ana Alvarez")["assigned_elsewhere"]
+    # Moverla de una a otra en el mismo guardado sí se puede.
+    r = client.put("/api/assignment-board", headers=chief, json={"days": [
+        {"day_id": liga["id"], "items": []}, {"day_id": copa_m["id"], "items": [{"user_id": ids["Ana Alvarez"]}]}]})
+    assert r.status_code == 200, r.text
+    # Beto en dos franjas de Copa que no se cruzan.
+    r = client.put("/api/assignment-board", headers=chief, json={"days": [
+        {"day_id": copa_m["id"], "items": [{"user_id": ids["Ana Alvarez"]}, {"user_id": ids["Beto Bravo"]}]},
+        {"day_id": copa_t["id"], "items": [{"user_id": ids["Beto Bravo"]}]}]})
+    assert r.status_code == 200, r.text
+
+    # El resumen para la imagen sale por disponibilidad.
+    rows = client.get(f"/api/availability/summary?d={d}", headers=chief).json()
+    assert [(r["slot_label"], r["tournament"], [e["name"] for e in r["entries"]]) for r in rows] == [
+        ("Todo el día", {"name": "Copa", "location": "B"}, ["Beto Bravo"]),
+        ("8:00 a. m. - 1:00 p. m.", {"name": "Liga y otros torneos", "location": "A"}, ["Ana Alvarez"])]
+    me = client.get("/api/auth/me", headers=ana).json()["id"]
+    assert [a["slot_label"] for a in client.get(f"/api/users/{me}", headers=chief).json()["upcoming_availability"]] == ["8:00 a. m. - 1:00 p. m."]
+
+    # Editar conserva las inscripciones; eliminar las borra.
+    r = client.put(f"/api/availability-windows/{w1['id']}", headers=chief, json={**morning, "hidden_tournament_ids": [t1]})
+    assert r.status_code == 200 and r.json()["registered"] == 1 and r.json()["hidden_tournament_ids"] == [t1]
+    assert [t["name"] for t in client.get("/api/availability", headers=ana).json()[1]["tournaments"]] == ["Copa"]
+    # Con todos ocultos solo se dice cuántos torneos son.
+    client.put(f"/api/availability-windows/{w1['id']}", headers=chief, json={**morning, "hidden_tournament_ids": [t1, t2]})
+    v = client.get("/api/availability", headers=ana).json()[1]
+    assert (v["tournaments"], v["hidden_count"]) == ([], 2)
+    assert client.get(f"/api/availability/summary?d={d}", headers=chief).json()[1]["tournament"] == {"name": "2 torneos", "location": ""}
+    assert [w["id"] for w in client.get("/api/availability-windows", headers=chief).json()] == [w2["id"], w1["id"]]
+    assert client.delete(f"/api/availability-windows/{w2['id']}", headers=chief).status_code == 204
+    assert [v["key"] for v in client.get("/api/availability", headers=beto).json()] == [w1["id"]]
+    assert client.post("/api/availability-windows", headers=ana, json=morning).status_code == 403
+
+
+def test_legacy_availability_still_counts(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    _register(client, code, "94000001", "Vera", "Vieja")
+    d = (today_local() + timedelta(days=6)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
+        "days": [{"date": d, "start_time": "08:00", "end_time": "12:00"}]}).json()["id"]
+    day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    with SessionLocal() as db:
+        uid = db.query(User).filter(User.document == "94000001").one().id
+        db.add(Availability(user_id=uid, day_id=day["id"]))
+        db.commit()
+    day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    assert [c["name"] for c in day["candidates"] if not c["is_chief"]] == ["Vera Vieja"]
+    assert client.put(f"/api/tournament-days/{day['id']}/assignments", headers=chief, json=[{"user_id": uid}]).status_code == 200

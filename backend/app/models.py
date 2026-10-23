@@ -170,8 +170,62 @@ class SavedValue(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class AvailabilityWindow(Base):
+    """Disponibilidad habilitada por el Jefe o un administrador para una fecha.
+
+    Puede ser de todo el día o de un horario. Cubre franjas de torneo de esa fecha (que dan los
+    árbitros requeridos) y los árbitros se inscriben en ella.
+    """
+    __tablename__ = "availability_windows"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    days: Mapped[list["TournamentDay"]] = relationship(secondary="availability_window_days")
+    signups: Mapped[list["WindowSignup"]] = relationship(back_populates="window", cascade="all, delete-orphan")
+    hidden_names: Mapped[list["WindowHiddenName"]] = relationship(cascade="all, delete-orphan")
+
+    @property
+    def hidden_tournament_ids(self) -> set[int]:
+        return {h.tournament_id for h in self.hidden_names}
+
+
+class WindowHiddenName(Base):
+    """Torneo cuyo nombre no se muestra a los árbitros en una disponibilidad."""
+    __tablename__ = "availability_window_hidden_names"
+
+    window_id: Mapped[int] = mapped_column(ForeignKey("availability_windows.id", ondelete="CASCADE"), primary_key=True)
+    tournament_id: Mapped[int] = mapped_column(ForeignKey("tournaments.id", ondelete="CASCADE"), primary_key=True)
+
+
+class AvailabilityWindowDay(Base):
+    __tablename__ = "availability_window_days"
+
+    window_id: Mapped[int] = mapped_column(ForeignKey("availability_windows.id", ondelete="CASCADE"), primary_key=True)
+    day_id: Mapped[int] = mapped_column(ForeignKey("tournament_days.id", ondelete="CASCADE"), primary_key=True)
+
+
+class WindowSignup(Base):
+    """Inscripción de un árbitro en una disponibilidad habilitada."""
+    __tablename__ = "window_signups"
+    __table_args__ = (UniqueConstraint("window_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    window_id: Mapped[int] = mapped_column(ForeignKey("availability_windows.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    window: Mapped[AvailabilityWindow] = relationship(back_populates="signups")
+    user: Mapped[User] = relationship()
+
+
 class Availability(Base):
-    """Disponibilidad de un árbitro para un día de torneo.
+    """Disponibilidad de un árbitro para un día de torneo (sistema anterior, solo se conserva y se respeta).
 
     El árbitro marca una franja combinada (ver slots.group_days) y se crea una fila por cada
     día de torneo que forma esa franja.

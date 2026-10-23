@@ -5,12 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from ..coverage import available_by_day, check_overlaps, covers, overlaps
 from ..database import get_db
 from ..deps import require_admin, require_creator
-from ..models import Assignment, Availability, MatchRecord, Tournament, TournamentDay, User
+from ..models import Assignment, AvailabilityWindow, MatchRecord, Tournament, TournamentDay, User
 from ..schemas import AssignmentIn, BoardIn, FinishedIn, MatchIn, TournamentIn
 from ..serializers import day_info, fold, name_key, tournament_info
-from ..slots import ended_by_time, group_days, has_started, is_finished
+from ..slots import day_slot, ended_by_time, group_days, has_started, is_finished
 from ..timeutil import is_open_for_availability, today_local, utcnow
 from .catalog import remember
 
@@ -36,7 +37,9 @@ def list_tournaments(_: User = Depends(require_admin), db: Session = Depends(get
     """Todos los torneos (nunca se archivan) con sus próximas franjas; las pasadas solo se cuentan."""
     tournaments = db.scalars(select(Tournament).options(selectinload(Tournament.days))).all()
     today = today_local()
-    avail_counts = dict(db.execute(select(Availability.day_id, func.count()).group_by(Availability.day_id)).all())
+    future = [d for t in tournaments for d in t.days if d.date >= today]
+    avail = available_by_day(db, future)
+    windows = _windows_on(db, {d.date for d in future})
     assigned_counts = dict(db.execute(select(Assignment.day_id, func.count()).group_by(Assignment.day_id)).all())
 
     result = []
@@ -46,9 +49,10 @@ def list_tournaments(_: User = Depends(require_admin), db: Session = Depends(get
             if d.date < today:
                 continue
             info = day_info(d)
-            info["available_count"] = avail_counts.get(d.id, 0)
+            info["available_count"] = len(avail.get(d.id, {}))
             info["assigned_count"] = assigned_counts.get(d.id, 0)
             info["open"] = is_open_for_availability(d.date)
+            info["has_window"] = any(covers(w, d) for w in windows)
             upcoming.append(info)
         past = [d.date for d in t.days if d.date < today]
         result.append({
@@ -182,27 +186,18 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
     t = _get_tournament(db, tournament_id)
     dates = [d.date for d in t.days]
 
-    available_by_day: dict = defaultdict(list)
-    if t.days:
-        rows = db.execute(
-            select(Availability.day_id, User, Availability.created_at)
-            .join(User, User.id == Availability.user_id)
-            .where(Availability.day_id.in_([d.id for d in t.days]), User.active.is_(True))
-        ).all()
-        for day_id, u, at in rows:
-            available_by_day[day_id].append((u, at))
+    available = available_by_day(db, list(t.days))
+    windows = _windows_on(db, set(dates))
 
-    # Asignaciones de esas fechas en otros torneos, para avisar de choques.
-    elsewhere: dict = defaultdict(dict)
+    # Asignaciones de esas fechas en otros torneos, para avisar de choques de horario.
+    elsewhere: dict = defaultdict(list)
     if dates:
-        rows = db.execute(
-            select(TournamentDay.date, Assignment.user_id, Tournament.name)
+        for other, uid in db.execute(
+            select(TournamentDay, Assignment.user_id)
             .join(Assignment, Assignment.day_id == TournamentDay.id)
-            .join(Tournament, Tournament.id == TournamentDay.tournament_id)
-            .where(TournamentDay.date.in_(dates), Tournament.id != t.id)
-        ).all()
-        for d, uid, name in rows:
-            elsewhere[d][uid] = name
+            .where(TournamentDay.date.in_(dates), TournamentDay.tournament_id != t.id)
+        ).all():
+            elsewhere[uid].append(other)
 
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
     referees = _open_referees(db) if any(d.hidden for d in t.days) else []
@@ -214,13 +209,18 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
         if d.hidden:  # Franja oculta: cualquier árbitro activo es candidato.
             avail = [(u, None) for u in referees]
         else:
-            avail = sorted(available_by_day.get(d.id, []), key=lambda x: name_key(x[0]))
+            avail = sorted(available.get(d.id, {}).values(), key=lambda x: name_key(x[0]))
+        seen: set[int] = set()
         for u, at in [*((c, None) for c in chiefs), *avail]:
+            if u.id in seen:
+                continue
+            seen.add(u.id)
+            clash = next((o for o in elsewhere[u.id] if overlaps(d, o)), None)
             candidates.append({
                 "user_id": u.id,
                 "name": u.full_name,
                 "is_chief": u.is_chief,
-                "assigned_elsewhere": elsewhere[d.date].get(u.id),
+                "assigned_elsewhere": clash.tournament.name if clash else None,
                 "available_at": at.isoformat() if at else None,
             })
         assignments = []
@@ -241,11 +241,18 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
         info.update({
             "open": is_open_for_availability(d.date),
             "candidates": candidates,
-            "available_count": len(available_by_day.get(d.id, [])),
+            "available_count": len(available.get(d.id, {})),
+            "has_window": any(covers(w, d) for w in windows),
             "assignments": assignments,
         })
         days.append(info)
     return {**tournament_info(t), "days": days}
+
+
+def _windows_on(db: Session, dates: set) -> list[AvailabilityWindow]:
+    if not dates:
+        return []
+    return list(db.scalars(select(AvailabilityWindow).where(AvailabilityWindow.date.in_(dates))).all())
 
 
 def _open_referees(db: Session) -> list[User]:
@@ -258,13 +265,17 @@ def _open_referees(db: Session) -> list[User]:
 def set_assignments(
     day_id: int, items: list[AssignmentIn], _: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
-    _apply_assignments(db, _get_day(db, day_id), items)
+    day = _get_day(db, day_id)
+    check_overlaps(db, _apply_assignments(db, day, items))
     db.commit()
     return {"ok": True}
 
 
-def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn]) -> None:
-    """Deja la asignación de la franja exactamente como `items` (sin confirmar la transacción)."""
+def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn]) -> list[tuple[TournamentDay, User]]:
+    """Deja la asignación de la franja exactamente como `items` (sin confirmar la transacción).
+
+    Devuelve los árbitros recién asignados, para revisar después si se cruzan con otra franja.
+    """
     t = day.tournament
     if is_finished(day):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La franja de {t.name} ya finalizó; su asignación no se puede cambiar.")
@@ -273,7 +284,8 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
     if len(user_ids) != len(set(user_ids)):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Un árbitro está repetido en la asignación.")
 
-    available = set(db.scalars(select(Availability.user_id).where(Availability.day_id == day.id)).all())
+    available = set(available_by_day(db, [day]).get(day.id, {}))
+    added: list[tuple[TournamentDay, User]] = []
     roles_used: set[str] = set()
     for item in items:
         u = db.get(User, item.user_id)
@@ -282,7 +294,7 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
         if not u.is_chief and (not u.is_referee or (u.id not in available and not day.hidden)):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
-                f"{u.full_name} no marcó disponibilidad para {t.name} el {day.date:%d/%m/%Y}.",
+                f"{u.full_name} no tiene una disponibilidad que cubra {t.name} el {day.date:%d/%m/%Y} ({day_slot(day).label}).",
             )
         if t.has_roles:
             if item.role and item.role not in t.roles:
@@ -305,7 +317,9 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
             a.role = item.role
         else:
             day.assignments.append(Assignment(user_id=item.user_id, role=item.role))
+            added.append((day, db.get(User, item.user_id)))
     db.flush()
+    return added
 
 
 @router.put("/tournament-days/{day_id}/finished")
@@ -367,9 +381,9 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
         d = upcoming[0] if upcoming else today
     days = [x for x in db.scalars(
         select(TournamentDay).where(TournamentDay.date == d)
-        .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments),
-                 selectinload(TournamentDay.availabilities))
+        .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments))
     ).all() if not is_finished(x)]
+    avail = available_by_day(db, list(days))
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
     referees = _open_referees(db) if any(x.hidden for x in days) else []
 
@@ -382,7 +396,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
         confirmed: dict[int, list[int]] = defaultdict(list)
         for day in cols:
             # En una franja oculta todos los árbitros cuentan como disponibles.
-            for u in referees if day.hidden else (a.user for a in day.availabilities if a.user.active):
+            for u in referees if day.hidden else (u for u, _ in avail.get(day.id, {}).values()):
                 people[u.id] = u
                 available[u.id].append(day.id)
             for a in day.assignments:
@@ -417,7 +431,9 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
 @router.put("/assignment-board")
 def save_assignment_board(data: BoardIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Guarda varias franjas a la vez: o se guardan todas o ninguna."""
+    added = []
     for entry in data.days:
-        _apply_assignments(db, _get_day(db, entry.day_id), entry.items)
+        added += _apply_assignments(db, _get_day(db, entry.day_id), entry.items)
+    check_overlaps(db, added)
     db.commit()
     return {"ok": True}
