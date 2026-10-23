@@ -112,10 +112,10 @@ def test_full_flow(client):
     assert len(mine[0]["days"][0]["crew"]) == 3
 
     # Calificaciones y ranking.
-    assert client.post("/api/ratings", headers=ref_a, json={"items": [{"user_id": ids["Ana Alvarez"], "score": "BUENO"}]}).status_code == 403
+    assert client.post("/api/ratings", headers=ref_a, json={"items": [{"user_id": ids["Ana Alvarez"], "score": "P20"}]}).status_code == 403
     r = client.post("/api/ratings", headers=chief, json={"items": [
-        {"user_id": ids["Beto Bravo"], "score": "EXCELENTE"},
-        {"user_id": ids["Ana Alvarez"], "score": "BUENO"},
+        {"user_id": ids["Beto Bravo"], "score": "P50"},
+        {"user_id": ids["Ana Alvarez"], "score": "P35"},
     ]})
     assert r.status_code == 201
     ranking = client.get("/api/ranking", headers=ref_c).json()
@@ -123,8 +123,12 @@ def test_full_flow(client):
     assert ranking[1]["points"] == 50
 
     # Empate en puntos: gana quien tiene más partidos pitados (Caro 0 pitados vs Beto 0; Ana 4).
-    client.post("/api/ratings", headers=chief, json={"items": [{"user_id": ids["Caro Castro"], "score": "EXCELENTE"},
-                                                                {"user_id": ids["Ana Alvarez"], "score": "BUENO"}]})
+    client.post("/api/ratings", headers=chief, json={"items": [{"user_id": ids["Caro Castro"], "score": "P50"},
+                                                                {"user_id": ids["Ana Alvarez"], "score": "P10"}]})
+    client.post("/api/ratings", headers=chief, json={"items": [{"user_id": ids["Ana Alvarez"], "score": "P5"}]})
+    # La escala anterior ya no se acepta.
+    assert client.post("/api/ratings", headers=chief, json={"items": [{"user_id": ids["Ana Alvarez"], "score": "BUENO"}]}).status_code == 422
+    assert [s["label"] for s in client.get("/api/ratings/scale", headers=chief).json()] == ["+5", "+10", "+20", "+35", "+50"]
     client.put(f"/api/tournament-days/{day['id']}/matches", headers=chief, json=[
         {"user_id": ids["Caro Castro"], "refereed": 1, "scored": 5}])
     ranking = client.get("/api/ranking", headers=ref_c).json()

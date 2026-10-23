@@ -6,13 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 from .timeutil import utcnow
 
-RATING_POINTS = {
-    "MUY_MALO": 0,
-    "MALO": 5,
-    "REGULAR": 10,
-    "BUENO": 25,
-    "EXCELENTE": 50,
-}
+# Escala vigente. Las calificaciones antiguas (Muy Malo...Excelente) conservan los puntos con que se guardaron.
+RATING_POINTS = {"P5": 5, "P10": 10, "P20": 20, "P35": 35, "P50": 50}
 
 DEFAULT_ROLES = ["Principal", "Segundo", "Planillero"]
 

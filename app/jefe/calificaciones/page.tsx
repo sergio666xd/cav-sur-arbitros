@@ -13,11 +13,11 @@ type Scale = { value: string; label: string; points: number }[];
 type Batch = { id: number; created_at: string; items: { name: string; score: string; points: number }[] };
 
 const COLORS: Record<string, string> = {
-  MUY_MALO: "peer-checked:bg-red-600 peer-checked:text-white",
-  MALO: "peer-checked:bg-orange-400 peer-checked:text-white",
-  REGULAR: "peer-checked:bg-amber-300 peer-checked:text-ink",
-  BUENO: "peer-checked:bg-lime-500 peer-checked:text-white",
-  EXCELENTE: "peer-checked:bg-green-600 peer-checked:text-white",
+  P5: "peer-checked:bg-orange-400 peer-checked:text-white",
+  P10: "peer-checked:bg-amber-300 peer-checked:text-ink",
+  P20: "peer-checked:bg-lime-400 peer-checked:text-ink",
+  P35: "peer-checked:bg-lime-600 peer-checked:text-white",
+  P50: "peer-checked:bg-green-600 peer-checked:text-white",
 };
 
 export default function RatingsPage() {
@@ -61,7 +61,7 @@ export default function RatingsPage() {
     <Shell allow={(u) => u.is_chief}>
       <PageHeader
         title="Calificaciones de desempeño"
-        subtitle={scale.data ? scale.data.map((s) => `${s.label} = ${s.points}`).join(" · ") : undefined}
+        subtitle={scale.data ? `Puntos por calificación: ${scale.data.map((s) => s.label).join(" · ")}` : undefined}
         action={!editing && <button className="btn-primary" onClick={() => { setEditing(true); setMsg(null); }}><PlusIcon className="h-4 w-4" />Añadir calificación</button>}
       />
       {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
@@ -86,7 +86,7 @@ export default function RatingsPage() {
                       <label key={s.value} className="cursor-pointer">
                         <input type="radio" className="peer sr-only" name={`r-${r.user_id}`} checked={picks[r.user_id] === s.value}
                           onChange={() => setPicks({ ...picks, [r.user_id]: s.value })} />
-                        <span className={`block rounded-md border border-stone-200 px-2.5 py-1 text-xs font-medium text-stone-600 peer-[:not(:checked)]:hover:bg-stone-50 ${COLORS[s.value]}`}>
+                        <span className={`block min-w-[3rem] rounded-md border border-stone-200 px-2.5 py-1 text-center text-xs font-semibold text-stone-600 peer-[:not(:checked)]:hover:bg-stone-50 ${COLORS[s.value]}`}>
                           {s.label}
                         </span>
                       </label>
@@ -125,7 +125,7 @@ export default function RatingsPage() {
               </summary>
               <ul className="mt-3 animate-slide-down space-y-1 text-sm">
                 {b.items.map((i, k) => (
-                  <li key={k} className="flex justify-between"><span>{i.name}</span><span>{i.score} (+{i.points})</span></li>
+                  <li key={k} className="flex justify-between"><span>{i.name}</span><span>{i.score === `+${i.points}` ? i.score : `${i.score} (+${i.points})`}</span></li>
                 ))}
               </ul>
               <button className="btn-ghost mt-3 text-red-600" onClick={() => removeBatch(b.id)}><TrashIcon className="h-4 w-4" />Anular esta calificación</button>

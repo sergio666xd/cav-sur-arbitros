@@ -11,7 +11,11 @@ from ..stats import match_totals, points_totals
 
 router = APIRouter(tags=["ratings"])
 
-SCORE_LABELS = {"MUY_MALO": "Muy Malo", "MALO": "Malo", "REGULAR": "Regular", "BUENO": "Bueno", "EXCELENTE": "Excelente"}
+SCORE_LABELS = {
+    **{k: f"+{v}" for k, v in RATING_POINTS.items()},
+    # Escala anterior, para el historial.
+    "MUY_MALO": "Muy Malo", "MALO": "Malo", "REGULAR": "Regular", "BUENO": "Bueno", "EXCELENTE": "Excelente",
+}
 
 
 def _ratable(db: Session) -> list[User]:
@@ -73,7 +77,7 @@ def history(_: User = Depends(require_chief), db: Session = Depends(get_db)):
         "id": b.id,
         "created_at": b.created_at.isoformat(),
         "items": [
-            {"name": r.user.full_name, "score": SCORE_LABELS[r.score], "points": r.points}
+            {"name": r.user.full_name, "score": SCORE_LABELS.get(r.score, r.score), "points": r.points}
             for r in sorted(b.ratings, key=lambda r: name_key(r.user))
         ],
     } for b in batches]
