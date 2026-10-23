@@ -32,7 +32,7 @@ def ensure_initial_chief() -> None:
             user.last_name = os.getenv("INITIAL_CHIEF_LAST_NAME", "CAV-Sur")
             user.birth_date = date.fromisoformat(os.getenv("INITIAL_CHIEF_BIRTH_DATE", "1990-01-01"))
             user.pin_hash = hash_pin(_check_pin(pin))
-            user.is_chief = user.is_admin = user.can_create_tournaments = user.active = True
+            user.is_chief = user.is_admin = user.active = True
             user.is_referee = False
             db.add(user)
             db.commit()

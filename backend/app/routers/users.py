@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_admin, require_chief
 from ..models import (
-    Assignment, Availability, AvailabilityWindow, MatchRecord, Rating, RatingBatch, RegistrationCode, Tournament, TournamentDay,
-    User, WindowSignup,
+    Assignment, Availability, AvailabilityWindow, MatchRecord, Rating, RatingBatch, RegistrationCode, Tournament, TournamentAdmin,
+    TournamentDay, User, WindowSignup,
 )
 from ..schemas import ResetPinIn, RolesIn, UserUpdateIn
 from ..security import hash_pin
@@ -138,8 +138,6 @@ def update_roles(user_id: int, data: RolesIn, chief: User = Depends(require_chie
     _protect(u, chief)
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(u, field, value)
-    if not u.is_admin:
-        u.can_create_tournaments = False
     db.commit()
     return _base(u, chief)
 
@@ -167,7 +165,7 @@ def delete_user(user_id: int, chief: User = Depends(require_chief), db: Session 
                           (AvailabilityWindow, AvailabilityWindow.created_by_id),
                           (RatingBatch, RatingBatch.created_by_id), (MatchRecord, MatchRecord.recorded_by_id)):
         db.execute(update(model).where(column == u.id).values({column.key: chief.id}))
-    for model in (Assignment, Availability, WindowSignup, MatchRecord, Rating):
+    for model in (Assignment, Availability, WindowSignup, MatchRecord, Rating, TournamentAdmin):
         db.execute(delete(model).where(model.user_id == u.id))
     db.delete(u)
     db.commit()
@@ -184,8 +182,8 @@ def transfer_chief(user_id: int, chief: User = Depends(require_chief), db: Sessi
     if u.system or not u.active:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "El rol de Jefe solo se puede transferir a un usuario activo.")
     for c in db.scalars(select(User).where(User.is_chief.is_(True))).all():
-        c.is_chief, c.is_admin, c.can_create_tournaments = False, True, True
-    u.is_chief = u.is_admin = u.can_create_tournaments = True
+        c.is_chief, c.is_admin = False, True
+    u.is_chief = u.is_admin = True
     db.commit()
     return _base(u, chief)
 

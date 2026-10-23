@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import require_admin
+from ..deps import check_manages, require_admin
 from ..models import Shirt, TournamentDay, User
 from ..serializers import fold, shirt_info
 
@@ -50,10 +50,11 @@ def delete_shirt(shirt_id: int, _: User = Depends(require_admin), db: Session = 
 
 
 @router.put("/tournament-days/{day_id}/shirt")
-def set_day_shirt(day_id: int, data: DayShirtIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def set_day_shirt(day_id: int, data: DayShirtIn, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     day = db.get(TournamentDay, day_id)
     if not day:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Franja no encontrada.")
+    check_manages(user, day.tournament)
     if data.shirt_id is not None and not db.get(Shirt, data.shirt_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Camiseta no encontrada.")
     day.shirt_id = data.shirt_id

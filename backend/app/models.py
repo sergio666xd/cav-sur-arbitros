@@ -28,6 +28,7 @@ class User(Base):
 
     is_referee: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Obsoleto: ahora solo el Jefe (y system) crean torneos. Se conserva la columna en la base de datos.
     can_create_tournaments: Mapped[bool] = mapped_column(Boolean, default=False)
     is_chief: Mapped[bool] = mapped_column(Boolean, default=False)
     # Rol oculto con todos los permisos del Jefe. Solo se cambia directamente en la base de datos.
@@ -59,7 +60,11 @@ class User(Base):
 
     @property
     def tournament_creator(self) -> bool:
-        return self.chief_powers or (self.is_admin and self.can_create_tournaments)
+        return self.chief_powers
+
+    def manages(self, t: "Tournament") -> bool:
+        """El Jefe gestiona todos los torneos; un administrador, solo los que el Jefe le asignó."""
+        return self.chief_powers or (self.is_admin and any(a.id == self.id for a in t.admins))
 
     @property
     def referee(self) -> bool:
@@ -101,6 +106,8 @@ class Tournament(Base):
     days: Mapped[list["TournamentDay"]] = relationship(
         back_populates="tournament", cascade="all, delete-orphan", order_by="TournamentDay.date"
     )
+    # Administradores que gestionan el torneo (los asigna el Jefe).
+    admins: Mapped[list[User]] = relationship(secondary="tournament_admins")
 
     @property
     def venue_list(self) -> list[str]:
@@ -112,6 +119,13 @@ class Tournament(Base):
             if v and v not in out:
                 out.append(v)
         return out
+
+
+class TournamentAdmin(Base):
+    __tablename__ = "tournament_admins"
+
+    tournament_id: Mapped[int] = mapped_column(ForeignKey("tournaments.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
 
 
 class Shirt(Base):

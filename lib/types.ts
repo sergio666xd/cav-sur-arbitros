@@ -51,5 +51,6 @@ export type TournamentDetail = {
   has_roles: boolean;
   roles: string[];
   notes: string;
+  admins: { id: number; name: string }[];
   days: DayDetail[];
 };

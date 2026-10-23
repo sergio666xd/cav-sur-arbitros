@@ -23,7 +23,7 @@ def client():
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         db.add(User(first_name="Jefa", last_name="Principal", document="10000000", birth_date=date(1980, 1, 1),
-                    pin_hash=hash_pin("1111"), is_chief=True, is_admin=True, can_create_tournaments=True,
+                    pin_hash=hash_pin("1111"), is_chief=True, is_admin=True,
                     is_referee=False))
         db.commit()
     return TestClient(app)

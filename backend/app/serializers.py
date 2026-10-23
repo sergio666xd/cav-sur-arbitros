@@ -9,7 +9,7 @@ from .timeutil import today_local
 def user_out(u: User) -> UserOut:
     return UserOut(
         id=u.id, first_name=u.first_name, last_name=u.last_name, document=u.document, whatsapp=u.whatsapp,
-        is_referee=u.is_referee, is_admin=u.is_admin, can_create_tournaments=u.can_create_tournaments,
+        is_referee=u.is_referee, is_admin=u.is_admin,
         is_chief=u.is_chief, active=u.active,
     )
 
@@ -37,6 +37,7 @@ def tournament_info(t: Tournament) -> dict:
         "has_roles": t.has_roles,
         "roles": t.roles or [],
         "notes": t.notes or "",
+        "admins": [{"id": a.id, "name": a.full_name} for a in sorted(t.admins, key=name_key)],
     }
 
 

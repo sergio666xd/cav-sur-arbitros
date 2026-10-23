@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from .database import get_db
-from .models import User
+from .models import Tournament, User
 from .security import decode_token
 
 _bearer = HTTPBearer(auto_error=False)
@@ -42,8 +42,13 @@ def require_admin(user: User = Depends(current_user)) -> User:
 
 def require_creator(user: User = Depends(current_user)) -> User:
     if not user.tournament_creator:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "No tienes permiso para crear o editar torneos.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el Jefe puede crear o editar torneos.")
     return user
+
+
+def check_manages(user: User, t: Tournament) -> None:
+    if not user.manages(t):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"El torneo {t.name} no está asignado a ti.")
 
 
 def require_chief(user: User = Depends(current_user)) -> User:

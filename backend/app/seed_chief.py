@@ -36,7 +36,6 @@ def main() -> None:
         user.pin_hash = hash_pin(pin)
         user.is_chief = True
         user.is_admin = True
-        user.can_create_tournaments = True
         user.is_referee = False
         user.active = True
         db.commit()
