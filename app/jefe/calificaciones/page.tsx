@@ -58,7 +58,7 @@ export default function RatingsPage() {
   }
 
   return (
-    <Shell allow={(u) => u.is_chief}>
+    <Shell allow={(u) => u.perm_chief}>
       <PageHeader
         title="Calificaciones de desempeño"
         subtitle={scale.data ? `Puntos por calificación: ${scale.data.map((s) => s.label).join(" · ")}` : undefined}

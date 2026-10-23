@@ -27,6 +27,8 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     can_create_tournaments: Mapped[bool] = mapped_column(Boolean, default=False)
     is_chief: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Rol oculto con todos los permisos del Jefe. Solo se cambia directamente en la base de datos.
+    is_system: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
@@ -37,14 +39,22 @@ class User(Base):
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
-    # Permisos efectivos: el JEFE tiene todo.
+    # Permisos efectivos: el JEFE y el rol system tienen todo.
+    @property
+    def system(self) -> bool:
+        return bool(self.is_system)
+
+    @property
+    def chief_powers(self) -> bool:
+        return self.is_chief or self.system
+
     @property
     def admin(self) -> bool:
-        return self.is_chief or self.is_admin
+        return self.chief_powers or self.is_admin
 
     @property
     def tournament_creator(self) -> bool:
-        return self.is_chief or (self.is_admin and self.can_create_tournaments)
+        return self.chief_powers or (self.is_admin and self.can_create_tournaments)
 
     @property
     def referee(self) -> bool:

@@ -18,10 +18,23 @@ router = APIRouter(prefix="/users", tags=["users"])
 def _base(u: User, viewer: User) -> dict:
     data = user_out(u).model_dump()
     data["created_at"] = u.created_at.isoformat()
-    if viewer.is_chief:  # Solo el JEFE ve la fecha de nacimiento y la edad.
+    if viewer.chief_powers:  # Solo el JEFE ve la fecha de nacimiento, la edad y el rol system.
         data["birth_date"] = u.birth_date.isoformat()
         data["age"] = age_on(u.birth_date, today_local())
+        data["is_system"] = u.system
     return data
+
+
+def _listed(u: User) -> bool:
+    """El rol system no aparece en la lista arbitral, salvo que también sea árbitro."""
+    return not u.system or u.is_referee
+
+
+def _protect(u: User, viewer: User) -> None:
+    if u.is_chief:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los permisos del Jefe no se pueden modificar.")
+    if u.system and not viewer.system:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este usuario no se puede modificar.")
 
 
 def _get(db: Session, user_id: int) -> User:
@@ -33,7 +46,7 @@ def _get(db: Session, user_id: int) -> User:
 
 @router.get("")
 def list_users(viewer: User = Depends(require_admin), db: Session = Depends(get_db)):
-    users = sorted(db.scalars(select(User)).all(), key=name_key)
+    users = sorted((u for u in db.scalars(select(User)).all() if _listed(u)), key=name_key)
     matches = match_totals(db)
     assigns = assignment_counts(db)
     points = points_totals(db)
@@ -97,14 +110,15 @@ def user_detail(db: Session, u: User) -> dict:
 @router.get("/{user_id}")
 def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = Depends(get_db)):
     u = _get(db, user_id)
+    if not _listed(u) and not viewer.system:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario no encontrado.")
     return {**_base(u, viewer), **user_detail(db, u)}
 
 
 @router.patch("/{user_id}/roles")
 def update_roles(user_id: int, data: RolesIn, chief: User = Depends(require_chief), db: Session = Depends(get_db)):
     u = _get(db, user_id)
-    if u.is_chief:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los permisos del Jefe no se pueden modificar.")
+    _protect(u, chief)
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(u, field, value)
     if not u.is_admin:
@@ -116,6 +130,8 @@ def update_roles(user_id: int, data: RolesIn, chief: User = Depends(require_chie
 @router.patch("/{user_id}")
 def update_user(user_id: int, data: UserUpdateIn, chief: User = Depends(require_chief), db: Session = Depends(get_db)):
     u = _get(db, user_id)
+    if u.system and not chief.system:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este usuario no se puede modificar.")
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(u, field, value.strip() if isinstance(value, str) else value)
     db.commit()
@@ -123,8 +139,10 @@ def update_user(user_id: int, data: UserUpdateIn, chief: User = Depends(require_
 
 
 @router.post("/{user_id}/reset-pin", status_code=204)
-def reset_pin(user_id: int, data: ResetPinIn, _: User = Depends(require_chief), db: Session = Depends(get_db)):
+def reset_pin(user_id: int, data: ResetPinIn, chief: User = Depends(require_chief), db: Session = Depends(get_db)):
     u = _get(db, user_id)
+    if u.system and not chief.system:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este usuario no se puede modificar.")
     u.pin_hash = hash_pin(data.new_pin)
     u.failed_logins = 0
     u.locked_until = None
