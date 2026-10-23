@@ -136,6 +136,8 @@ class TournamentDay(Base):
     # Franja oculta: no sale en Disponibilidad y se puede asignar a cualquier árbitro (eventos privados).
     hidden: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
     shirt_id: Mapped[int | None] = mapped_column(ForeignKey("shirts.id", ondelete="SET NULL"), nullable=True)
+    # Marcada como finalizada a mano antes de su hora de fin (o del día siguiente).
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     tournament: Mapped[Tournament] = relationship(back_populates="days")
     shirt: Mapped[Shirt | None] = relationship()

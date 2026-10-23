@@ -6,6 +6,7 @@ from ..database import get_db
 from ..deps import current_user
 from ..models import Assignment, MatchRecord, TournamentDay, User
 from ..serializers import day_info, name_key, tournament_info
+from ..slots import is_finished
 from ..timeutil import age_on, today_local, utcnow
 from .users import user_detail
 
@@ -47,11 +48,11 @@ def my_assignments(user: User = Depends(current_user), db: Session = Depends(get
 
 @router.get("/pending-confirmations")
 def pending_confirmations(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Asignaciones de hoy en adelante que el árbitro aún no confirma (para la alerta del menú)."""
-    count = db.query(Assignment).join(TournamentDay).filter(
+    """Asignaciones de franjas sin finalizar que el árbitro aún no confirma (para la alerta del menú)."""
+    pending = db.scalars(select(Assignment).join(TournamentDay).where(
         Assignment.user_id == user.id, Assignment.confirmed_at.is_(None), TournamentDay.date >= today_local()
-    ).count()
-    return {"count": count}
+    )).all()
+    return {"count": sum(1 for a in pending if not is_finished(a.day))}
 
 
 @router.post("/assignments/{day_id}/confirm")

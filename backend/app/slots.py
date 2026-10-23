@@ -26,6 +26,7 @@ def end_or_max(t: time | None) -> time:
     return t or END_OF_DAY
 
 from .models import TournamentDay
+from .timeutil import now_local
 
 
 @dataclass
@@ -77,3 +78,24 @@ def group_days(days: list[TournamentDay]) -> list[SlotGroup]:
         else:
             groups.append(SlotGroup(Slot(all_day=False, start=d.start_time, end=d.end_time), [d]))
     return groups
+
+
+def has_started(day: TournamentDay) -> bool:
+    """La franja ya comenzó: llegó su fecha y su hora de inicio (sin hora, desde el inicio del día)."""
+    now = now_local()
+    if day.date != now.date():
+        return day.date < now.date()
+    return day.start_time is None or now.time() >= day.start_time
+
+
+def ended_by_time(day: TournamentDay) -> bool:
+    """La franja termina sola al llegar su hora de fin o, si no tiene, al día siguiente."""
+    now = now_local()
+    if day.date != now.date():
+        return day.date < now.date()
+    slot = day_slot(day)
+    return bool(slot.end) and not slot.all_day and now.time() >= slot.end
+
+
+def is_finished(day: TournamentDay) -> bool:
+    return day.finished_at is not None or ended_by_time(day)

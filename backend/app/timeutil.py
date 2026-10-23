@@ -11,6 +11,10 @@ def today_local() -> date:
     return datetime.now(APP_TIMEZONE).date()
 
 
+def now_local() -> datetime:
+    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
+
+
 def is_open_for_availability(day: date) -> bool:
     """La selección de disponibilidad se cierra automáticamente el mismo día del torneo."""
     return day > today_local()

@@ -2,7 +2,7 @@ import unicodedata
 
 from .models import Shirt, Tournament, TournamentDay, User
 from .schemas import Me, UserOut
-from .slots import day_slot
+from .slots import day_slot, ended_by_time, has_started, is_finished
 from .timeutil import today_local
 
 
@@ -58,6 +58,10 @@ def day_info(d: TournamentDay) -> dict:
         "specification": d.specification,
         "hidden": bool(d.hidden),
         "past": d.date < today_local(),
+        "started": has_started(d),
+        "finished": is_finished(d),
+        # Finalizada a mano y aún sin llegar a su fin: se puede reabrir.
+        "can_reopen": d.finished_at is not None and not ended_by_time(d),
         "shirt": shirt_info(d.shirt) if d.shirt else None,
     }
 

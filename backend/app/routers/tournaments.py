@@ -9,10 +9,10 @@ from ..coverage import available_by_day, check_overlaps, covers, overlaps
 from ..database import get_db
 from ..deps import require_admin, require_creator
 from ..models import Assignment, AvailabilityWindow, MatchRecord, Tournament, TournamentDay, User
-from ..schemas import AssignmentIn, BoardIn, MatchIn, TournamentIn
+from ..schemas import AssignmentIn, BoardIn, FinishedIn, MatchIn, TournamentIn
 from ..serializers import day_info, fold, name_key, tournament_info
-from ..slots import day_slot, group_days
-from ..timeutil import is_open_for_availability, today_local
+from ..slots import day_slot, ended_by_time, group_days, has_started, is_finished
+from ..timeutil import is_open_for_availability, today_local, utcnow
 from .catalog import remember
 
 router = APIRouter(tags=["tournaments"])
@@ -70,10 +70,10 @@ def list_tournaments(_: User = Depends(require_admin), db: Session = Depends(get
 def past_days(
     tournament_id: int | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
-    """Franjas cuya fecha ya pasó (desde el día siguiente), de la más reciente a la más antigua."""
+    """Franjas finalizadas (ya pasadas, o de hoy terminadas o marcadas como finalizadas), de la más reciente a la más antigua."""
     q = (
         select(TournamentDay)
-        .where(TournamentDay.date < today_local())
+        .where((TournamentDay.date <= today_local()) | TournamentDay.finished_at.is_not(None))
         .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments),
                  selectinload(TournamentDay.match_records))
         .order_by(TournamentDay.date.desc(), TournamentDay.start_time)
@@ -82,6 +82,8 @@ def past_days(
         q = q.where(TournamentDay.tournament_id == tournament_id)
     out = []
     for d in db.scalars(q).all():
+        if not is_finished(d):
+            continue
         refs = [a for a in d.assignments if not a.user.is_chief]
         out.append({
             **day_info(d),
@@ -274,6 +276,8 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
     Devuelve los árbitros recién asignados, para revisar después si se cruzan con otra franja.
     """
     t = day.tournament
+    if is_finished(day):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La franja de {t.name} ya finalizó; su asignación no se puede cambiar.")
     current = {a.user_id: a for a in day.assignments}
     user_ids = [i.user_id for i in items]
     if len(user_ids) != len(set(user_ids)):
@@ -317,9 +321,26 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
     return added
 
 
+@router.put("/tournament-days/{day_id}/finished")
+def set_finished(day_id: int, data: FinishedIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    day = _get_day(db, day_id)
+    if data.finished:
+        if not has_started(day):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "La franja aún no ha comenzado.")
+        day.finished_at = day.finished_at or utcnow()
+    else:
+        if ended_by_time(day):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esta franja ya terminó; no se puede reabrir.")
+        day.finished_at = None
+    db.commit()
+    return day_info(day)
+
+
 @router.put("/tournament-days/{day_id}/matches")
 def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_admin), db: Session = Depends(get_db)):
     day = _get_day(db, day_id)
+    if not is_finished(day):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los partidos se registran cuando la franja esté finalizada.")
     assigned = {a.user_id: a.user for a in day.assignments}
     records = {r.user_id: r for r in day.match_records}
     categories = day.effective_categories
@@ -353,13 +374,14 @@ def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_
 def assignment_board(d: date | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Para una fecha: por cada franja combinada, los árbitros disponibles (filas) y los torneos (columnas)."""
     today = today_local()
-    upcoming = sorted(set(db.scalars(select(TournamentDay.date).where(TournamentDay.date >= today)).all()))
+    # Las franjas finalizadas ya no se asignan: salen del tablero.
+    upcoming = sorted({x.date for x in db.scalars(select(TournamentDay).where(TournamentDay.date >= today)) if not is_finished(x)})
     if d is None:
         d = upcoming[0] if upcoming else today
-    days = db.scalars(
+    days = [x for x in db.scalars(
         select(TournamentDay).where(TournamentDay.date == d)
         .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments))
-    ).all()
+    ).all() if not is_finished(x)]
     avail = available_by_day(db, list(days))
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
     referees = _open_referees(db) if any(x.hidden for x in days) else []
