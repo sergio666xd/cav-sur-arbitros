@@ -318,7 +318,7 @@ export default function TournamentForm({
         {pastCount > 0 && (
           <p className="mb-3 text-sm text-stone-500">Este torneo tiene {pastCount} fecha(s) anterior(es); se conservan con sus asignaciones y partidos.</p>
         )}
-        {v.days.length === 0 && <p className="py-4 text-sm text-stone-500">Sin fechas próximas. Añade una franja para reutilizar el torneo.</p>}
+        {v.days.length === 0 && <p className="py-4 text-sm text-stone-500">{pastCount > 0 ? "Sin fechas próximas. Añade una franja para reutilizar el torneo." : "Sin franjas todavía. Puedes guardar el torneo y añadirlas más tarde."}</p>}
         <div className="mt-3 space-y-3">
           {v.days.map((d, i) => {
             const k = rowKey(d, i);
