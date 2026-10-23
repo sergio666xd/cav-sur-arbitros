@@ -152,6 +152,7 @@ class DayIn(BaseModel):
     location: str | None = Field(default=None, max_length=200)
     categories: list[str] | None = None
     specification: str | None = Field(default=None, max_length=300)
+    hidden: bool = False
 
     @model_validator(mode="after")
     def _times(self):

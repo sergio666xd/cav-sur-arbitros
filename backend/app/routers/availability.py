@@ -15,7 +15,9 @@ router = APIRouter(prefix="/availability", tags=["availability"])
 
 
 def _days_by_date(db: Session, from_date: date | None = None, on_date: date | None = None) -> dict[date, list[TournamentDay]]:
-    q = select(TournamentDay).options(selectinload(TournamentDay.tournament)).order_by(TournamentDay.date)
+    # Las franjas ocultas no se ofrecen en Disponibilidad.
+    q = (select(TournamentDay).where(TournamentDay.hidden.isnot(True))
+         .options(selectinload(TournamentDay.tournament)).order_by(TournamentDay.date))
     if from_date:
         q = q.where(TournamentDay.date >= from_date)
     if on_date:

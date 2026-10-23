@@ -24,6 +24,7 @@ export type DayDetail = {
   location: string | null;
   categories: string[] | null;
   specification: string | null;
+  hidden: boolean;
   effective_location: string;
   effective_categories: string[];
   past: boolean;

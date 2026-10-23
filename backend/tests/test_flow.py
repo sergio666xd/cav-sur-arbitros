@@ -760,3 +760,46 @@ def test_system_suspends_deletes_and_chief_transfer(client):
     assert client.get("/api/auth/me", headers=a).json()["perm_chief"]
     chiefs = [u for u in client.get("/api/users", headers=a).json() if u["is_chief"]]
     assert [c["document"] for c in chiefs] == ["90000002"]
+
+
+def test_hidden_slot(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref_a = _register(client, code, "40000001", "Ana", "Alvarez")
+    _register(client, code, "40000002", "Beto", "Bravo")
+    day = (today_local() + timedelta(days=3)).isoformat()
+    t = client.post("/api/tournaments", headers=chief, json={
+        "name": "Evento privado", "location": "Club", "referees_required": 2,
+        "days": [{"date": day, "start_time": "09:00", "end_time": "12:00", "hidden": True}]}).json()["id"]
+    detail = client.get(f"/api/tournaments/{t}", headers=chief).json()
+    d = detail["days"][0]
+    assert d["hidden"] is True
+
+    # No aparece en Disponibilidad ni se puede marcar.
+    assert not any(a["date"] == day and a["start_time"] == "09:00" for a in client.get("/api/availability", headers=ref_a).json())
+    assert client.post(f"/api/availability/{d['id']}", headers=ref_a).status_code == 404
+    assert not any(a["start_time"] == "09:00" for a in client.get(f"/api/availability/summary?d={day}", headers=chief).json())
+
+    # Cualquier árbitro es candidato y se puede asignar sin disponibilidad.
+    names = [c["name"] for c in d["candidates"]]
+    assert "Ana Alvarez" in names and "Beto Bravo" in names
+    ids = {c["name"]: c["user_id"] for c in d["candidates"]}
+    r = client.put(f"/api/tournament-days/{d['id']}/assignments", headers=chief,
+                   json=[{"user_id": ids["Ana Alvarez"]}, {"user_id": ids["Beto Bravo"]}])
+    assert r.status_code == 200, r.text
+    board = client.get(f"/api/assignment-board?d={day}", headers=chief).json()
+    g = next(g for g in board["groups"] if any(c["id"] == d["id"] for c in g["columns"]))
+    rows = {r["name"]: r for r in g["rows"]}
+    assert d["id"] in rows["Beto Bravo"]["available_day_ids"]
+    assert rows["Ana Alvarez"]["assigned"] == {str(d["id"]): None}
+    # El árbitro asignado la ve en Mis torneos.
+    assert any(x["name"] == "Evento privado" for x in client.get("/api/me/assignments", headers=ref_a).json())
+
+    # Al quitar la marca de oculta vuelve a exigir disponibilidad.
+    r = client.put(f"/api/tournaments/{t}", headers=chief, json={
+        "name": "Evento privado", "location": "Club", "referees_required": 2,
+        "days": [{"id": d["id"], "date": day, "start_time": "09:00", "end_time": "12:00"}]})
+    assert r.status_code == 200, r.text
+    assert any(a["date"] == day and a["start_time"] == "09:00" for a in client.get("/api/availability", headers=ref_a).json())
+    r = client.put(f"/api/tournament-days/{d['id']}/assignments", headers=chief, json=[{"user_id": ids["Ana Alvarez"]}])
+    assert r.status_code == 400

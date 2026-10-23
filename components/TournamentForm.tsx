@@ -6,7 +6,7 @@ import { api, formatClock, formatShortDate } from "@/lib/api";
 import { shortAddress } from "@/lib/maps";
 import DateInput from "./DateInput";
 import PlaceInput from "./PlaceInput";
-import { Alert, Spinner } from "./ui";
+import { Alert, Badge, Spinner } from "./ui";
 
 export type DayForm = {
   id?: number;
@@ -20,6 +20,7 @@ export type DayForm = {
   location: string; // sede elegida entre las del torneo
   categories: string[];
   specification: string;
+  hidden: boolean; // no sale en Disponibilidad; se asigna a cualquier árbitro
 };
 export type TournamentFormValue = {
   name: string;
@@ -58,6 +59,7 @@ export const emptyDay: DayForm = {
   location: "",
   categories: [],
   specification: "",
+  hidden: false,
 };
 
 export const emptyTournament: TournamentFormValue = {
@@ -240,6 +242,7 @@ export default function TournamentForm({
           location: multi ? d.location.trim() : venues[0],
           categories: d.custom && d.categories.length ? d.categories : null,
           specification: d.specification.trim() || null,
+          hidden: d.hidden,
         })),
       });
     } catch (err) {
@@ -327,7 +330,10 @@ export default function TournamentForm({
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => toggle(k)} aria-expanded={isOpen}>
                   <ChevronDownIcon className={`h-5 w-5 shrink-0 text-stone-400 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{daySummary(d)}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{daySummary(d)}</span>
+                      {d.hidden && <Badge color="violet">Oculta</Badge>}
+                    </span>
                     {(place || d.specification || d.referees_required) && (
                       <span className="block truncate text-xs text-stone-500">
                         {[place, d.specification, d.referees_required && `${d.referees_required} árbitros`].filter(Boolean).join(" · ")}
@@ -383,6 +389,12 @@ export default function TournamentForm({
                   <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.custom}
                     onChange={(e) => setDay(i, { custom: e.target.checked })} />
                   Categorías propias para esta franja
+                </label>
+                <label className="flex items-center gap-2 text-sm text-stone-600"
+                  title="Para eventos privados: no sale en Disponibilidad y se puede asignar a cualquier árbitro.">
+                  <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.hidden}
+                    onChange={(e) => setDay(i, { hidden: e.target.checked })} />
+                  Franja oculta (no sale en Disponibilidad)
                 </label>
               </div>
               {d.custom && (
