@@ -53,8 +53,12 @@ export function assignmentSpec(a: {
   categories: string[];
   shirt?: { name: string; color: string } | null;
   hasRoles: boolean;
+  roles: string[];
+  // Deben llegar en orden alfabético por apellido; aquí se ordenan por rol conservando ese orden.
   entries: { user_id: number; name: string; role: string | null }[];
 }): ImageSpec {
+  const rank = (role: string | null) => (role && a.roles.includes(role) ? a.roles.indexOf(role) : a.roles.length);
+  const entries = a.hasRoles ? [...a.entries].sort((x, y) => rank(x.role) - rank(y.role)) : a.entries;
   return {
     kind: "assignment",
     title: a.tournament,
@@ -71,7 +75,7 @@ export function assignmentSpec(a: {
     columns: [{
       label: "Rol",
       required: 0,
-      entries: a.entries.map((e) => ({ user_id: e.user_id, name: e.name, at: "", mark: e.role ?? undefined })),
+      entries: entries.map((e) => ({ user_id: e.user_id, name: e.name, at: "", mark: e.role ?? undefined })),
     }],
   };
 }

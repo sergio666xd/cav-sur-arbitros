@@ -128,6 +128,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                           categories: c.visible ? c.effective_categories : [],
                           shirt: shirtOf[c.id],
                           hasRoles: c.has_roles,
+                          roles: c.roles,
                           entries: group.rows
                             .filter((r) => String(c.id) in r.assigned)
                             .map((r) => ({ user_id: r.user_id, name: r.name, role: r.assigned[String(c.id)] })),
