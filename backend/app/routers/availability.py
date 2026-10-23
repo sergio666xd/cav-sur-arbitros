@@ -112,14 +112,17 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
                 "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)) if details else [],
                 "visible": t.is_visible,
                 "name_hidden": tid in hidden,
+                # Al lado del nombre, los requeridos de ese torneo si el torneo los muestra.
+                "required": sum(x.required for x in tdays) if user.admin or t.show_required is not False else None,
             })
-        # Los requeridos se ocultan si algún torneo de la disponibilidad lo pide, o si no tiene franjas.
-        show_required = bool(w.days) and (user.admin or all(d.tournament.show_required is not False for d in w.days))
+        # Si los árbitros no ven ningún torneo por nombre, se muestra el total de todos, se muestren o no
+        # los requeridos en cada torneo.
+        show_total = bool(w.days) and all(tid in hidden for tid in by_tournament)
         base = _base(w)
         result.append({
             **base,
             "key": w.id,
-            "required": base["required"] if show_required else None,
+            "required": base["required"] if show_total else None,
             "mine": any(s.user_id == user.id for s in w.signups),
             "tournaments": tournaments,
             "hidden_count": hidden_count,
