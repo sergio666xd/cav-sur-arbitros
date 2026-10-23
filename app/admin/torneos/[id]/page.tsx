@@ -65,7 +65,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
         <span className={count >= day.required ? "text-green-700" : "text-brand-700"}>{count} de {day.required} requeridos</span>
       </div>
       {people.length === 0 ? (
-        <p className="text-sm text-stone-500">Ningún árbitro ha marcado disponibilidad para esta franja.</p>
+        <p className="text-sm text-stone-500">Ningún árbitro se ha inscrito en una disponibilidad que cubra esta franja.</p>
       ) : (
         <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
           {people.map((c) => {
@@ -294,6 +294,10 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
             <Badge color="stone">Fecha pasada</Badge>
           ) : d.hidden ? (
             <span title="No sale en Disponibilidad: se puede asignar a cualquier árbitro"><Badge color="violet">Franja oculta</Badge></span>
+          ) : d.has_window === false ? (
+            <Link href={`/admin/disponibilidades?d=${d.date}`} onClick={(e) => e.stopPropagation()} title="Ningún árbitro puede inscribirse para esta franja todavía">
+              <Badge color="red">Sin disponibilidad habilitada · Habilitar</Badge>
+            </Link>
           ) : (
             <Badge color={d.open ? "green" : "stone"}>{d.open ? "Disponibilidad abierta" : "Disponibilidad cerrada"}</Badge>
           )}

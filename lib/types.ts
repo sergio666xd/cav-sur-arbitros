@@ -31,6 +31,7 @@ export type DayDetail = {
   open: boolean;
   shirt: Shirt | null;
   available_count: number;
+  has_window?: boolean;
   assigned_count?: number;
   candidates: Candidate[];
   assignments: AssignedRef[];

@@ -67,7 +67,7 @@ export default function AvailabilityPage() {
     <Shell allow={(u) => u.perm_availability}>
       <PageHeader
         title="Disponibilidad"
-        subtitle="Marca las franjas en las que puedes arbitrar. La selección se cierra automáticamente el día del torneo."
+        subtitle="Inscríbete en las disponibilidades habilitadas en las que puedes arbitrar. La inscripción se cierra automáticamente el día del torneo."
       />
       {actionError && <div className="mb-4"><Alert>{actionError}</Alert></div>}
       {loading && !data ? (
@@ -75,7 +75,7 @@ export default function AvailabilityPage() {
       ) : error ? (
         <Alert>{error}</Alert>
       ) : byDate.size === 0 ? (
-        <Empty icon={CalendarDaysIcon}>No hay torneos próximos que requieran disponibilidad.</Empty>
+        <Empty icon={CalendarDaysIcon}>No hay disponibilidades habilitadas por ahora.</Empty>
       ) : (
         <div className="space-y-6">
           <DayFilter dates={[...byDate.keys()]} value={day} onChange={setDay} />
@@ -103,9 +103,7 @@ export default function AvailabilityPage() {
                                 )}
                               </div>
                             ))
-                          ) : (
-                            <div className="mt-1 text-sm italic text-stone-500">Detalles del torneo reservados</div>
-                          )}
+                          ) : null}
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           {s.mine && <span className="animate-pop"><Badge color="green"><CheckIcon className="mr-0.5 h-3 w-3" />Inscrito</Badge></span>}
