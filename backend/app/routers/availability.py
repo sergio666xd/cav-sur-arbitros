@@ -1,182 +1,237 @@
 from collections import defaultdict
-from datetime import date
+from datetime import date, time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..coverage import covers, window_slot
 from ..database import get_db
 from ..deps import current_user, require_admin, require_referee
-from ..models import Availability, TournamentDay, User
-from ..slots import SlotGroup, group_days
+from ..models import AvailabilityWindow, TournamentDay, User, WindowSignup
+from ..schemas import WindowIn
+from ..serializers import fold
+from ..slots import day_slot
 from ..timeutil import is_open_for_availability, today_local
 
-router = APIRouter(prefix="/availability", tags=["availability"])
+router = APIRouter(tags=["availability"])
 
 
-def _days_by_date(db: Session, from_date: date | None = None, on_date: date | None = None) -> dict[date, list[TournamentDay]]:
-    # Las franjas ocultas no se ofrecen en Disponibilidad.
-    q = (select(TournamentDay).where(TournamentDay.hidden.isnot(True))
-         .options(selectinload(TournamentDay.tournament)).order_by(TournamentDay.date))
+def _windows(db: Session, from_date: date | None = None, on_date: date | None = None) -> list[AvailabilityWindow]:
+    q = select(AvailabilityWindow).options(
+        selectinload(AvailabilityWindow.days).selectinload(TournamentDay.tournament),
+        selectinload(AvailabilityWindow.signups).selectinload(WindowSignup.user),
+    )
     if from_date:
-        q = q.where(TournamentDay.date >= from_date)
+        q = q.where(AvailabilityWindow.date >= from_date)
     if on_date:
-        q = q.where(TournamentDay.date == on_date)
-    grouped: dict[date, list[TournamentDay]] = defaultdict(list)
-    for d in db.scalars(q).all():
-        grouped[d.date].append(d)
-    return grouped
+        q = q.where(AvailabilityWindow.date == on_date)
+    rows = db.scalars(q).all()
+    return sorted(rows, key=lambda w: (w.date, w.start_time or time.min, w.end_time or time.max))
 
 
-def _group_for(db: Session, day_id: int) -> SlotGroup:
-    day = db.get(TournamentDay, day_id)
-    if not day:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Franja no encontrada.")
-    for g in group_days(_days_by_date(db, on_date=day.date)[day.date]):
-        if any(d.id == day_id for d in g.days):
-            return g
-    raise HTTPException(status.HTTP_404_NOT_FOUND, "Franja no encontrada.")
+def _get_window(db: Session, window_id: int) -> AvailabilityWindow:
+    w = db.get(AvailabilityWindow, window_id)
+    if not w:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Disponibilidad no encontrada.")
+    return w
 
 
-@router.get("")
+def _active_signups(w: AvailabilityWindow) -> list[WindowSignup]:
+    return sorted((s for s in w.signups if s.user.active), key=lambda s: s.created_at)
+
+
+def _ordered_days(w: AvailabilityWindow) -> list[TournamentDay]:
+    return sorted(w.days, key=lambda d: (d.start_time or time.min, fold(d.tournament.name)))
+
+
+def _base(w: AvailabilityWindow) -> dict:
+    slot = window_slot(w)
+    return {
+        "id": w.id,
+        "date": w.date.isoformat(),
+        "all_day": slot.all_day,
+        "start_time": w.start_time.strftime("%H:%M") if w.start_time else None,
+        "end_time": w.end_time.strftime("%H:%M") if w.end_time else None,
+        "slot_label": slot.label,
+        "show_tournaments": w.show_tournaments,
+        "required": sum(d.required for d in w.days),
+        "registered": len(_active_signups(w)),
+        "open": is_open_for_availability(w.date),
+    }
+
+
+def _admin_out(w: AvailabilityWindow) -> dict:
+    return {
+        **_base(w),
+        "days": [{
+            "id": d.id,
+            "tournament_id": d.tournament_id,
+            "tournament": d.tournament.name,
+            "slot_label": day_slot(d).label,
+            "required": d.required,
+        } for d in _ordered_days(w)],
+    }
+
+
+# ---------- Árbitros ----------
+@router.get("/availability")
 def list_availability(user: User = Depends(require_referee), db: Session = Depends(get_db)):
-    """Franjas de hoy en adelante, tal como las ve un árbitro."""
-    by_date = _days_by_date(db, from_date=today_local())
-    day_ids = [d.id for days in by_date.values() for d in days]
-    users_by_day: dict[int, set[int]] = defaultdict(set)
-    if day_ids:
-        for day_id, uid in db.execute(
-            select(Availability.day_id, Availability.user_id)
-            .join(User, User.id == Availability.user_id)
-            .where(Availability.day_id.in_(day_ids), User.active.is_(True))
-        ).all():
-            users_by_day[day_id].add(uid)
-
+    """Disponibilidades habilitadas de hoy en adelante, tal como las ve un árbitro."""
     result = []
-    for d, days in by_date.items():
-        # Solo se nombra el torneo si es el único de ese día. Si no es visible, solo se muestra su nombre.
-        # Un administrador ve siempre todos los detalles.
-        single = len({x.tournament_id for x in days}) == 1
-        for g in group_days(days):
-            tournaments = []
-            if single or user.admin:
-                by_tournament: dict[int, list[TournamentDay]] = defaultdict(list)
-                for x in g.days:
-                    by_tournament[x.tournament_id].append(x)
-                for tdays in by_tournament.values():
-                    t = tdays[0].tournament
-                    details = t.is_visible or user.admin
-                    tournaments.append({
-                        "name": t.name,
-                        "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)) if details else "",
-                        "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)) if details else [],
-                        "visible": t.is_visible,
-                    })
-            registered = set().union(*(users_by_day[x.id] for x in g.days))
-            # Los requeridos solo se muestran si todos los torneos de la franja lo permiten.
-            show_required = user.admin or all(x.tournament.show_required is not False for x in g.days)
-            result.append({
-                "key": g.key,
-                "date": d.isoformat(),
-                "slot_label": g.slot.label,
-                "all_day": g.slot.all_day,
-                "start_time": g.slot.start.strftime("%H:%M") if g.slot.start else None,
-                "required": sum(x.required for x in g.days) if show_required else None,
-                "registered": len(registered),
-                "mine": user.id in registered,
-                "open": is_open_for_availability(d),
-                "tournaments": tournaments,
-            })
-    result.sort(key=lambda x: (x["date"], x["start_time"] or ""))
+    for w in _windows(db, from_date=today_local()):
+        tournaments = []
+        if w.show_tournaments or user.admin:
+            by_tournament: dict[int, list[TournamentDay]] = defaultdict(list)
+            for d in _ordered_days(w):
+                by_tournament[d.tournament_id].append(d)
+            for tdays in by_tournament.values():
+                t = tdays[0].tournament
+                details = t.is_visible or user.admin
+                tournaments.append({
+                    "name": t.name,
+                    "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)) if details else "",
+                    "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)) if details else [],
+                    "visible": t.is_visible,
+                })
+        # Los requeridos se ocultan si algún torneo de la disponibilidad lo pide, o si no tiene franjas.
+        show_required = bool(w.days) and (user.admin or all(d.tournament.show_required is not False for d in w.days))
+        base = _base(w)
+        result.append({
+            **base,
+            "key": w.id,
+            "required": base["required"] if show_required else None,
+            "mine": any(s.user_id == user.id for s in w.signups),
+            "tournaments": tournaments,
+        })
     return result
 
 
-@router.get("/summary")
+@router.get("/availability/summary")
 def availability_summary(d: date | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Franjas combinadas (como las ve un árbitro) con los árbitros disponibles, para compartir.
-
-    Los árbitros van en orden de registro: primero quien marcó la franja antes.
-    """
-    by_date = _days_by_date(db, on_date=d) if d else _days_by_date(db, from_date=today_local())
-    day_ids = [x.id for days in by_date.values() for x in days]
-    first: dict[int, dict[int, tuple]] = defaultdict(dict)  # día -> árbitro -> (fecha de registro, usuario)
-    if day_ids:
-        for day_id, u, at in db.execute(
-            select(Availability.day_id, User, Availability.created_at)
-            .join(User, User.id == Availability.user_id)
-            .where(Availability.day_id.in_(day_ids), User.active.is_(True), User.is_chief.is_(False))
-        ).all():
-            first[day_id][u.id] = (at, u)
-
+    """Disponibilidades con los árbitros inscritos (sin el Jefe), en orden de inscripción, para compartir."""
     result = []
-    for day, days in sorted(by_date.items()):
-        # Mismas reglas que ve el árbitro: el torneo solo se nombra si es el único del día,
-        # y si no es visible se muestra solo su nombre.
-        single = len({x.tournament_id for x in days}) == 1
-        for g in group_days(days):
-            people: dict[int, tuple] = {}
-            for x in g.days:
-                for uid, (at, u) in first[x.id].items():
-                    if uid not in people or at < people[uid][0]:
-                        people[uid] = (at, u)
-            tournament = None
-            if single:
-                t = days[0].tournament
-                locations = list(dict.fromkeys(x.effective_location.split(",")[0] for x in g.days if x.effective_location))
-                tournament = {"name": t.name, "location": " / ".join(locations) if t.is_visible else ""}
-            result.append({
-                "date": day.isoformat(),
-                "slot_label": g.slot.label,
-                "start_time": g.slot.start.strftime("%H:%M") if g.slot.start else None,
-                "required": sum(x.required for x in g.days),
-                "tournament": tournament,
-                "entries": [{"user_id": u.id, "name": u.full_name, "at": at.isoformat()}
-                            for at, u in sorted(people.values(), key=lambda p: p[0])],
-            })
-    result.sort(key=lambda x: (x["date"], x["start_time"] or ""))
+    for w in _windows(db, on_date=d) if d else _windows(db, from_date=today_local()):
+        tournament = None
+        if w.show_tournaments and w.days:
+            days = _ordered_days(w)
+            names = list(dict.fromkeys(x.tournament.name for x in days))
+            locations = list(dict.fromkeys(
+                x.effective_location.split(",")[0] for x in days if x.effective_location and x.tournament.is_visible
+            ))
+            tournament = {"name": " / ".join(names), "location": " / ".join(locations)}
+        result.append({
+            "date": w.date.isoformat(),
+            "slot_label": window_slot(w).label,
+            "start_time": w.start_time.strftime("%H:%M") if w.start_time else None,
+            "required": sum(x.required for x in w.days),
+            "tournament": tournament,
+            "entries": [{"user_id": s.user_id, "name": s.user.full_name, "at": s.created_at.isoformat()}
+                        for s in _active_signups(w) if not s.user.is_chief],
+        })
     return result
 
 
-def _check_open(g: SlotGroup) -> None:
-    if not is_open_for_availability(g.days[0].date):
+def _check_open(w: AvailabilityWindow) -> None:
+    if not is_open_for_availability(w.date):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La selección de disponibilidad para esa fecha ya está cerrada.")
 
 
-@router.post("/{day_id}", status_code=204)
-def add_availability(day_id: int, user: User = Depends(require_referee), db: Session = Depends(get_db)):
-    g = _group_for(db, day_id)
-    _check_open(g)
-    ids = [d.id for d in g.days]
-    have = set(db.scalars(select(Availability.day_id).where(Availability.user_id == user.id, Availability.day_id.in_(ids))).all())
-    for i in ids:
-        if i not in have:
-            db.add(Availability(user_id=user.id, day_id=i))
+@router.post("/availability/{window_id}", status_code=204)
+def add_availability(window_id: int, user: User = Depends(require_referee), db: Session = Depends(get_db)):
+    w = _get_window(db, window_id)
+    _check_open(w)
+    if not any(s.user_id == user.id for s in w.signups):
+        w.signups.append(WindowSignup(user_id=user.id))
     db.commit()
 
 
-@router.delete("/{day_id}", status_code=204)
-def remove_availability(day_id: int, user: User = Depends(require_referee), db: Session = Depends(get_db)):
-    g = _group_for(db, day_id)
-    _check_open(g)
-    for a in db.scalars(
-        select(Availability).where(Availability.user_id == user.id, Availability.day_id.in_([d.id for d in g.days]))
-    ).all():
-        db.delete(a)
+@router.delete("/availability/{window_id}", status_code=204)
+def remove_availability(window_id: int, user: User = Depends(require_referee), db: Session = Depends(get_db)):
+    w = _get_window(db, window_id)
+    _check_open(w)
+    for s in [s for s in w.signups if s.user_id == user.id]:
+        w.signups.remove(s)
     db.commit()
 
 
-@router.get("/{day_id}/referees")
-def referees_for_slot(day_id: int, _: User = Depends(current_user), db: Session = Depends(get_db)):
-    g = _group_for(db, day_id)
-    rows = db.execute(
-        select(User.id, User.first_name, User.last_name, Availability.created_at)
-        .join(Availability, Availability.user_id == User.id)
-        .where(Availability.day_id.in_([d.id for d in g.days]), User.active.is_(True))
-        .order_by(Availability.created_at)
+@router.get("/availability/{window_id}/referees")
+def referees_for_window(window_id: int, _: User = Depends(current_user), db: Session = Depends(get_db)):
+    w = _get_window(db, window_id)
+    return [{"name": s.user.full_name, "since": s.created_at.isoformat()} for s in _active_signups(w)]
+
+
+# ---------- Jefe y administradores ----------
+@router.get("/availability-windows")
+def list_windows(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Disponibilidades habilitadas de hoy en adelante."""
+    return [_admin_out(w) for w in _windows(db, from_date=today_local())]
+
+
+@router.get("/availability-windows/slots")
+def slots_on(d: date, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Franjas de torneo (no ocultas) de una fecha, para elegir cuáles cubre una disponibilidad."""
+    days = db.scalars(
+        select(TournamentDay).where(TournamentDay.date == d, TournamentDay.hidden.isnot(True))
+        .options(selectinload(TournamentDay.tournament))
     ).all()
-    seen, out = set(), []
-    for uid, f, l, c in rows:
-        if uid not in seen:
-            seen.add(uid)
-            out.append({"name": f"{f} {l}", "since": c.isoformat()})
-    return out
+    windows = _windows(db, on_date=d)
+    days = sorted(days, key=lambda x: (x.start_time or time.min, fold(x.tournament.name)))
+    return [{
+        "id": x.id,
+        "tournament_id": x.tournament_id,
+        "tournament": x.tournament.name,
+        "all_day": day_slot(x).all_day,
+        "start_time": x.start_time.strftime("%H:%M") if x.start_time else None,
+        "end_time": x.end_time.strftime("%H:%M") if x.end_time else None,
+        "slot_label": day_slot(x).label,
+        "required": x.required,
+        "location": x.effective_location,
+        "window_ids": [w.id for w in windows if any(y.id == x.id for y in w.days)],
+    } for x in days]
+
+
+def _apply(db: Session, w: AvailabilityWindow, data: WindowIn) -> None:
+    w.date, w.all_day = data.date, data.all_day
+    w.start_time, w.end_time = data.start_time, data.end_time
+    w.show_tournaments = data.show_tournaments
+    days = []
+    for day_id in data.day_ids:
+        d = db.get(TournamentDay, day_id)
+        if not d or d.date != data.date:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Las franjas deben ser de la misma fecha que la disponibilidad.")
+        if d.hidden:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La franja de {d.tournament.name} está oculta: no necesita disponibilidad.")
+        if not covers(w, d):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"La franja de {d.tournament.name} ({day_slot(d).label}) no cabe en el horario de la disponibilidad.",
+            )
+        days.append(d)
+    w.days = days
+
+
+@router.post("/availability-windows", status_code=201)
+def create_window(data: WindowIn, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if data.date < today_local():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La fecha ya pasó.")
+    w = AvailabilityWindow(created_by_id=user.id)
+    db.add(w)
+    _apply(db, w, data)
+    db.commit()
+    return _admin_out(w)
+
+
+@router.put("/availability-windows/{window_id}")
+def update_window(window_id: int, data: WindowIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Editar conserva las inscripciones."""
+    w = _get_window(db, window_id)
+    _apply(db, w, data)
+    db.commit()
+    return _admin_out(w)
+
+
+@router.delete("/availability-windows/{window_id}", status_code=204)
+def delete_window(window_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    db.delete(_get_window(db, window_id))
+    db.commit()

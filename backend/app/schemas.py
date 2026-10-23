@@ -277,6 +277,28 @@ class MatchIn(BaseModel):
         return self
 
 
+# ---------- Disponibilidades habilitadas ----------
+class WindowIn(BaseModel):
+    date: date
+    all_day: bool = False
+    start_time: time | None = None
+    end_time: time | None = None
+    day_ids: list[int] = Field(default_factory=list)
+    show_tournaments: bool = True
+
+    @model_validator(mode="after")
+    def _times(self):
+        if self.all_day:
+            self.start_time = self.end_time = None
+        else:
+            if not self.start_time:
+                raise ValueError("Indica la hora de inicio de la disponibilidad.")
+            if self.end_time and self.end_time <= self.start_time:
+                raise ValueError("La hora de fin debe ser posterior a la de inicio.")
+        self.day_ids = list(dict.fromkeys(self.day_ids))
+        return self
+
+
 # ---------- Calificaciones ----------
 class RatingItemIn(BaseModel):
     user_id: int
