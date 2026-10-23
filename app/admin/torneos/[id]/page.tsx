@@ -319,7 +319,6 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
                 categories: t.is_visible ? d.effective_categories : [],
                 shirt,
                 hasRoles: t.has_roles,
-                roles: t.roles,
                 entries: d.assignments,
               })}
             />
