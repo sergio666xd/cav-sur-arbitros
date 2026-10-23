@@ -8,7 +8,7 @@ from ..config import LOCK_MINUTES, MAX_FAILED_LOGINS
 from ..database import get_db
 from ..deps import current_user
 from ..models import RegistrationCode, User
-from ..schemas import ChangePinIn, LoginIn, Me, RegisterIn, TokenOut
+from ..schemas import ChangePinIn, LoginIn, Me, RegisterIn, TokenOut, WhatsappIn
 from ..security import create_token, hash_pin, verify_pin
 from ..serializers import me_out
 from ..timeutil import utcnow
@@ -62,6 +62,7 @@ def register(data: RegisterIn, db: Session = Depends(get_db)):
         last_name=data.last_name,
         document=data.document,
         birth_date=data.birth_date,
+        whatsapp=data.whatsapp,
         pin_hash=hash_pin(data.pin),
         is_referee=True,
     )
@@ -82,3 +83,10 @@ def change_pin(data: ChangePinIn, user: User = Depends(current_user), db: Sessio
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta.")
     user.pin_hash = hash_pin(data.new_pin)
     db.commit()
+
+
+@router.put("/whatsapp", response_model=Me)
+def set_whatsapp(data: WhatsappIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    user.whatsapp = data.whatsapp
+    db.commit()
+    return me_out(user)

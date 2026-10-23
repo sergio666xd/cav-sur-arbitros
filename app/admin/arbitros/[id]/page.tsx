@@ -7,6 +7,7 @@ import { useState } from "react";
 import { RoleBadges, type UserRow } from "@/components/RoleBadges";
 import BackLink from "@/components/BackLink";
 import Shell from "@/components/Shell";
+import { WhatsappLink } from "@/components/Whatsapp";
 import { Alert, Badge, Empty, Loading, PageHeader, StatCard } from "@/components/ui";
 import { api, formatDate, formatDateTime, formatShortDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -74,6 +75,9 @@ export default function RefereeDetailPage() {
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
             <div className="card space-y-2 text-sm">
               <h2 className="mb-2 font-semibold">Datos</h2>
+              <div><span className="text-stone-500">WhatsApp:</span>{" "}
+                {data.whatsapp ? <WhatsappLink number={data.whatsapp} /> : <span className="text-stone-400">Sin registrar</span>}
+              </div>
               {data.birth_date && (
                 <div><span className="text-stone-500">Nacimiento:</span> {formatDate(data.birth_date, false)} ({data.age} años)</div>
               )}

@@ -12,7 +12,7 @@ import { homeFor, useAuth } from "@/lib/auth";
 export default function RegisterPage() {
   const { login } = useAuth();
   const router = useRouter();
-  const [form, setForm] = useState({ first_name: "", last_name: "", document: "", birth_date: "", code: "", pin: "", pin2: "" });
+  const [form, setForm] = useState({ first_name: "", last_name: "", document: "", birth_date: "", whatsapp: "", code: "", pin: "", pin2: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -64,6 +64,11 @@ export default function RegisterPage() {
         <div>
           <label className="label">Fecha de nacimiento</label>
           <DateInput value={form.birth_date} onChange={(v) => setForm((f) => ({ ...f, birth_date: v }))} required />
+        </div>
+        <div>
+          <label className="label">Número de WhatsApp</label>
+          <input className="input" type="tel" inputMode="tel" autoComplete="tel" placeholder="3001234567"
+            value={form.whatsapp} onChange={set("whatsapp")} required />
         </div>
         <div>
           <label className="label">Clave de registro</label>

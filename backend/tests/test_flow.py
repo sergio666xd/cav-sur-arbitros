@@ -8,7 +8,7 @@ from .conftest import login
 def _register(client, code, doc, first, last="Test"):
     r = client.post("/api/auth/register", json={
         "first_name": first, "last_name": last, "document": doc, "birth_date": "1995-06-15",
-        "code": code.lower(), "pin": "2222",
+        "whatsapp": "300 123 4567", "code": code.lower(), "pin": "2222",
     })
     assert r.status_code == 201, r.text
     return {"Authorization": f"Bearer {r.json()['token']}"}
@@ -29,7 +29,7 @@ def test_full_flow(client):
     ref_c = _register(client, code, "20000003", "Caro", "Castro")
     assert client.post("/api/auth/register", json={
         "first_name": "X", "last_name": "Y", "document": "20000001", "birth_date": "1995-06-15",
-        "code": code, "pin": "2222"}).status_code == 409
+        "whatsapp": "3001234567", "code": code, "pin": "2222"}).status_code == 409
 
     # Torneo visible y torneo oculto especial el mismo día.
     tomorrow = today_local() + timedelta(days=1)
@@ -165,7 +165,7 @@ def test_code_revoke_and_invalid(client):
     assert client.get("/api/codes/active", headers=chief).json() is None
     r = client.post("/api/auth/register", json={
         "first_name": "A", "last_name": "B", "document": "40000001", "birth_date": "1990-01-01",
-        "code": "ZZZZZZ", "pin": "1234"})
+        "whatsapp": "3001234567", "code": "ZZZZZZ", "pin": "1234"})
     assert r.status_code == 400
 
     # Historial: las claves revocadas se pueden eliminar; la vigente no.
@@ -617,3 +617,21 @@ def test_day_specification(client):
     client.put(f"/api/tournaments/{tid}", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
         "days": [{"id": day["id"], "date": d, "start_time": "09:00", "specification": ""}]})
     assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["specification"] is None
+
+
+def test_whatsapp_is_cleaned(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    base = {"first_name": "Wa", "last_name": "Test", "birth_date": "1995-06-15", "code": code, "pin": "2222"}
+    r = client.post("/api/auth/register", json={**base, "document": "50000001", "whatsapp": "+57 310 555-1234"})
+    assert r.status_code == 201, r.text
+    assert r.json()["user"]["whatsapp"] == "3105551234"
+    r = client.post("/api/auth/register", json={**base, "document": "50000002", "whatsapp": "12345"})
+    assert r.status_code == 422
+    assert "WhatsApp" in r.text
+    ref = {"Authorization": f"Bearer {client.post('/api/auth/register', json={**base, 'document': '50000003', 'whatsapp': '0057 3209998877'}).json()['token']}"}
+    assert client.get("/api/auth/me", headers=ref).json()["whatsapp"] == "3209998877"
+    r = client.put("/api/auth/whatsapp", headers=ref, json={"whatsapp": "(311) 222 3333"})
+    assert r.status_code == 200 and r.json()["whatsapp"] == "3112223333"
+    uid = r.json()["id"]
+    assert client.get(f"/api/users/{uid}", headers=chief).json()["whatsapp"] == "3112223333"

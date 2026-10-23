@@ -5,6 +5,7 @@ export type UserRow = {
   first_name: string;
   last_name: string;
   document: string;
+  whatsapp: string | null;
   is_referee: boolean;
   is_admin: boolean;
   can_create_tournaments: boolean;

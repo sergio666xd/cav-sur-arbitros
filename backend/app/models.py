@@ -25,6 +25,7 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(80))
     document: Mapped[str] = mapped_column(String(30), unique=True, index=True)
     birth_date: Mapped[date] = mapped_column(Date)
+    whatsapp: Mapped[str | None] = mapped_column(String(20), nullable=True)
     pin_hash: Mapped[str] = mapped_column(String(200))
 
     is_referee: Mapped[bool] = mapped_column(Boolean, default=True)
