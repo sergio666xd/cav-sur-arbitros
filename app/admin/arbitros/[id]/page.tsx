@@ -52,7 +52,7 @@ export default function RefereeDetailPage() {
 
   async function transferChief() {
     const name = `${data?.first_name} ${data?.last_name}`;
-    if (!confirm(`¿Transferir el rol de Jefe a ${name}? Solo puede haber un Jefe: tú quedarás como administrador con permiso para crear torneos.`)) return;
+    if (!confirm(`¿Transferir el rol de Jefe a ${name}? Solo puede haber un Jefe: tú quedarás como administrador.`)) return;
     try {
       await api(`/users/${id}/transfer-chief`, { method: "POST" });
       await refresh();
