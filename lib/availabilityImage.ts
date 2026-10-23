@@ -198,7 +198,8 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.font = `400 20px ${FONT}`;
   const headLines = cols.map((c) => {
     ctx.font = `700 24px ${FONT}`;
-    const label = wrap(ctx, c.label, colW - 20);
+    // "Desde las 4:30 p. m." se muestra solo como la hora para que quepa en una línea.
+    const label = wrap(ctx, c.label.replace(/^Desde las? /, ""), colW - 20);
     ctx.font = `400 20px ${FONT}`;
     const sub = c.sub ? wrap(ctx, c.sub, colW - 20).slice(0, 3).map((l) => l.replace(/\s*·$/, "")) : [];
     ctx.font = `700 22px ${FONT}`;
