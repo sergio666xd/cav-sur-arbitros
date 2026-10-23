@@ -355,7 +355,7 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
                     tournament: t.name,
                     date: d.date,
                     slotLabel: d.slot_label,
-                    location: t.is_visible ? d.effective_location : "",
+                    location: d.effective_location,
                     categories: t.is_visible ? d.effective_categories : [],
                     shirt,
                     hasRoles: t.has_roles,

@@ -89,7 +89,7 @@ export function groupByDate(cols: ImageColumn[]): ImageColumn[] {
 }
 
 // Imagen de los asignados a una franja de un torneo. La columna de rol solo aparece si el torneo
-// usa roles. location vacío si el torneo está oculto.
+// usa roles. El lugar sale siempre: los asignados lo ven aunque el torneo esté oculto.
 export function assignmentSpec(a: {
   tournament: string;
   date: string;

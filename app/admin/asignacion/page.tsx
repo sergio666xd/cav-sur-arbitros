@@ -133,7 +133,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                           tournament: c.tournament,
                           date,
                           slotLabel: c.slot_label,
-                          location: c.visible ? c.effective_location : "",
+                          location: c.effective_location,
                           categories: c.visible ? c.effective_categories : [],
                           shirt: shirtOf[c.id],
                           hasRoles: c.has_roles,
