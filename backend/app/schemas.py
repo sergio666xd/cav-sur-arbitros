@@ -130,10 +130,12 @@ class DayIn(BaseModel):
     referees_required: int | None = Field(default=None, ge=1, le=200)
     location: str | None = Field(default=None, max_length=200)
     categories: list[str] | None = None
+    specification: str | None = Field(default=None, max_length=300)
 
     @model_validator(mode="after")
     def _times(self):
         self.location = (self.location or "").strip() or None
+        self.specification = " ".join((self.specification or "").split()) or None
         self.categories = _clean(self.categories or []) or None
         if self.all_day:
             # Todo el día no tiene hora de fin, pero sí de inicio.

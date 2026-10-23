@@ -5,7 +5,7 @@ from . import models  # noqa: F401  (registra las tablas)
 from .bootstrap import ensure_initial_chief
 from .config import CORS_ORIGINS
 from .migrate import migrate
-from .routers import auth, availability, catalog, codes, me, ratings, tournaments, users
+from .routers import auth, availability, catalog, codes, me, ratings, shirts, tournaments, users
 
 migrate()
 ensure_initial_chief()
@@ -15,7 +15,7 @@ app.add_middleware(
     CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"],
 )
 
-for r in (auth, codes, users, tournaments, catalog, availability, me, ratings):
+for r in (auth, codes, users, tournaments, shirts, catalog, availability, me, ratings):
     app.include_router(r.router, prefix="/api")
 
 

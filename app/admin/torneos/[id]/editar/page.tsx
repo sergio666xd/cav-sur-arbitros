@@ -31,6 +31,7 @@ function toForm(t: TournamentDetail): TournamentFormValue {
       custom: !!d.categories?.length,
       location: d.location ?? t.location,
       categories: d.categories ?? [],
+      specification: d.specification ?? "",
     })),
   };
 }

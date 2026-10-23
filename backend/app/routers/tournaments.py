@@ -115,6 +115,7 @@ def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
         day.referees_required = day_in.referees_required
         day.location = day_in.location
         day.categories = day_in.categories
+        day.specification = day_in.specification
     for day_id, day in existing.items():
         if day_id not in keep_ids and day.date >= today:
             t.days.remove(day)
@@ -223,6 +224,7 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
                 "name": a.user.full_name,
                 "is_chief": a.user.is_chief,
                 "role": a.role,
+                "confirmed": a.confirmed_at is not None,
                 "refereed": rec.refereed if rec else None,
                 "scored": rec.scored if rec else None,
                 "other": (rec.other or 0) if rec else None,
@@ -359,6 +361,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                 **day_info(day),
                 "tournament_id": day.tournament_id,
                 "tournament": day.tournament.name,
+                "visible": day.tournament.is_visible,
                 "has_roles": day.tournament.has_roles,
                 "roles": day.tournament.roles or [],
             } for day in cols],

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircleIcon, HandRaisedIcon, MapPinIcon, PlusIcon } from "@heroicons/react/20/solid";
+import { CheckCircleIcon, HandRaisedIcon, MapPinIcon, PlusIcon, SwatchIcon } from "@heroicons/react/20/solid";
 import { TrophyIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -203,7 +203,12 @@ export default function TournamentsPage() {
       <PageHeader
         title="Torneos"
         subtitle="Los torneos no se archivan: puedes añadirles fechas nuevas cuando quieras."
-        action={user?.perm_create_tournaments && <Link href="/admin/torneos/nuevo" className="btn-primary"><PlusIcon className="h-4 w-4" />Nuevo torneo</Link>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/camisetas" className="btn-secondary"><SwatchIcon className="h-4 w-4" />Camisetas</Link>
+            {user?.perm_create_tournaments && <Link href="/admin/torneos/nuevo" className="btn-primary"><PlusIcon className="h-4 w-4" />Nuevo torneo</Link>}
+          </div>
+        }
       />
       <div className="mb-4 inline-flex rounded-lg border border-stone-200 bg-white p-1 text-sm">
         {([["torneos", "Torneos"], ["anteriores", "Fechas anteriores"]] as const).map(([k, label]) => (

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -6,6 +6,7 @@ from ..database import get_db
 from ..deps import current_user
 from ..models import Assignment, MatchRecord, TournamentDay, User
 from ..serializers import day_info, name_key, tournament_info
+from ..timeutil import today_local, utcnow
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -29,6 +30,7 @@ def my_assignments(user: User = Depends(current_user), db: Session = Depends(get
         entry["days"].append({
             **day_info(d),
             "role": a.role,
+            "confirmed": a.confirmed_at is not None,
             "crew": crew,
             "refereed": record.refereed if record else None,
             "scored": record.scored if record else None,
@@ -40,6 +42,26 @@ def my_assignments(user: User = Depends(current_user), db: Session = Depends(get
         t["days"].sort(key=lambda x: x["date"])
     result.sort(key=lambda t: t["days"][0]["date"], reverse=True)
     return result
+
+
+@router.get("/pending-confirmations")
+def pending_confirmations(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Asignaciones de hoy en adelante que el árbitro aún no confirma (para la alerta del menú)."""
+    count = db.query(Assignment).join(TournamentDay).filter(
+        Assignment.user_id == user.id, Assignment.confirmed_at.is_(None), TournamentDay.date >= today_local()
+    ).count()
+    return {"count": count}
+
+
+@router.post("/assignments/{day_id}/confirm")
+def confirm_assignment(day_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    a = db.scalar(select(Assignment).where(Assignment.day_id == day_id, Assignment.user_id == user.id))
+    if not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No tienes esta asignación.")
+    if a.confirmed_at is None:
+        a.confirmed_at = utcnow()
+        db.commit()
+    return {"confirmed": True}
 
 
 @router.get("/stats")

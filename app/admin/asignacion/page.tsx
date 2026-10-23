@@ -4,12 +4,14 @@ import { ClockIcon, ExclamationTriangleIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
-import { summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
+import { assignmentSpec, summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
 import { shortAddress } from "@/lib/maps";
 import { useFetch } from "@/lib/useFetch";
+import { ShirtSelect } from "@/components/Shirt";
+import type { Shirt } from "@/lib/types";
 
 type Column = {
   id: number;
@@ -23,6 +25,10 @@ type Column = {
   slot_label: string;
   required: number;
   effective_location: string;
+  effective_categories: string[];
+  specification: string | null;
+  visible: boolean;
+  shirt: Shirt | null;
 };
 
 type BoardRow = {
@@ -55,8 +61,12 @@ function overlaps(a: Column, b: Column) {
   return a.start_time < (b.end_time ?? "24:00") && b.start_time < (a.end_time ?? "24:00");
 }
 
-function GroupTable({ group, sel, setSel }: { group: Group; sel: Selection; setSel: (s: Selection) => void }) {
+function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
+  group: Group; date: string; dirty: boolean; shirts: Shirt[]; sel: Selection; setSel: (s: Selection) => void;
+}) {
   const cols = group.columns;
+  // Camiseta de cada franja; se guarda al elegirla, aparte de las asignaciones.
+  const [shirtOf, setShirtOf] = useState<Record<number, Shirt | null>>(() => Object.fromEntries(cols.map((c) => [c.id, c.shirt])));
 
   function toggle(col: Column, userId: number) {
     const day = { ...sel[col.id] };
@@ -101,6 +111,32 @@ function GroupTable({ group, sel, setSel }: { group: Group; sel: Selection; setS
                     <div className={`mt-1 text-xs font-medium ${count >= c.required ? "text-green-700" : "text-brand-700"}`}>
                       {count} de {c.required} asignados
                     </div>
+                    <ShirtSelect className="mt-2" dayId={c.id} value={shirtOf[c.id] ?? null} shirts={shirts}
+                      onSaved={(s) => setShirtOf((m) => ({ ...m, [c.id]: s }))} />
+                    {group.rows.some((r) => String(c.id) in r.assigned) && (
+                      // Usa las asignaciones guardadas, por eso pide guardar antes.
+                      <AvailabilityImageButton
+                        label="Imagen"
+                        className="btn-secondary mt-2 px-2 py-1 text-xs"
+                        disabled={dirty}
+                        title={dirty ? "Guarda los cambios para generar la imagen" : "Imagen de asignación de esta franja"}
+                        fileName={`asignacion-${date}-${c.id}`}
+                        spec={() => assignmentSpec({
+                          tournament: c.tournament,
+                          date,
+                          slotLabel: c.slot_label,
+                          location: c.visible ? c.effective_location : "",
+                          categories: c.visible ? c.effective_categories : [],
+                          shirt: shirtOf[c.id],
+                          hasRoles: c.has_roles,
+                          roles: c.roles,
+                          specification: c.specification,
+                          entries: group.rows
+                            .filter((r) => String(c.id) in r.assigned)
+                            .map((r) => ({ user_id: r.user_id, name: r.name, role: r.assigned[String(c.id)] })),
+                        })}
+                      />
+                    )}
                   </th>
                 );
               })}
@@ -164,6 +200,7 @@ export default function AssignmentBoardPage() {
   const [date, setDate] = useState<string | null>(null);
   const { data, loading, error, reload } = useFetch<Board>(`/assignment-board${date ? `?d=${date}` : ""}`);
   const [sel, setSel] = useState<Selection>({});
+  const shirts = useFetch<Shirt[]>("/shirts");
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -265,7 +302,7 @@ export default function AssignmentBoardPage() {
               <div className={`space-y-6 transition-opacity duration-200 ${loading ? "pointer-events-none opacity-50" : ""}`}>
                 {data.groups.map((g, i) => (
                   <div key={`${data.date}-${g.key}`} className="animate-slide-up" style={{ animationDelay: `${i * 60}ms` }}>
-                    <GroupTable group={g} sel={sel} setSel={setSel} />
+                    <GroupTable group={g} date={data.date} dirty={dirty} shirts={shirts.data ?? []} sel={sel} setSel={setSel} />
                   </div>
                 ))}
               </div>

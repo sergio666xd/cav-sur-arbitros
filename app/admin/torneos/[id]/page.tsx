@@ -7,6 +7,7 @@ import { Fragment, useEffect, useState } from "react";
 import BackLink from "@/components/BackLink";
 import Place from "@/components/Place";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
+import { assignmentSpec } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
@@ -14,7 +15,8 @@ import { shortAddress } from "@/lib/maps";
 import { useAuth } from "@/lib/auth";
 import { fold } from "@/lib/text";
 import { useFetch } from "@/lib/useFetch";
-import type { DayDetail, TournamentDetail } from "@/lib/types";
+import type { DayDetail, Shirt, TournamentDetail } from "@/lib/types";
+import { ShirtLabel, ShirtSelect } from "@/components/Shirt";
 
 function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail; onSaved: () => void }) {
   const initial = () => Object.fromEntries(day.assignments.map((a) => [a.user_id, a.role ?? ""])) as Record<number, string>;
@@ -68,6 +70,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
         <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
           {people.map((c) => {
             const on = c.user_id in selected;
+            const saved = day.assignments.find((a) => a.user_id === c.user_id);
             return (
               <li key={c.user_id} className={`flex flex-wrap items-center gap-3 px-3 py-2 text-sm transition-colors duration-200 ${on ? "bg-brand-50" : ""}`}>
                 <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={on} onChange={() => toggle(c.user_id)} />
@@ -76,6 +79,11 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
                   {c.assigned_elsewhere && (
                     <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-700">
                       <ExclamationTriangleIcon className="h-3.5 w-3.5" />Asignado en {c.assigned_elsewhere}
+                    </span>
+                  )}
+                  {saved && on && !day.past && (
+                    <span className={`ml-2 text-xs ${saved.confirmed ? "text-green-700" : "text-stone-500"}`}>
+                      {saved.confirmed ? "✓ Confirmó" : "Sin confirmar"}
                     </span>
                   )}
                 </span>
@@ -255,11 +263,14 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
   );
 }
 
-function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSaved: () => void }) {
+function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDetail; shirts: Shirt[]; onSaved: () => void }) {
   const ownPlace = d.location || (d.categories && d.categories.length > 0);
   // Cerrada por defecto; se abre si se llega a esta franja con #dia-N.
   const [open, setOpen] = useState(() => typeof window !== "undefined" && window.location.hash === `#dia-${d.id}`);
   const assigned = d.assignments.length;
+  // La camiseta se guarda por separado; no se recarga la página para no perder cambios sin guardar.
+  const [shirt, setShirt] = useState(d.shirt);
+  useEffect(() => setShirt(d.shirt), [d.shirt]);
   return (
     <section id={`dia-${d.id}`} className="card scroll-mt-24 animate-slide-up p-0 hover:shadow-md">
       <div className="cursor-pointer p-4 sm:p-5" onClick={() => setOpen(!open)}>
@@ -276,6 +287,7 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
             {d.effective_categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
           </div>
         )}
+        {d.specification && <p className="mt-1 text-sm italic text-stone-600">{d.specification}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <Badge color="brand">{d.slot_label}</Badge>
           {d.past ? (
@@ -284,11 +296,37 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
             <Badge color={d.open ? "green" : "stone"}>{d.open ? "Disponibilidad abierta" : "Disponibilidad cerrada"}</Badge>
           )}
           <span className="text-stone-500">{d.available_count} disponibles</span>
+          {shirt && <span className="text-stone-600"><ShirtLabel shirt={shirt} /></span>}
           <span className={`font-medium ${assigned >= d.required ? "text-green-700" : "text-brand-700"}`}>{assigned} de {d.required} asignados</span>
         </div>
       </div>
       {/* Oculta en vez de desmontada, para no perder cambios sin guardar al plegarla. */}
       <div className={open ? "animate-slide-down border-t border-stone-100 p-4 sm:p-5" : "hidden"}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <label className="inline-flex items-center gap-2 text-sm font-medium">
+            Camiseta
+            <ShirtSelect dayId={d.id} value={shirt} shirts={shirts} onSaved={setShirt} />
+          </label>
+          {assigned > 0 && (
+            <AvailabilityImageButton
+              label="Imagen de asignación"
+              className="btn-secondary text-sm"
+              fileName={`asignacion-${d.date}-${d.id}`}
+              spec={() => assignmentSpec({
+                tournament: t.name,
+                date: d.date,
+                slotLabel: d.slot_label,
+                location: t.is_visible ? d.effective_location : "",
+                categories: t.is_visible ? d.effective_categories : [],
+                shirt,
+                hasRoles: t.has_roles,
+                roles: t.roles,
+                specification: d.specification,
+                entries: d.assignments,
+              })}
+            />
+          )}
+        </div>
         <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <AssignmentEditor day={d} t={t} onSaved={onSaved} />
           <MatchEditor day={d} t={t} onSaved={onSaved} />
@@ -304,6 +342,7 @@ export default function TournamentDetailPage() {
   const { user } = useAuth();
   const { data: t, loading, error, reload } = useFetch<TournamentDetail>(`/tournaments/${id}`);
   const [showPast, setShowPast] = useState(false);
+  const shirts = useFetch<Shirt[]>("/shirts");
 
   // Si se llega desde "Fechas anteriores" (#dia-N), abrir esa sección y desplazarse hasta la franja.
   useEffect(() => {
@@ -387,14 +426,14 @@ export default function TournamentDetailPage() {
                   </Empty>
                 ) : (
                   <div className="space-y-6">
-                    {upcoming.map((d) => <DaySection key={d.id} d={d} t={t} onSaved={reload} />)}
+                    {upcoming.map((d) => <DaySection key={d.id} d={d} t={t} shirts={shirts.data ?? []} onSaved={reload} />)}
                   </div>
                 )}
                 {past.length > 0 && (
                   <details className="mt-8" open={showPast} onToggle={(e) => setShowPast((e.target as HTMLDetailsElement).open)}>
                     <summary className="cursor-pointer text-lg font-semibold">Fechas anteriores ({past.length})</summary>
                     <div className="mt-4 space-y-6">
-                      {past.map((d) => <DaySection key={d.id} d={d} t={t} onSaved={reload} />)}
+                      {past.map((d) => <DaySection key={d.id} d={d} t={t} shirts={shirts.data ?? []} onSaved={reload} />)}
                     </div>
                   </details>
                 )}
