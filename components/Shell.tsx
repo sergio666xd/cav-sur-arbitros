@@ -80,18 +80,25 @@ export default function Shell({
   if (loading || !user) {
     return (
       <div className="min-h-screen">
-        <div className="border-b-2 border-brand-500 bg-night">
+        <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col gap-2 border-r-2 border-brand-500 bg-night px-3 py-5 lg:flex">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="mx-2 mb-4 h-10 w-auto self-start" />
+          {Array.from({ length: 5 }, (_, i) => <div key={i} className="h-9 animate-pulse rounded-md bg-white/10" />)}
+        </aside>
+        <div className="border-b-2 border-brand-500 bg-night lg:hidden">
           <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
-            <div className="h-8 w-24 animate-pulse rounded-md bg-white/10" />
+            <div className="h-8 w-10 animate-pulse rounded-md bg-white/10" />
           </div>
         </div>
-        <div className="viewport-center mx-auto max-w-6xl space-y-4 px-4 py-8">
-          <Skeleton className="h-7 w-56" />
-          <Skeleton className="h-4 w-80 max-w-full" />
-          <div className="grid gap-4 pt-2 md:grid-cols-2">
-            <Skeleton className="h-32" /><Skeleton className="h-32" />
+        <div className="lg:pl-64">
+          <div className="viewport-center mx-auto max-w-6xl space-y-4 px-4 py-8 lg:static lg:px-8">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-80 max-w-full" />
+            <div className="grid gap-4 pt-2 md:grid-cols-2">
+              <Skeleton className="h-32" /><Skeleton className="h-32" />
+            </div>
           </div>
         </div>
       </div>
@@ -101,51 +108,57 @@ export default function Shell({
   if (!user.active) return <Suspended onLogout={logout} />;
 
   const items = NAV.filter((n) => n.show(user));
-  // Con todas las secciones (system que además es árbitro) el menú no cabe en una línea: se pasa antes al menú móvil.
-  const many = items.length > 7;
-  const desk = many ? "2xl:flex" : "lg:flex";
-  const mobile = many ? "2xl:hidden" : "lg:hidden";
   const allowed = allow ? allow(user) : true;
+  const linkClass = (href: string) =>
+    `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition duration-200 ${
+      pathname.startsWith(href) ? "bg-brand-500 font-semibold text-white shadow-sm" : "text-white/80 hover:bg-white/10 hover:text-white"
+    }`;
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b-2 border-brand-500 bg-night text-white shadow">
+      {/* Escritorio: barra lateral fija con todas las secciones. */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r-2 border-brand-500 bg-night text-white lg:flex">
+        <Link href="/" className="px-5 py-5" aria-label="Inicio">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-10 w-auto" />
+        </Link>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+          {items.map((n) => (
+            <Link key={n.href} href={n.href} className={linkClass(n.href)}>
+              <n.icon className="h-5 w-5 shrink-0 opacity-80" />{n.label}
+              {n.href === "/mis-torneos" && pending > 0 && <span className="ml-auto"><PendingBadge count={pending} /></span>}
+            </Link>
+          ))}
+        </nav>
+        <div className="space-y-1 border-t border-white/15 p-3">
+          <Link href="/perfil" className={linkClass("/perfil")}>
+            <UserCircleIcon className="h-5 w-5 shrink-0 opacity-80" />
+            <div className="min-w-0 leading-tight">
+              <div className="truncate font-semibold">{user.first_name} {user.last_name}</div>
+              <div className="truncate text-xs font-normal text-white/60">{roleLabel(user)}</div>
+            </div>
+          </Link>
+          <button onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/10 hover:text-white">
+            <ArrowRightStartOnRectangleIcon className="h-5 w-5 opacity-80" />Salir
+          </button>
+        </div>
+      </aside>
+
+      {/* Móvil y tableta: barra superior con menú desplegable. */}
+      <header className="sticky top-0 z-40 border-b-2 border-brand-500 bg-night text-white shadow lg:hidden">
         <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
           </Link>
-          <nav className={`hidden gap-1 ${desk}`}>
-            {items.map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition duration-200 ${
-                  pathname.startsWith(n.href) ? "bg-brand-500 text-white shadow-sm" : "text-white/80 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                {n.label}
-                {n.href === "/mis-torneos" && pending > 0 && <PendingBadge count={pending} />}
-              </Link>
-            ))}
-          </nav>
-          <div className={`hidden items-center gap-3 ${desk}`}>
-            <Link href="/perfil" className="text-right text-xs leading-tight hover:underline">
-              <div className="font-semibold">{user.first_name} {user.last_name}</div>
-              <div className="text-white/60">{roleLabel(user)}</div>
-            </Link>
-            <button onClick={logout} className="inline-flex items-center gap-1.5 rounded-md bg-white/15 px-3 py-1.5 text-sm transition hover:bg-white/25 active:scale-95">
-              <ArrowRightStartOnRectangleIcon className="h-4 w-4" />Salir
-            </button>
-          </div>
-          <button className={`relative rounded-md p-1.5 transition hover:bg-white/10 active:scale-90 ${mobile}`} onClick={() => setMenuOpen(!menuOpen)}
+          <button className="relative rounded-md p-1.5 transition hover:bg-white/10 active:scale-90" onClick={() => setMenuOpen(!menuOpen)}
             aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"} aria-expanded={menuOpen}>
             {menuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
             {pending > 0 && !menuOpen && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 animate-pop rounded-full bg-red-600 ring-2 ring-night" />}
           </button>
         </div>
         {/* El menú móvil se despliega con una transición de altura. */}
-        <div className={`grid transition-all duration-300 ease-out ${mobile} ${menuOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className={`grid transition-all duration-300 ease-out ${menuOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
           <nav className="overflow-hidden" aria-hidden={!menuOpen}>
             <div className="border-t border-white/20 px-4 pb-3">
               <div className="py-2 text-xs text-white/60">{user.first_name} {user.last_name} · {roleLabel(user)}</div>
@@ -163,9 +176,12 @@ export default function Shell({
           </nav>
         </div>
       </header>
-      <main className="viewport-center mx-auto max-w-6xl animate-slide-up px-4 py-8">
-        {allowed ? children : <p className="text-sm text-stone-500">No tienes permiso para ver esta sección.</p>}
-      </main>
+      <div className="lg:pl-64">
+        {/* Con la barra lateral el contenido ya no se compensa con el ancho de la ventana. */}
+        <main className="viewport-center mx-auto max-w-6xl animate-slide-up px-4 py-8 lg:static lg:px-8">
+          {allowed ? children : <p className="text-sm text-stone-500">No tienes permiso para ver esta sección.</p>}
+        </main>
+      </div>
     </div>
   );
 }
