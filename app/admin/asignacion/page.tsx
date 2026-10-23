@@ -27,6 +27,7 @@ type Column = {
   effective_location: string;
   effective_categories: string[];
   specification: string | null;
+  hidden: boolean;
   visible: boolean;
   shirt: Shirt | null;
 };
@@ -108,6 +109,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                     <Link href={`/admin/torneos/${c.tournament_id}#dia-${c.id}`} className="font-semibold text-ink hover:text-brand-700 hover:underline">
                       {c.tournament}
                     </Link>
+                    {c.hidden && <span className="ml-1.5"><Badge color="violet">Oculta</Badge></span>}
                     <div className="text-xs text-stone-500">{c.slot_label}{c.effective_location && ` · ${shortAddress(c.effective_location)}`}</div>
                     <div className={`mt-1 text-xs font-medium ${count >= c.required ? "text-green-700" : "text-brand-700"}`}>
                       {count} de {c.required} asignados
@@ -320,7 +322,7 @@ export default function AssignmentBoardPage() {
               </div>
             )}
             <p className="mt-4 text-xs text-stone-500">
-              Solo se puede marcar a quien registró disponibilidad para la franja. El JEFE siempre puede asignarse.
+              Solo se puede marcar a quien registró disponibilidad para la franja; en las franjas ocultas, a cualquier árbitro. El JEFE siempre puede asignarse.
             </p>
           </>
         )

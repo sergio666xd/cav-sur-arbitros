@@ -73,9 +73,13 @@ function TournamentCards() {
                       {t.venues.length > 1 && <div className="flex items-center gap-1 text-xs"><MapPinIcon className="h-3 w-3 shrink-0" />{shortAddress(d.effective_location)}</div>}
                     </td>
                     <td className="py-1.5 text-right text-xs whitespace-nowrap">
-                      <span title="Disponibles" className="inline-flex items-center gap-0.5 text-stone-600">
-                        <HandRaisedIcon className="h-3.5 w-3.5" />{d.available_count}
-                      </span>{" "}
+                      {d.hidden ? (
+                        <Badge color="violet">Oculta</Badge>
+                      ) : (
+                        <span title="Disponibles" className="inline-flex items-center gap-0.5 text-stone-600">
+                          <HandRaisedIcon className="h-3.5 w-3.5" />{d.available_count}
+                        </span>
+                      )}{" "}
                       <span title="Asignados / requeridos" className={`ml-2 inline-flex items-center gap-0.5 ${d.assigned_count >= d.required ? "text-green-700" : "text-brand-700"}`}>
                         <CheckCircleIcon className="h-3.5 w-3.5" />{d.assigned_count}/{d.required}
                       </span>

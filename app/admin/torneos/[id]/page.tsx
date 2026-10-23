@@ -310,10 +310,12 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
             <Badge color="stone">Fecha pasada</Badge>
           ) : status.finished ? (
             <Badge color="stone">Finalizada</Badge>
+          ) : d.hidden ? (
+            <span title="No sale en Disponibilidad: se puede asignar a cualquier árbitro"><Badge color="violet">Franja oculta</Badge></span>
           ) : (
             <Badge color={d.open ? "green" : "stone"}>{d.open ? "Disponibilidad abierta" : "Disponibilidad cerrada"}</Badge>
           )}
-          <span className="text-stone-500">{d.available_count} disponibles</span>
+          {!d.hidden && <span className="text-stone-500">{d.available_count} disponibles</span>}
           {shirt && <span className="text-stone-600"><ShirtLabel shirt={shirt} /></span>}
           <span className={`font-medium ${assigned >= d.required ? "text-green-700" : "text-brand-700"}`}>{assigned} de {d.required} asignados</span>
           {assigned > 0 && !status.finished && (

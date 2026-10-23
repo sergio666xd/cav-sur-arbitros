@@ -32,6 +32,7 @@ function toForm(t: TournamentDetail): TournamentFormValue {
       location: d.location ?? t.location,
       categories: d.categories ?? [],
       specification: d.specification ?? "",
+      hidden: d.hidden,
     })),
   };
 }

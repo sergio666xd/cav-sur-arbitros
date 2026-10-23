@@ -133,6 +133,8 @@ class TournamentDay(Base):
     categories: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Especificación opcional de la franja (p. ej. "Final, cancha 2"); sale en la imagen de asignación.
     specification: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Franja oculta: no sale en Disponibilidad y se puede asignar a cualquier árbitro (eventos privados).
+    hidden: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
     shirt_id: Mapped[int | None] = mapped_column(ForeignKey("shirts.id", ondelete="SET NULL"), nullable=True)
     # Marcada como finalizada a mano antes de su hora de fin (o del día siguiente).
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
