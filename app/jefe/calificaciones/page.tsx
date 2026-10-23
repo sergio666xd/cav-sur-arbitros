@@ -6,6 +6,7 @@ import { useState } from "react";
 import Shell from "@/components/Shell";
 import { Alert, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDateTime } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 
 type Ref = { user_id: number; name: string; points: number };
@@ -21,6 +22,9 @@ const COLORS: Record<string, string> = {
 };
 
 export default function RatingsPage() {
+  const { user } = useAuth();
+  // El rol system ve las calificaciones, pero solo el Jefe califica o anula.
+  const canRate = !!user?.is_chief;
   const refs = useFetch<Ref[]>("/ratings/referees");
   const scale = useFetch<Scale>("/ratings/scale");
   const history = useFetch<Batch[]>("/ratings/history");
@@ -62,7 +66,7 @@ export default function RatingsPage() {
       <PageHeader
         title="Calificaciones de desempeño"
         subtitle={scale.data ? `Puntos por calificación: ${scale.data.map((s) => s.label).join(" · ")}` : undefined}
-        action={!editing && <button className="btn-primary" onClick={() => { setEditing(true); setMsg(null); }}><PlusIcon className="h-4 w-4" />Añadir calificación</button>}
+        action={canRate && !editing && <button className="btn-primary" onClick={() => { setEditing(true); setMsg(null); }}><PlusIcon className="h-4 w-4" />Añadir calificación</button>}
       />
       {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
 
@@ -128,7 +132,7 @@ export default function RatingsPage() {
                   <li key={k} className="flex justify-between"><span>{i.name}</span><span>{i.score === `+${i.points}` ? i.score : `${i.score} (+${i.points})`}</span></li>
                 ))}
               </ul>
-              <button className="btn-ghost mt-3 text-red-600" onClick={() => removeBatch(b.id)}><TrashIcon className="h-4 w-4" />Anular esta calificación</button>
+              {canRate && <button className="btn-ghost mt-3 text-red-600" onClick={() => removeBatch(b.id)}><TrashIcon className="h-4 w-4" />Anular esta calificación</button>}
             </details>
           ))}
         </div>

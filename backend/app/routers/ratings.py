@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import current_user, require_chief
+from ..deps import current_user, require_chief, require_real_chief
 from ..models import RATING_POINTS, Rating, RatingBatch, User
 from ..schemas import RatingBatchIn
 from ..serializers import name_key
@@ -55,7 +55,7 @@ def ratable_referees(_: User = Depends(require_chief), db: Session = Depends(get
 
 
 @router.post("/ratings", status_code=201)
-def create_batch(data: RatingBatchIn, chief: User = Depends(require_chief), db: Session = Depends(get_db)):
+def create_batch(data: RatingBatchIn, chief: User = Depends(require_real_chief), db: Session = Depends(get_db)):
     valid = {u.id for u in _ratable(db)}
     ids = [i.user_id for i in data.items]
     if len(ids) != len(set(ids)):
@@ -84,7 +84,7 @@ def history(_: User = Depends(require_chief), db: Session = Depends(get_db)):
 
 
 @router.delete("/ratings/{batch_id}", status_code=204)
-def delete_batch(batch_id: int, _: User = Depends(require_chief), db: Session = Depends(get_db)):
+def delete_batch(batch_id: int, _: User = Depends(require_real_chief), db: Session = Depends(get_db)):
     b = db.get(RatingBatch, batch_id)
     if not b:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Calificación no encontrada.")

@@ -50,3 +50,10 @@ def require_chief(user: User = Depends(current_user)) -> User:
     if not user.chief_powers:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el Jefe puede hacer esto.")
     return user
+
+
+def require_real_chief(user: User = Depends(current_user)) -> User:
+    """Solo el Jefe de verdad (el rol system no): calificar."""
+    if not user.is_chief:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el Jefe puede calificar.")
+    return user
