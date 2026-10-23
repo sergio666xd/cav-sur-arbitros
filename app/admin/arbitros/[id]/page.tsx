@@ -142,12 +142,55 @@ export default function RefereeDetailPage() {
               </div>
             )}
 
-            <RatingsCard data={data} />
+            <RatingsCard data={data}>
+              {/* Solo el Jefe califica: aquí puede restar puntos a un árbitro activo. */}
+              {user?.is_chief && data.is_referee && !data.is_chief && data.active && <DeductPoints userId={data.id} onDone={reload} />}
+            </RatingsCard>
           </div>
 
           <AssignmentHistory data={data} linkTournaments />
         </>
       ) : null}
     </Shell>
+  );
+}
+
+function DeductPoints({ userId, onDone }: { userId: number; onDone: () => void }) {
+  const [points, setPoints] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const n = Number(points);
+    if (!confirm(`¿Restar ${n} puntos? Quedará en el historial de calificaciones.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/ratings", { method: "POST", body: { items: [{ user_id: userId, deduct: n, reason: reason.trim() || null }] } });
+      setPoints("");
+      setReason("");
+      onDone();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-4 space-y-2 border-t border-stone-100 pt-3">
+      <label className="label">Restar puntos</label>
+      <div className="flex gap-2">
+        <input className="input w-24" type="number" min={1} max={1000} placeholder="Puntos" value={points}
+          onChange={(e) => setPoints(e.target.value)} required />
+        <input className="input flex-1" placeholder="Motivo (opcional)" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </div>
+      {error && <Alert>{error}</Alert>}
+      <button className="btn-secondary text-red-600" disabled={busy || !(Number(points) > 0)}>
+        {busy ? "Guardando..." : Number(points) > 0 ? `Restar ${Number(points)} puntos` : "Restar puntos"}
+      </button>
+    </form>
   );
 }

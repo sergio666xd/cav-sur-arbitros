@@ -2,6 +2,7 @@
 from sqlalchemy import inspect, text
 
 from .database import Base, engine
+from .models import ENTRY_POINTS
 
 
 def migrate() -> None:
@@ -15,3 +16,5 @@ def migrate() -> None:
                     continue
                 col_type = column.type.compile(dialect=engine.dialect)
                 conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {col_type}'))
+        # Los usuarios anteriores a los puntos de ingreso también los reciben.
+        conn.execute(text("UPDATE users SET entry_points = :p WHERE entry_points IS NULL"), {"p": ENTRY_POINTS})
