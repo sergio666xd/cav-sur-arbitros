@@ -4,7 +4,7 @@ import { ClockIcon, ExclamationTriangleIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
-import { summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
+import { assignmentSpec, summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
@@ -110,18 +110,15 @@ function GroupTable({ group, date, dirty, sel, setSel }: { group: Group; date: s
                         disabled={dirty}
                         title={dirty ? "Guarda los cambios para generar la imagen" : "Imagen de asignación de esta franja"}
                         fileName={`asignacion-${date}-${c.id}`}
-                        spec={() => ({
-                          kind: "assignment",
-                          title: c.tournament,
-                          subtitle: `${formatDate(date)} · ${c.slot_label}`,
-                          columns: [{
-                            label: "Asignados",
-                            sub: c.visible ? shortAddress(c.effective_location) : undefined,
-                            required: c.required,
-                            entries: group.rows
-                              .filter((r) => String(c.id) in r.assigned)
-                              .map((r) => ({ user_id: r.user_id, name: r.name, at: "", mark: r.assigned[String(c.id)] ?? undefined })),
-                          }],
+                        spec={() => assignmentSpec({
+                          tournament: c.tournament,
+                          date,
+                          slotLabel: c.slot_label,
+                          location: c.visible ? c.effective_location : "",
+                          hasRoles: c.has_roles,
+                          entries: group.rows
+                            .filter((r) => String(c.id) in r.assigned)
+                            .map((r) => ({ user_id: r.user_id, name: r.name, role: r.assigned[String(c.id)] })),
                         })}
                       />
                     )}

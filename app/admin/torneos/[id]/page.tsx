@@ -7,6 +7,7 @@ import { Fragment, useEffect, useState } from "react";
 import BackLink from "@/components/BackLink";
 import Place from "@/components/Place";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
+import { assignmentSpec } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
@@ -295,16 +296,13 @@ function DaySection({ d, t, onSaved }: { d: DayDetail; t: TournamentDetail; onSa
               label="Imagen de asignación"
               className="btn-secondary text-sm"
               fileName={`asignacion-${d.date}-${d.id}`}
-              spec={() => ({
-                kind: "assignment",
-                title: t.name,
-                subtitle: `${formatDate(d.date)} · ${d.slot_label}`,
-                columns: [{
-                  label: "Asignados",
-                  sub: t.is_visible ? shortAddress(d.effective_location) : undefined,
-                  required: d.required,
-                  entries: d.assignments.map((a) => ({ user_id: a.user_id, name: a.name, at: "", mark: a.role ?? undefined })),
-                }],
+              spec={() => assignmentSpec({
+                tournament: t.name,
+                date: d.date,
+                slotLabel: d.slot_label,
+                location: t.is_visible ? d.effective_location : "",
+                hasRoles: t.has_roles,
+                entries: d.assignments,
               })}
             />
           </div>

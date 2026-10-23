@@ -1,4 +1,4 @@
-import { dmy, formatShortDate, formatTime } from "./api";
+import { dmy, formatDate, formatShortDate, formatTime } from "./api";
 import { shortAddress } from "./maps";
 
 // Dibuja en un canvas una imagen para compartir: tabla con los árbitros en filas, las franjas en
@@ -9,7 +9,16 @@ import { shortAddress } from "./maps";
 export type ImageEntry = { user_id: number; name: string; at: string; mark?: string };
 // date (AAAA-MM-DD) permite elegir qué fechas incluir al generar la imagen.
 export type ImageColumn = { date?: string; top?: string; label: string; sub?: string; required: number; entries: ImageEntry[] };
-export type ImageSpec = { title: string; subtitle?: string; kind?: "availability" | "assignment"; columns: ImageColumn[] };
+// info: datos que se muestran debajo del encabezado (p. ej. fecha, hora y lugar).
+// hideColumns: solo se listan los árbitros, sin columnas (asignación de un torneo sin roles).
+export type ImageSpec = {
+  title: string;
+  subtitle?: string;
+  kind?: "availability" | "assignment";
+  info?: { label: string; value: string }[];
+  hideColumns?: boolean;
+  columns: ImageColumn[];
+};
 
 // Fila de /availability/summary: una franja combinada tal como la ve un árbitro.
 export type SummaryRow = {
@@ -29,6 +38,34 @@ export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColu
     required: r.required,
     entries: r.entries,
   }));
+}
+
+// Imagen de los asignados a una franja de un torneo. La columna de rol solo aparece si el torneo
+// usa roles. location vacío si el torneo está oculto.
+export function assignmentSpec(a: {
+  tournament: string;
+  date: string;
+  slotLabel: string;
+  location: string;
+  hasRoles: boolean;
+  entries: { user_id: number; name: string; role: string | null }[];
+}): ImageSpec {
+  return {
+    kind: "assignment",
+    title: a.tournament,
+    subtitle: "Árbitros asignados",
+    info: [
+      { label: "Fecha", value: formatDate(a.date) },
+      { label: "Hora", value: a.slotLabel },
+      ...(a.location ? [{ label: "Lugar", value: shortAddress(a.location) }] : []),
+    ],
+    hideColumns: !a.hasRoles,
+    columns: [{
+      label: "Rol",
+      required: 0,
+      entries: a.entries.map((e) => ({ user_id: e.user_id, name: e.name, at: "", mark: e.role ?? undefined })),
+    }],
+  };
 }
 
 const PAD = 56;
@@ -70,13 +107,12 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const logo = await loadImage("/brand/horizontal-negativo-transparente.svg");
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
-  const cols = spec.columns;
   const assignment = spec.kind === "assignment";
 
   // Filas: cada árbitro una vez. En disponibilidad, en orden de registro (el 1 es quien marcó
   // disponibilidad primero); en asignaciones, en el orden en que llegan.
   const people = new Map<number, { name: string; at: string }>();
-  for (const c of cols) {
+  for (const c of spec.columns) {
     for (const e of c.entries) {
       const p = people.get(e.user_id);
       if (!p || e.at < p.at) people.set(e.user_id, { name: e.name, at: e.at });
@@ -84,6 +120,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   }
   const rows = [...people.entries()];
   if (!assignment) rows.sort((a, b) => a[1].at.localeCompare(b[1].at));
+  const cols = spec.hideColumns ? [] : spec.columns;
   const marked = cols.map((c) => new Set(c.entries.map((e) => e.user_id)));
   const marks = cols.map((c) => new Map(c.entries.map((e) => [e.user_id, e.mark])));
 
@@ -122,7 +159,18 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const generated = `Generado el ${dmy(new Date())} a las ${formatTime(new Date())}`;
   const textH = titleLines.length * 48 + subLines.length * 34 + 30;
   const HEADER = Math.max(170, textH + 60);
-  const tableTop = HEADER + 8 + 32;
+  // Datos debajo del encabezado: "Etiqueta: valor", partidos en líneas si no caben.
+  ctx.font = `700 26px ${FONT}`;
+  const info = (spec.info ?? []).map(({ label, value }) => {
+    const labelW = ctx.measureText(`${label}: `).width;
+    ctx.font = `400 26px ${FONT}`;
+    const lines = wrap(ctx, value, W - PAD * 2 - labelW);
+    ctx.font = `700 26px ${FONT}`;
+    return { label: `${label}: `, labelW, lines };
+  });
+  const infoTop = HEADER + 8 + 32;
+  const infoH = info.reduce((h, i) => h + i.lines.length * 36, 0) + (info.length ? 20 : 0);
+  const tableTop = infoTop + infoH;
   const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + (assignment ? 0 : 2 * ROW);
   canvas.width = W;
   canvas.height = tableBottom + PAD;
@@ -151,6 +199,16 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.fillStyle = "#a8a29e";
   ctx.font = `400 20px ${FONT}`;
   right(generated, y + 22);
+
+  let iy = infoTop;
+  for (const i of info) {
+    ctx.fillStyle = BRAND;
+    ctx.font = `700 26px ${FONT}`;
+    ctx.fillText(i.label, PAD, iy + 26);
+    ctx.fillStyle = INK;
+    ctx.font = `400 26px ${FONT}`;
+    for (const l of i.lines) { ctx.fillText(l, PAD + i.labelW, iy + 26); iy += 36; }
+  }
 
   const colX = (i: number) => left + numW + nameW + i * colW;
   const center = (text: string, x: number, w: number, yy: number) => ctx.fillText(text, x + (w - ctx.measureText(text).width) / 2, yy);
