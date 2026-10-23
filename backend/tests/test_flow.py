@@ -672,6 +672,9 @@ def test_system_role(client):
     me = client.get("/api/auth/me", headers=sys_h).json()
     assert me["perm_chief"] and me["perm_admin"] and me["perm_create_tournaments"] and not me["is_chief"]
     assert client.get("/api/ratings/history", headers=sys_h).status_code == 200
+    # Pero no califica ni anula calificaciones: solo las ve.
+    assert client.post("/api/ratings", headers=sys_h, json={"items": []}).status_code == 403
+    assert client.delete("/api/ratings/1", headers=sys_h).status_code == 403
 
     # Sin rol de árbitro no aparece en la lista; el Jefe no lo puede modificar.
     assert all(u["id"] != sid for u in client.get("/api/users", headers=chief).json())
