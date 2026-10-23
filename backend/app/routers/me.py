@@ -6,7 +6,8 @@ from ..database import get_db
 from ..deps import current_user
 from ..models import Assignment, MatchRecord, TournamentDay, User
 from ..serializers import day_info, name_key, tournament_info
-from ..timeutil import today_local, utcnow
+from ..timeutil import age_on, today_local, utcnow
+from .users import user_detail
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -62,6 +63,15 @@ def confirm_assignment(day_id: int, user: User = Depends(current_user), db: Sess
         a.confirmed_at = utcnow()
         db.commit()
     return {"confirmed": True}
+
+
+@router.get("/detail")
+def my_detail(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return {
+        "birth_date": user.birth_date.isoformat(),
+        "age": age_on(user.birth_date, today_local()),
+        **user_detail(db, user),
+    }
 
 
 @router.get("/stats")

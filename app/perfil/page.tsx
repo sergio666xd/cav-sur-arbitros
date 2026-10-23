@@ -3,13 +3,16 @@
 import { UserCircleIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import Shell from "@/components/Shell";
+import { AssignmentHistory, RatingsCard, StatsRow, UpcomingAvailability, type RefereeDetail } from "@/components/RefereeStats";
 import { WhatsappLink } from "@/components/Whatsapp";
 import { Alert, PageHeader, Spinner } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, formatDate } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useFetch } from "@/lib/useFetch";
 
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
+  const { data: detail } = useFetch<RefereeDetail & { birth_date: string; age: number }>("/me/detail");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
@@ -50,8 +53,9 @@ export default function ProfilePage() {
   return (
     <Shell>
       <PageHeader title="Mi perfil" />
+      {user && detail && <div className="mb-6"><StatsRow data={detail} isChief={user.is_chief} /></div>}
       {user && (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <div className="card animate-slide-up space-y-2 text-sm">
             <UserCircleIcon className="mb-2 h-12 w-12 text-brand-400" />
             <div><span className="text-stone-500">Nombre:</span> {user.first_name} {user.last_name}</div>
@@ -74,7 +78,14 @@ export default function ProfilePage() {
               </form>
             )}
             {waMsg && <Alert kind={waMsg.kind}>{waMsg.text}</Alert>}
+            {detail && (
+              <>
+                <div><span className="text-stone-500">Nacimiento:</span> {formatDate(detail.birth_date, false)} ({detail.age} años)</div>
+                {user.is_referee && <UpcomingAvailability data={detail} />}
+              </>
+            )}
           </div>
+          {detail && <RatingsCard data={detail} />}
           <form onSubmit={submit} className="card animate-slide-up space-y-4" style={{ animationDelay: "60ms" }}>
             <h2 className="font-semibold">Cambiar contraseña</h2>
             <div>
@@ -92,6 +103,7 @@ export default function ProfilePage() {
           </form>
         </div>
       )}
+      {detail && <AssignmentHistory data={detail} />}
     </Shell>
   );
 }
