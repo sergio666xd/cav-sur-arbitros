@@ -4,7 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Árbitros CAV-Sur",
-  description: "Gestión de disponibilidades, asignaciones y ranking de árbitros de voleibol",
+  description: "Corporación de Árbitros del Valle SUR: gestión de disponibilidades, asignaciones y ranking de árbitros de voleibol",
+  openGraph: { siteName: "Corporación de Árbitros del Valle SUR" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
