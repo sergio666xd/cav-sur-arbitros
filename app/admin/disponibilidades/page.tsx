@@ -1,6 +1,6 @@
 "use client";
 
-import { LockClosedIcon, PencilSquareIcon, PlusIcon, TrashIcon, UsersIcon } from "@heroicons/react/20/solid";
+import { EyeSlashIcon, LockClosedIcon, PencilSquareIcon, PlusIcon, TrashIcon, UsersIcon } from "@heroicons/react/20/solid";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -19,7 +19,7 @@ type Window = {
   start_time: string | null;
   end_time: string | null;
   slot_label: string;
-  show_tournaments: boolean;
+  hidden_tournament_ids: number[];
   required: number;
   registered: number;
   open: boolean;
@@ -27,6 +27,7 @@ type Window = {
 };
 type SlotOption = {
   id: number;
+  tournament_id: number;
   tournament: string;
   all_day: boolean;
   start_time: string | null;
@@ -36,9 +37,9 @@ type SlotOption = {
   location: string;
   window_ids: number[];
 };
-type Draft = { id?: number; date: string; all_day: boolean; start_time: string; end_time: string; day_ids: number[]; show_tournaments: boolean };
+type Draft = { id?: number; date: string; all_day: boolean; start_time: string; end_time: string; day_ids: number[]; hidden: number[] };
 
-const emptyDraft = (date = ""): Draft => ({ date, all_day: false, start_time: "", end_time: "", day_ids: [], show_tournaments: true });
+const emptyDraft = (date = ""): Draft => ({ date, all_day: false, start_time: "", end_time: "", day_ids: [], hidden: [] });
 
 // Horario que cubre las franjas elegidas: de la primera hora de inicio a la última de fin.
 // Si alguna es de todo el día o no tiene hora de fin, la disponibilidad queda de todo el día.
@@ -91,7 +92,7 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
           start_time: v.all_day ? null : v.start_time || null,
           end_time: v.all_day ? null : v.end_time || null,
           day_ids: v.day_ids.filter((id) => slots?.some((s) => s.id === id)),
-          show_tournaments: v.show_tournaments,
+          hidden_tournament_ids: v.hidden,
         },
       });
       onSaved();
@@ -104,6 +105,11 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
 
   const chosen = (slots ?? []).filter((s) => v.day_ids.includes(s.id));
   const required = chosen.reduce((n, s) => n + s.required, 0);
+  const tournaments = [...new Map(chosen.map((s) => [s.tournament_id, s.tournament])).entries()];
+
+  function toggleName(id: number, show: boolean) {
+    setV({ ...v, hidden: show ? v.hidden.filter((x) => x !== id) : [...v.hidden, id] });
+  }
 
   return (
     <form onSubmit={save} className="space-y-4">
@@ -159,14 +165,23 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
         )}
         {autoTime && chosen.length > 0 && <p className="mt-1 text-xs text-stone-500">El horario se ajusta a las franjas elegidas; puedes cambiarlo.</p>}
       </div>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.show_tournaments}
-          onChange={(e) => setV({ ...v, show_tournaments: e.target.checked })} />
-        <span>
-          <span className="font-medium">Mostrar los torneos a los árbitros</span>
-          <span className="block text-stone-500">Si no, solo verán la fecha y el horario.</span>
-        </span>
-      </label>
+      {tournaments.length > 0 && (
+        <div>
+          <label className="label">Nombre visible para los árbitros</label>
+          <ul className="space-y-1">
+            {tournaments.map(([id, name]) => (
+              <li key={id}>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" className="h-5 w-5 accent-brand-500" checked={!v.hidden.includes(id)}
+                    onChange={(e) => toggleName(id, e.target.checked)} />
+                  <span className={v.hidden.includes(id) ? "text-stone-400 line-through" : "font-medium"}>{name}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-stone-500">Los árbitros no verán los torneos desmarcados; si los desmarcas todos, solo verán la fecha y el horario.</p>
+        </div>
+      )}
       {error && <Alert>{error}</Alert>}
       <div className="flex justify-end gap-2">
         <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
@@ -246,7 +261,16 @@ function WindowsPage() {
                         <div className="text-lg font-semibold">{w.slot_label}</div>
                         {w.days.length ? (
                           <ul className="mt-1 space-y-0.5 text-sm text-stone-600">
-                            {w.days.map((d) => <li key={d.id}><span className="font-medium text-ink">{d.tournament}</span> · {d.slot_label} · {d.required} árbitros</li>)}
+                            {w.days.map((d) => (
+                              <li key={d.id}>
+                                <span className="font-medium text-ink">{d.tournament}</span> · {d.slot_label} · {d.required} árbitros
+                                {w.hidden_tournament_ids.includes(d.tournament_id) && (
+                                  <span className="ml-1 inline-flex align-middle" title="Los árbitros no ven el nombre de este torneo">
+                                    <Badge color="violet"><EyeSlashIcon className="mr-0.5 h-3 w-3" />Nombre oculto</Badge>
+                                  </span>
+                                )}
+                              </li>
+                            ))}
                           </ul>
                         ) : (
                           <p className="mt-1 text-sm italic text-stone-500">Sin franjas de torneo asociadas</p>
@@ -254,7 +278,6 @@ function WindowsPage() {
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         {!w.open && <Badge color="stone"><LockClosedIcon className="mr-0.5 h-3 w-3" />Cerrada</Badge>}
-                        {!w.show_tournaments && <Badge color="violet">Torneos ocultos</Badge>}
                       </div>
                     </div>
                     <div className="mt-4">
@@ -268,7 +291,7 @@ function WindowsPage() {
                       <button className="btn-ghost" onClick={() => showList(w)}><UsersIcon className="h-4 w-4" />Inscritos</button>
                       <button className="btn-ghost" onClick={() => setDraft({
                         id: w.id, date: w.date, all_day: w.all_day, start_time: w.start_time ?? "", end_time: w.end_time ?? "",
-                        day_ids: w.days.map((d) => d.id), show_tournaments: w.show_tournaments,
+                        day_ids: w.days.map((d) => d.id), hidden: w.hidden_tournament_ids,
                       })}><PencilSquareIcon className="h-4 w-4" />Editar</button>
                       <button className="btn-ghost text-red-700" onClick={() => remove(w)}><TrashIcon className="h-4 w-4" />Eliminar</button>
                     </div>

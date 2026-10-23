@@ -284,7 +284,8 @@ class WindowIn(BaseModel):
     start_time: time | None = None
     end_time: time | None = None
     day_ids: list[int] = Field(default_factory=list)
-    show_tournaments: bool = True
+    # Torneos cuyo nombre no verán los árbitros en esta disponibilidad.
+    hidden_tournament_ids: list[int] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _times(self):

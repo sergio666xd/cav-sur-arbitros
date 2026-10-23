@@ -21,7 +21,7 @@ type Slot = {
   registered: number;
   mine: boolean;
   open: boolean;
-  tournaments: { name: string; location: string; categories: string[]; visible: boolean }[];
+  tournaments: { name: string; location: string; categories: string[]; visible: boolean; name_hidden: boolean }[];
 };
 
 type Referee = { name: string; since: string };
@@ -94,6 +94,7 @@ export default function AvailabilityPage() {
                               <div key={t.name} className="mt-2 text-sm text-stone-600">
                                 <div className="font-medium text-ink">
                                   {t.name} {!t.visible && user?.perm_admin && <Badge color="stone">Oculto</Badge>}
+                                  {t.name_hidden && <Badge color="violet">Nombre oculto a árbitros</Badge>}
                                 </div>
                                 <Place place={t.location} />
                                 {t.categories.length > 0 && (

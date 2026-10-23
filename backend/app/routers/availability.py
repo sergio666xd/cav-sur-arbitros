@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..coverage import covers, window_slot
 from ..database import get_db
 from ..deps import current_user, require_admin, require_referee
-from ..models import AvailabilityWindow, TournamentDay, User, WindowSignup
+from ..models import AvailabilityWindow, TournamentDay, User, WindowHiddenName, WindowSignup
 from ..schemas import WindowIn
 from ..serializers import fold
 from ..slots import day_slot
@@ -21,6 +21,7 @@ def _windows(db: Session, from_date: date | None = None, on_date: date | None = 
     q = select(AvailabilityWindow).options(
         selectinload(AvailabilityWindow.days).selectinload(TournamentDay.tournament),
         selectinload(AvailabilityWindow.signups).selectinload(WindowSignup.user),
+        selectinload(AvailabilityWindow.hidden_names),
     )
     if from_date:
         q = q.where(AvailabilityWindow.date >= from_date)
@@ -54,7 +55,7 @@ def _base(w: AvailabilityWindow) -> dict:
         "start_time": w.start_time.strftime("%H:%M") if w.start_time else None,
         "end_time": w.end_time.strftime("%H:%M") if w.end_time else None,
         "slot_label": slot.label,
-        "show_tournaments": w.show_tournaments,
+        "hidden_tournament_ids": sorted(w.hidden_tournament_ids),
         "required": sum(d.required for d in w.days),
         "registered": len(_active_signups(w)),
         "open": is_open_for_availability(w.date),
@@ -81,19 +82,23 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
     result = []
     for w in _windows(db, from_date=today_local()):
         tournaments = []
-        if w.show_tournaments or user.admin:
-            by_tournament: dict[int, list[TournamentDay]] = defaultdict(list)
-            for d in _ordered_days(w):
-                by_tournament[d.tournament_id].append(d)
-            for tdays in by_tournament.values():
-                t = tdays[0].tournament
-                details = t.is_visible or user.admin
-                tournaments.append({
-                    "name": t.name,
-                    "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)) if details else "",
-                    "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)) if details else [],
-                    "visible": t.is_visible,
-                })
+        hidden = w.hidden_tournament_ids
+        by_tournament: dict[int, list[TournamentDay]] = defaultdict(list)
+        for d in _ordered_days(w):
+            by_tournament[d.tournament_id].append(d)
+        for tid, tdays in by_tournament.items():
+            # Los árbitros no ven los torneos con el nombre oculto; los administradores sí, marcados.
+            if tid in hidden and not user.admin:
+                continue
+            t = tdays[0].tournament
+            details = t.is_visible or user.admin
+            tournaments.append({
+                "name": t.name,
+                "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)) if details else "",
+                "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)) if details else [],
+                "visible": t.is_visible,
+                "name_hidden": tid in hidden,
+            })
         # Los requeridos se ocultan si algún torneo de la disponibilidad lo pide, o si no tiene franjas.
         show_required = bool(w.days) and (user.admin or all(d.tournament.show_required is not False for d in w.days))
         base = _base(w)
@@ -113,8 +118,8 @@ def availability_summary(d: date | None = None, _: User = Depends(require_admin)
     result = []
     for w in _windows(db, on_date=d) if d else _windows(db, from_date=today_local()):
         tournament = None
-        if w.show_tournaments and w.days:
-            days = _ordered_days(w)
+        days = [x for x in _ordered_days(w) if x.tournament_id not in w.hidden_tournament_ids]
+        if days:
             names = list(dict.fromkeys(x.tournament.name for x in days))
             locations = list(dict.fromkeys(
                 x.effective_location.split(",")[0] for x in days if x.effective_location and x.tournament.is_visible
@@ -194,7 +199,6 @@ def slots_on(d: date, _: User = Depends(require_admin), db: Session = Depends(ge
 def _apply(db: Session, w: AvailabilityWindow, data: WindowIn) -> None:
     w.date, w.all_day = data.date, data.all_day
     w.start_time, w.end_time = data.start_time, data.end_time
-    w.show_tournaments = data.show_tournaments
     days = []
     for day_id in data.day_ids:
         d = db.get(TournamentDay, day_id)
@@ -209,6 +213,10 @@ def _apply(db: Session, w: AvailabilityWindow, data: WindowIn) -> None:
             )
         days.append(d)
     w.days = days
+    hide = set(data.hidden_tournament_ids) & {d.tournament_id for d in days}
+    w.hidden_names = [h for h in w.hidden_names if h.tournament_id in hide] + [
+        WindowHiddenName(tournament_id=t) for t in sorted(hide - w.hidden_tournament_ids)
+    ]
 
 
 @router.post("/availability-windows", status_code=201)

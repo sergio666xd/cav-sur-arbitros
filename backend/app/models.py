@@ -181,12 +181,24 @@ class AvailabilityWindow(Base):
     all_day: Mapped[bool] = mapped_column(Boolean, default=False)
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    show_tournaments: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     days: Mapped[list["TournamentDay"]] = relationship(secondary="availability_window_days")
     signups: Mapped[list["WindowSignup"]] = relationship(back_populates="window", cascade="all, delete-orphan")
+    hidden_names: Mapped[list["WindowHiddenName"]] = relationship(cascade="all, delete-orphan")
+
+    @property
+    def hidden_tournament_ids(self) -> set[int]:
+        return {h.tournament_id for h in self.hidden_names}
+
+
+class WindowHiddenName(Base):
+    """Torneo cuyo nombre no se muestra a los árbitros en una disponibilidad."""
+    __tablename__ = "availability_window_hidden_names"
+
+    window_id: Mapped[int] = mapped_column(ForeignKey("availability_windows.id", ondelete="CASCADE"), primary_key=True)
+    tournament_id: Mapped[int] = mapped_column(ForeignKey("tournaments.id", ondelete="CASCADE"), primary_key=True)
 
 
 class AvailabilityWindowDay(Base):
