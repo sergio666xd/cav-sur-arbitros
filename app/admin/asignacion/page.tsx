@@ -37,6 +37,7 @@ type BoardRow = {
   is_chief: boolean;
   available_day_ids: number[];
   assigned: Record<string, string | null>;
+  confirmed_day_ids: number[];
 };
 
 type Group = { key: number; slot_label: string; columns: Column[]; rows: BoardRow[] };
@@ -111,6 +112,11 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                     <div className={`mt-1 text-xs font-medium ${count >= c.required ? "text-green-700" : "text-brand-700"}`}>
                       {count} de {c.required} asignados
                     </div>
+                    {group.rows.some((r) => String(c.id) in r.assigned) && (
+                      <div className="text-xs text-stone-500">
+                        {group.rows.filter((r) => r.confirmed_day_ids.includes(c.id)).length} confirmaron
+                      </div>
+                    )}
                     <ShirtSelect className="mt-2" dayId={c.id} value={shirtOf[c.id] ?? null} shirts={shirts}
                       onSaved={(s) => setShirtOf((m) => ({ ...m, [c.id]: s }))} />
                     {group.rows.some((r) => String(c.id) in r.assigned) && (
@@ -182,6 +188,12 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                             </select>
                           )}
                           {!available && !on && <span className="text-xs text-stone-400">—</span>}
+                          {on && String(c.id) in r.assigned && (
+                            // Solo para asignaciones ya guardadas.
+                            r.confirmed_day_ids.includes(c.id)
+                              ? <span className="whitespace-nowrap text-xs font-medium text-green-700">✓ Confirmó</span>
+                              : <span className="whitespace-nowrap text-xs text-stone-500">Sin confirmar</span>
+                          )}
                         </div>
                       </td>
                     );

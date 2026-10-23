@@ -298,6 +298,9 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
           <span className="text-stone-500">{d.available_count} disponibles</span>
           {shirt && <span className="text-stone-600"><ShirtLabel shirt={shirt} /></span>}
           <span className={`font-medium ${assigned >= d.required ? "text-green-700" : "text-brand-700"}`}>{assigned} de {d.required} asignados</span>
+          {assigned > 0 && !d.past && (
+            <span className="text-stone-500">{d.assignments.filter((a) => a.confirmed).length} de {assigned} confirmaron</span>
+          )}
         </div>
       </div>
       {/* Oculta en vez de desmontada, para no perder cambios sin guardar al plegarla. */}

@@ -345,6 +345,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
         people: dict[int, User] = {c.id: c for c in chiefs}
         available: dict[int, list[int]] = defaultdict(list)
         assigned: dict[int, dict[str, str | None]] = defaultdict(dict)
+        confirmed: dict[int, list[int]] = defaultdict(list)
         for day in cols:
             for a in day.availabilities:
                 if a.user.active:
@@ -353,6 +354,8 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
             for a in day.assignments:
                 people[a.user_id] = a.user
                 assigned[a.user_id][str(day.id)] = a.role
+                if a.confirmed_at is not None:
+                    confirmed[a.user_id].append(day.id)
         rows = sorted(people.values(), key=lambda u: (not u.is_chief, *name_key(u)))
         groups.append({
             "key": g.key,
@@ -371,6 +374,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                 "is_chief": u.is_chief,
                 "available_day_ids": available.get(u.id, []),
                 "assigned": assigned.get(u.id, {}),
+                "confirmed_day_ids": confirmed.get(u.id, []),
             } for u in rows],
         })
     return {"date": d.isoformat(), "dates": [x.isoformat() for x in upcoming], "groups": groups}
