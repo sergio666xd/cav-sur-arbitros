@@ -1,8 +1,8 @@
 "use client";
 
-import { MapPinIcon, PlusIcon, XMarkIcon } from "@heroicons/react/20/solid";
+import { ChevronDownIcon, MapPinIcon, PlusIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useId, useState } from "react";
-import { api } from "@/lib/api";
+import { api, formatClock, formatShortDate } from "@/lib/api";
 import { shortAddress } from "@/lib/maps";
 import DateInput from "./DateInput";
 import PlaceInput from "./PlaceInput";
@@ -37,6 +37,16 @@ export type TournamentFormValue = {
 export const DEFAULT_ROLES = ["Principal", "Segundo", "Planillero"];
 
 let nextKey = 1;
+
+const rowKey = (d: DayForm, i: number) => String(d.key ?? (d.id ? `id${d.id}` : `i${i}`));
+
+// Resumen de una franja plegada: "Vie 23/10/2026 · 8:00 a. m. – 12:00 p. m."
+function daySummary(d: DayForm): string {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(d.date) ? formatShortDate(d.date) : "Sin fecha";
+  const start = d.start_time ? formatClock(d.start_time) : "";
+  const time = d.all_day ? `Todo el día${start ? ` desde ${start}` : ""}` : `${start}${d.end_time ? ` – ${formatClock(d.end_time)}` : ""}`;
+  return [date, time].filter(Boolean).join(" · ");
+}
 
 export const emptyDay: DayForm = {
   date: "",
@@ -154,13 +164,30 @@ export default function TournamentForm({
 
   // El botón de arriba añade la franja al principio (copia de la primera, misma fecha) y el de abajo al final.
   function addDay(atStart = false) {
+    const key = nextKey++;
+    setOpen((o) => new Set(o).add(String(key)));
     const first = v.days[0];
     if (atStart && first) {
-      setV({ ...v, days: [{ ...first, id: undefined, key: nextKey++ }, ...v.days] });
+      setV({ ...v, days: [{ ...first, id: undefined, key }, ...v.days] });
       return;
     }
     const last = v.days[v.days.length - 1];
-    setV({ ...v, days: [...v.days, last ? { ...last, id: undefined, key: nextKey++, date: nextDate(last.date) } : { ...emptyDay, key: nextKey++ }] });
+    setV({ ...v, days: [...v.days, last ? { ...last, id: undefined, key, date: nextDate(last.date) } : { ...emptyDay, key }] });
+  }
+
+  // Franjas desplegadas. Las del torneo guardado empiezan plegadas; las nuevas, abiertas.
+  const [open, setOpen] = useState<Set<string>>(() => new Set(v.days.filter((d) => !d.id).map(rowKey)));
+  const toggle = (k: string) => setOpen((o) => {
+    const n = new Set(o);
+    if (n.has(k)) n.delete(k); else n.add(k);
+    return n;
+  });
+  // Si al guardar falta un dato en una franja plegada, se despliega y se señala el campo.
+  function revealInvalid(k: string, e: React.FormEvent) {
+    if (open.has(k)) return;
+    const el = e.target as HTMLInputElement;
+    setOpen((o) => new Set(o).add(k));
+    requestAnimationFrame(() => el.reportValidity());
   }
 
   const venues = v.venues.map((x) => x.trim()).filter(Boolean);
@@ -290,8 +317,28 @@ export default function TournamentForm({
         )}
         {v.days.length === 0 && <p className="py-4 text-sm text-stone-500">Sin fechas próximas. Añade una franja para reutilizar el torneo.</p>}
         <div className="mt-3 space-y-3">
-          {v.days.map((d, i) => (
-            <div key={d.key ?? (d.id ? `id${d.id}` : `i${i}`)} className="animate-slide-down rounded-lg border border-stone-200 p-3">
+          {v.days.map((d, i) => {
+            const k = rowKey(d, i);
+            const isOpen = open.has(k);
+            const place = multi && venues.includes(d.location) ? shortAddress(d.location) : "";
+            return (
+            <div key={k} className="animate-slide-down rounded-lg border border-stone-200" onInvalidCapture={(e) => revealInvalid(k, e)}>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => toggle(k)} aria-expanded={isOpen}>
+                  <ChevronDownIcon className={`h-5 w-5 shrink-0 text-stone-400 transition-transform duration-200 ${isOpen ? "" : "-rotate-90"}`} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{daySummary(d)}</span>
+                    {(place || d.specification || d.referees_required) && (
+                      <span className="block truncate text-xs text-stone-500">
+                        {[place, d.specification, d.referees_required && `${d.referees_required} árbitros`].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                <button type="button" className="btn-ghost shrink-0 px-2 text-red-600" title="Quitar franja"
+                  onClick={() => setV({ ...v, days: v.days.filter((_, j) => j !== i) })}><XMarkIcon className="h-5 w-5" /></button>
+              </div>
+              <div className={`border-t border-stone-100 p-3 ${isOpen ? "" : "hidden"}`}>
               <div className="grid items-end gap-3 sm:grid-cols-6">
                 <div className="sm:col-span-2">
                   <label className="label">Fecha</label>
@@ -313,14 +360,10 @@ export default function TournamentForm({
                 ) : (
                   <div className="hidden sm:block" />
                 )}
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="label" title="Vacío = el valor general del torneo">Árbitros</label>
-                    <input className="input" type="number" min={1} placeholder={String(v.referees_required)} value={d.referees_required}
-                      onChange={(e) => setDay(i, { referees_required: e.target.value })} />
-                  </div>
-                  <button type="button" className="btn-ghost self-end px-2 text-red-600" title="Quitar franja"
-                    onClick={() => setV({ ...v, days: v.days.filter((_, j) => j !== i) })}><XMarkIcon className="h-5 w-5" /></button>
+                <div>
+                  <label className="label" title="Vacío = el valor general del torneo">Árbitros</label>
+                  <input className="input" type="number" min={1} placeholder={String(v.referees_required)} value={d.referees_required}
+                    onChange={(e) => setDay(i, { referees_required: e.target.value })} />
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -354,8 +397,10 @@ export default function TournamentForm({
                 <input className="input" maxLength={300} value={d.specification} placeholder="Ej. Final, cancha 2"
                   onChange={(e) => setDay(i, { specification: e.target.value })} />
               </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         {v.days.length > 0 && (
           <div className="mt-3 flex justify-end">
