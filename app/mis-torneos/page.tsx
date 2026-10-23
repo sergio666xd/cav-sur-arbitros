@@ -1,14 +1,14 @@
 "use client";
 
 import { CalendarDaysIcon, CheckBadgeIcon, ClipboardDocumentListIcon, FlagIcon, PuzzlePieceIcon } from "@heroicons/react/24/outline";
-import { CalendarIcon, ChevronDownIcon, ClockIcon, UserGroupIcon } from "@heroicons/react/20/solid";
+import { CalendarIcon, CheckIcon, ChevronDownIcon, ClockIcon, ExclamationTriangleIcon, UserGroupIcon } from "@heroicons/react/20/solid";
 import { useState } from "react";
 import DayFilter, { uniqueDates } from "@/components/DayFilter";
 import Place from "@/components/Place";
 import { ShirtSwatch } from "@/components/Shirt";
-import Shell from "@/components/Shell";
-import { Alert, Badge, Empty, Loading, PageHeader, StatCard, StatSkeleton } from "@/components/ui";
-import { atClock, formatDate, todayIso } from "@/lib/api";
+import Shell, { PENDING_EVENT } from "@/components/Shell";
+import { Alert, Badge, Empty, Loading, PageHeader, Spinner, StatCard, StatSkeleton } from "@/components/ui";
+import { api, atClock, formatDate, todayIso } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Shirt } from "@/lib/types";
 import { useFetch } from "@/lib/useFetch";
@@ -23,6 +23,7 @@ type Day = {
   effective_location: string;
   effective_categories: string[];
   role: string | null;
+  confirmed: boolean;
   shirt: Shirt | null;
   crew: { name: string; role: string | null; me: boolean }[];
   refereed: number | null;
@@ -94,6 +95,25 @@ function sortDays(data: Assigned[]) {
 
 function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatches: boolean; delay: number }) {
   const [open, setOpen] = useState(false);
+  const [confirmed, setConfirmed] = useState(d.confirmed);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const upcoming = d.date >= todayIso();
+
+  async function confirm() {
+    setConfirming(true);
+    setConfirmError(null);
+    try {
+      await api(`/me/assignments/${d.id}/confirm`, { method: "POST" });
+      setConfirmed(true);
+      window.dispatchEvent(new Event(PENDING_EVENT));
+    } catch (e) {
+      setConfirmError((e as Error).message);
+    } finally {
+      setConfirming(false);
+    }
+  }
+
   const [crewOpen, setCrewOpen] = useState(false);
   const categories = d.effective_categories.length ? d.effective_categories : t.categories;
   return (
@@ -102,7 +122,12 @@ function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatche
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="font-semibold">{t.name}</h2>
-            {d.role && <div className="mt-1"><Badge color="brand">{d.role}</Badge></div>}
+            <div className="mt-1 flex flex-wrap gap-1">
+              {d.role && <Badge color="brand">{d.role}</Badge>}
+              {upcoming && (confirmed
+                ? <span className="animate-pop"><Badge color="green"><CheckIcon className="mr-0.5 h-3 w-3" />Confirmada</Badge></span>
+                : <Badge color="red"><ExclamationTriangleIcon className="mr-0.5 h-3 w-3" />Por confirmar</Badge>)}
+            </div>
           </div>
           <button type="button" className="rounded-md p-1 text-stone-500 transition hover:bg-stone-100" aria-expanded={open}
             aria-label={open ? "Ocultar detalle" : "Ver detalle"} onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
@@ -117,6 +142,14 @@ function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatche
             <div className="flex items-center gap-1"><ShirtSwatch color={d.shirt.color} className="mx-0.5 h-3 w-3" />Camiseta {d.shirt.name}</div>
           )}
         </div>
+        {upcoming && !confirmed && (
+          <div className="mt-3 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <button className="btn-primary" disabled={confirming} onClick={confirm}>
+              {confirming ? <><Spinner />Confirmando...</> : <><CheckIcon className="h-4 w-4" />Confirmar asignación</>}
+            </button>
+            {confirmError && <span className="text-sm text-red-700">{confirmError}</span>}
+          </div>
+        )}
       </div>
       {open && (
         <div className="animate-slide-down space-y-3 border-t border-stone-100 px-4 py-4 text-sm sm:px-5">

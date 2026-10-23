@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import type { Me } from "@/lib/api";
+import { api, type Me } from "@/lib/api";
 import {
   ArrowRightStartOnRectangleIcon, Bars3Icon, CalendarDaysIcon, ClipboardDocumentCheckIcon, KeyIcon,
   StarIcon, TrophyIcon, UserCircleIcon, UserGroupIcon, ViewColumnsIcon, XMarkIcon,
@@ -24,6 +24,18 @@ const NAV: NavItem[] = [
   { href: "/admin/clave", label: "Clave de registro", icon: KeyIcon, show: (u) => u.perm_admin },
   { href: "/jefe/calificaciones", label: "Calificaciones", icon: StarIcon, show: (u) => u.is_chief },
 ];
+
+/** Evento para que el menú vuelva a consultar las asignaciones por confirmar. */
+export const PENDING_EVENT = "assignments-changed";
+
+function PendingBadge({ count }: { count: number }) {
+  return (
+    <span className="ml-1.5 inline-flex h-5 min-w-5 animate-pop items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold text-white"
+      title={`${count} asignación(es) por confirmar`} aria-label={`${count} por confirmar`}>
+      {count}
+    </span>
+  );
+}
 
 function roleLabel(u: Me) {
   if (u.is_chief) return "Jefe";
@@ -50,6 +62,18 @@ export default function Shell({
   }, [loading, user, router]);
 
   useEffect(() => setMenuOpen(false), [pathname]);
+
+  // Alerta en el menú: asignaciones que el árbitro aún no confirma. Se actualiza al cambiar de
+  // página y cuando Mis torneos avisa que se confirmó una.
+  const [pending, setPending] = useState(0);
+  const tracksAssignments = !!user && (user.is_referee || user.is_chief);
+  useEffect(() => {
+    if (!tracksAssignments) return;
+    const load = () => api<{ count: number }>("/me/pending-confirmations").then((r) => setPending(r.count)).catch(() => {});
+    load();
+    window.addEventListener(PENDING_EVENT, load);
+    return () => window.removeEventListener(PENDING_EVENT, load);
+  }, [tracksAssignments, pathname]);
 
   if (loading || !user) {
     return (
@@ -93,6 +117,7 @@ export default function Shell({
                 }`}
               >
                 {n.label}
+                {n.href === "/mis-torneos" && pending > 0 && <PendingBadge count={pending} />}
               </Link>
             ))}
           </nav>
@@ -105,9 +130,10 @@ export default function Shell({
               <ArrowRightStartOnRectangleIcon className="h-4 w-4" />Salir
             </button>
           </div>
-          <button className="rounded-md p-1.5 transition hover:bg-white/10 active:scale-90 lg:hidden" onClick={() => setMenuOpen(!menuOpen)}
+          <button className="relative rounded-md p-1.5 transition hover:bg-white/10 active:scale-90 lg:hidden" onClick={() => setMenuOpen(!menuOpen)}
             aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"} aria-expanded={menuOpen}>
             {menuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
+            {pending > 0 && !menuOpen && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 animate-pop rounded-full bg-red-600 ring-2 ring-night" />}
           </button>
         </div>
         {/* El menú móvil se despliega con una transición de altura. */}
@@ -119,6 +145,7 @@ export default function Shell({
                 <Link key={n.href} href={n.href} tabIndex={menuOpen ? 0 : -1}
                   className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${pathname.startsWith(n.href) ? "bg-brand-500 font-semibold text-white" : "hover:bg-white/10"}`}>
                   <n.icon className="h-5 w-5 opacity-80" />{n.label}
+                  {n.href === "/mis-torneos" && pending > 0 && <PendingBadge count={pending} />}
                 </Link>
               ))}
               <button onClick={logout} tabIndex={menuOpen ? 0 : -1} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition hover:bg-white/10">

@@ -5,6 +5,7 @@ export type AssignedRef = {
   name: string;
   is_chief: boolean;
   role: string | null;
+  confirmed: boolean;
   refereed: number | null;
   scored: number | null;
   other: number | null;

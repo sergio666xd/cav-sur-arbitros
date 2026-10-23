@@ -185,6 +185,8 @@ class Assignment(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     role: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Cuándo el árbitro confirmó la asignación; vacío si aún no la confirma.
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     day: Mapped[TournamentDay] = relationship(back_populates="assignments")
     user: Mapped[User] = relationship()

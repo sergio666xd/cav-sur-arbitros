@@ -70,6 +70,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
         <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
           {people.map((c) => {
             const on = c.user_id in selected;
+            const saved = day.assignments.find((a) => a.user_id === c.user_id);
             return (
               <li key={c.user_id} className={`flex flex-wrap items-center gap-3 px-3 py-2 text-sm transition-colors duration-200 ${on ? "bg-brand-50" : ""}`}>
                 <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={on} onChange={() => toggle(c.user_id)} />
@@ -78,6 +79,11 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
                   {c.assigned_elsewhere && (
                     <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-700">
                       <ExclamationTriangleIcon className="h-3.5 w-3.5" />Asignado en {c.assigned_elsewhere}
+                    </span>
+                  )}
+                  {saved && on && !day.past && (
+                    <span className={`ml-2 text-xs ${saved.confirmed ? "text-green-700" : "text-stone-500"}`}>
+                      {saved.confirmed ? "✓ Confirmó" : "Sin confirmar"}
                     </span>
                   )}
                 </span>
@@ -310,6 +316,7 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
                 date: d.date,
                 slotLabel: d.slot_label,
                 location: t.is_visible ? d.effective_location : "",
+                categories: t.is_visible ? d.effective_categories : [],
                 shirt,
                 hasRoles: t.has_roles,
                 entries: d.assignments,

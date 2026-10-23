@@ -18,6 +18,8 @@ export type ImageSpec = {
   kind?: "availability" | "assignment";
   info?: { label: string; value: string; color?: string }[];
   hideColumns?: boolean;
+  // footer: texto al pie de la imagen.
+  footer?: string;
   columns: ImageColumn[];
 };
 
@@ -48,6 +50,7 @@ export function assignmentSpec(a: {
   date: string;
   slotLabel: string;
   location: string;
+  categories: string[];
   shirt?: { name: string; color: string } | null;
   hasRoles: boolean;
   entries: { user_id: number; name: string; role: string | null }[];
@@ -60,9 +63,11 @@ export function assignmentSpec(a: {
       { label: "Fecha", value: formatDate(a.date) },
       { label: "Hora", value: a.slotLabel },
       ...(a.location ? [{ label: "Lugar", value: shortAddress(a.location) }] : []),
+      ...(a.categories.length ? [{ label: "Categorías", value: a.categories.join(", ") }] : []),
       ...(a.shirt ? [{ label: "Camiseta", value: a.shirt.name, color: a.shirt.color }] : []),
     ],
     hideColumns: !a.hasRoles,
+    footer: `Entra a Mis torneos (${window.location.host}/mis-torneos) para confirmar tu asignación y ver el lugar en el mapa.`,
     columns: [{
       label: "Rol",
       required: 0,
@@ -177,7 +182,10 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const tableTop = infoTop + infoH;
   const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + (assignment ? 0 : 2 * ROW);
   canvas.width = W;
-  canvas.height = tableBottom + PAD;
+  ctx.font = `500 24px ${FONT}`;
+  const footerLines = spec.footer ? wrap(ctx, spec.footer, W - PAD * 2) : [];
+  const footerTop = tableBottom + 32;
+  canvas.height = (footerLines.length ? footerTop + footerLines.length * 34 : tableBottom) + PAD;
 
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, W, canvas.height);
@@ -307,6 +315,11 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   for (const x of [left, left + numW, ...cols.map((_, i) => colX(i)), left + tableW]) {
     ctx.beginPath(); ctx.moveTo(x + 0.5, tableTop); ctx.lineTo(x + 0.5, ry); ctx.stroke();
   }
+
+  // Pie de imagen.
+  ctx.fillStyle = MUTED;
+  ctx.font = `500 24px ${FONT}`;
+  footerLines.forEach((l, i) => center(l, 0, W, footerTop + 24 + i * 34));
 
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("No se pudo generar la imagen."))), "image/png"),

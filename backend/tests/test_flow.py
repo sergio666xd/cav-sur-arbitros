@@ -580,3 +580,28 @@ def test_shirts(client):
     # Al borrar la camiseta, la franja queda sin camiseta.
     assert client.delete(f"/api/shirts/{shirt['id']}", headers=chief).status_code == 204
     assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["shirt"] is None
+
+
+def test_confirm_assignment(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=4)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
+        "days": [{"date": d, "start_time": "09:00"}]}).json()["id"]
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "91000001", "Juan")
+    key = client.get("/api/availability", headers=ref).json()[0]["key"]
+    assert client.post(f"/api/availability/{key}", headers=ref).status_code == 204
+    day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    juan = next(c["user_id"] for c in day["candidates"] if c["name"].startswith("Juan"))
+    assert client.get("/api/me/pending-confirmations", headers=ref).json() == {"count": 0}
+    client.put(f"/api/tournament-days/{day['id']}/assignments", headers=chief, json=[{"user_id": juan}])
+    assert client.get("/api/me/pending-confirmations", headers=ref).json() == {"count": 1}
+    assert client.get("/api/me/assignments", headers=ref).json()[0]["days"][0]["confirmed"] is False
+    assert client.post(f"/api/me/assignments/{day['id']}/confirm", headers=ref).status_code == 200
+    assert client.get("/api/me/pending-confirmations", headers=ref).json() == {"count": 0}
+    assert client.get("/api/me/assignments", headers=ref).json()[0]["days"][0]["confirmed"] is True
+    # Volver a guardar la asignación conserva la confirmación.
+    client.put(f"/api/tournament-days/{day['id']}/assignments", headers=chief, json=[{"user_id": juan}])
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"][0]["confirmed"] is True
+    # No se puede confirmar una franja sin asignación.
+    assert client.post(f"/api/me/assignments/{day['id']}/confirm", headers=chief).status_code == 404

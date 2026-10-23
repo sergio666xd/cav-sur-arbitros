@@ -223,6 +223,7 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
                 "name": a.user.full_name,
                 "is_chief": a.user.is_chief,
                 "role": a.role,
+                "confirmed": a.confirmed_at is not None,
                 "refereed": rec.refereed if rec else None,
                 "scored": rec.scored if rec else None,
                 "other": (rec.other or 0) if rec else None,

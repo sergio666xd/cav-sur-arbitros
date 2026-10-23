@@ -25,6 +25,7 @@ type Column = {
   slot_label: string;
   required: number;
   effective_location: string;
+  effective_categories: string[];
   visible: boolean;
   shirt: Shirt | null;
 };
@@ -124,6 +125,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                           date,
                           slotLabel: c.slot_label,
                           location: c.visible ? c.effective_location : "",
+                          categories: c.visible ? c.effective_categories : [],
                           shirt: shirtOf[c.id],
                           hasRoles: c.has_roles,
                           entries: group.rows
