@@ -73,7 +73,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
             const saved = day.assignments.find((a) => a.user_id === c.user_id);
             return (
               <li key={c.user_id} className={`flex flex-wrap items-center gap-3 px-3 py-2 text-sm transition-colors duration-200 ${on ? "bg-brand-50" : ""}`}>
-                <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={on} onChange={() => toggle(c.user_id)} />
+                <input type="checkbox" className="switch" checked={on} onChange={() => toggle(c.user_id)} />
                 <span className="flex-1">
                   {c.name} {c.is_chief && <Badge color="brand">Jefe</Badge>}
                   {c.assigned_elsewhere && (

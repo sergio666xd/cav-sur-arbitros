@@ -135,7 +135,7 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
               return (
                 <li key={s.id}>
                   <label className={`flex cursor-pointer items-center gap-3 px-3 py-2 text-sm ${v.day_ids.includes(s.id) ? "bg-brand-50" : ""}`}>
-                    <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={v.day_ids.includes(s.id)} onChange={() => toggleSlot(s.id)} />
+                    <input type="checkbox" className="switch" checked={v.day_ids.includes(s.id)} onChange={() => toggleSlot(s.id)} />
                     <span className="min-w-0 flex-1">
                       <span className="font-medium">{s.tournament}</span>
                       <span className="block text-xs text-stone-500">{s.slot_label} · {s.required} árbitros</span>
@@ -151,7 +151,7 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
       </div>
       <div>
         <label className="flex items-center gap-2 text-sm font-medium">
-          <input type="checkbox" className="h-5 w-5 accent-brand-500" checked={v.all_day} onChange={(e) => setTime({ all_day: e.target.checked })} />
+          <input type="checkbox" className="switch" checked={v.all_day} onChange={(e) => setTime({ all_day: e.target.checked })} />
           Todo el día
         </label>
         {!v.all_day && (
@@ -175,7 +175,7 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
             {tournaments.map(([id, name]) => (
               <li key={id}>
                 <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="h-5 w-5 accent-brand-500" checked={!v.hidden.includes(id)}
+                  <input type="checkbox" className="switch" checked={!v.hidden.includes(id)}
                     onChange={(e) => toggleName(id, e.target.checked)} />
                   <span className={v.hidden.includes(id) ? "text-stone-400 line-through" : "font-medium"}>{name}</span>
                 </label>

@@ -132,13 +132,13 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
             {base?.kind !== "assignment" && (
               <div className="space-y-2 border-b border-stone-200 px-4 py-3 text-sm">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={opts.required} disabled={busy}
+                  <input type="checkbox" className="switch" checked={opts.required} disabled={busy}
                     onChange={(e) => setOption({ required: e.target.checked })} />
                   Mostrar el número de solicitados
                 </label>
                 {canGroup && (
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={opts.grouped} disabled={busy}
+                    <input type="checkbox" className="switch" checked={opts.grouped} disabled={busy}
                       onChange={(e) => setOption({ grouped: e.target.checked })} />
                     Agrupar las franjas de cada fecha en una sola columna
                   </label>

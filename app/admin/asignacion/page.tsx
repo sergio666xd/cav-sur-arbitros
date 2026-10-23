@@ -170,7 +170,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 accent-brand-500 disabled:opacity-30"
+                            className="switch"
                             aria-label={`${r.name} en ${c.tournament}`}
                             checked={on}
                             disabled={!available && !on}

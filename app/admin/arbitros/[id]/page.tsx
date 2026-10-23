@@ -109,7 +109,7 @@ export default function RefereeDetailPage() {
                 ] as const).map(([key, label, value]) => (
                   <label key={key} className="flex items-center justify-between gap-3">
                     <span>{label}</span>
-                    <input type="checkbox" className="h-5 w-5 accent-brand-500" checked={value}
+                    <input type="checkbox" className="switch" checked={value}
                       disabled={key === "can_create_tournaments" && !data.is_admin}
                       onChange={(e) => setRole({ [key]: e.target.checked })} />
                   </label>
