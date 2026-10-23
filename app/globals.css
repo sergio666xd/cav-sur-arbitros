@@ -74,11 +74,14 @@
 /*
  * Contenedor principal (max-w-6xl) centrado respecto a la ventana y no al espacio que deja el scrollbar,
  * para que la interfaz no salte cuando el scrollbar aparece o desaparece.
+ * Solo sin barra lateral (por debajo de lg): con ella, el ancho de la ventana ya no es el del contenido.
  */
-.viewport-center {
-  position: relative;
-  /* Medio scrollbar, limitado al margen libre para no desbordar en ventanas angostas. */
-  left: clamp(0px, (100% - 72rem) / 2, (100vw - 100%) / 2);
+@media (width < 64rem) {
+  .viewport-center {
+    position: relative;
+    /* Medio scrollbar, limitado al margen libre para no desbordar en ventanas angostas. */
+    left: clamp(0px, (100% - 72rem) / 2, (100vw - 100%) / 2);
+  }
 }
 
 body {
