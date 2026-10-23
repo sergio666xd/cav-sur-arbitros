@@ -21,6 +21,8 @@ type Slot = {
   mine: boolean;
   open: boolean;
   tournaments: { name: string; categories: string[]; visible: boolean; name_hidden: boolean }[];
+  /** Torneos de la disponibilidad que el árbitro no ve por nombre. */
+  hidden_count: number;
 };
 
 type Referee = { name: string; since: string };
@@ -103,6 +105,11 @@ export default function AvailabilityPage() {
                               </div>
                             ))
                           ) : null}
+                          {s.hidden_count > 0 && (
+                            <div className={`${s.tournaments.length ? "mt-1" : "mt-2"} text-sm font-medium text-stone-500`}>
+                              {s.tournaments.length ? "y otros torneos" : s.hidden_count === 1 ? "1 torneo" : `${s.hidden_count} torneos`}
+                            </div>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           {s.mine && <span className="animate-pop"><Badge color="green"><CheckIcon className="mr-0.5 h-3 w-3" />Inscrito</Badge></span>}

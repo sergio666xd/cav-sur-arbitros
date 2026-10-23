@@ -46,6 +46,19 @@ def _ordered_days(w: AvailabilityWindow) -> list[TournamentDay]:
     return sorted(w.days, key=lambda d: (d.start_time or time.min, fold(d.tournament.name)))
 
 
+def _tournament_ids(w: AvailabilityWindow) -> list[int]:
+    return list(dict.fromkeys(d.tournament_id for d in _ordered_days(w)))
+
+
+def hidden_label(shown: list[str], hidden: int) -> str:
+    """Nombre que ven los árbitros: los torneos visibles y, si hay ocultos, "y otros torneos" o "N torneos"."""
+    if not hidden:
+        return " / ".join(shown)
+    if not shown:
+        return "1 torneo" if hidden == 1 else f"{hidden} torneos"
+    return f"{' / '.join(shown)} y otros torneos"
+
+
 def _base(w: AvailabilityWindow) -> dict:
     slot = window_slot(w)
     return {
@@ -83,6 +96,8 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
     for w in _windows(db, from_date=today_local()):
         tournaments = []
         hidden = w.hidden_tournament_ids
+        # Cuántos torneos no ve este árbitro, para mostrar "y otros torneos" o "N torneos".
+        hidden_count = 0 if user.admin else sum(1 for tid in _tournament_ids(w) if tid in hidden)
         by_tournament: dict[int, list[TournamentDay]] = defaultdict(list)
         for d in _ordered_days(w):
             by_tournament[d.tournament_id].append(d)
@@ -107,6 +122,7 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
             "required": base["required"] if show_required else None,
             "mine": any(s.user_id == user.id for s in w.signups),
             "tournaments": tournaments,
+            "hidden_count": hidden_count,
         })
     return result
 
@@ -118,12 +134,13 @@ def availability_summary(d: date | None = None, _: User = Depends(require_admin)
     for w in _windows(db, on_date=d) if d else _windows(db, from_date=today_local()):
         tournament = None
         days = [x for x in _ordered_days(w) if x.tournament_id not in w.hidden_tournament_ids]
-        if days:
+        hidden = sum(1 for tid in _tournament_ids(w) if tid in w.hidden_tournament_ids)
+        if days or hidden:
             names = list(dict.fromkeys(x.tournament.name for x in days))
             locations = list(dict.fromkeys(
                 x.effective_location.split(",")[0] for x in days if x.effective_location and x.tournament.is_visible
             ))
-            tournament = {"name": " / ".join(names), "location": " / ".join(locations)}
+            tournament = {"name": hidden_label(names, hidden), "location": " / ".join(locations)}
         result.append({
             "date": w.date.isoformat(),
             "slot_label": window_slot(w).label,
