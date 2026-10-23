@@ -93,7 +93,7 @@ export default function Shell({
           </div>
         </div>
         <div className="lg:pl-64">
-          <div className="viewport-center mx-auto max-w-6xl space-y-4 px-4 py-8 lg:static lg:px-8">
+          <div className="viewport-center mx-auto max-w-6xl space-y-4 px-4 py-8 lg:max-w-7xl lg:px-8">
             <Skeleton className="h-7 w-56" />
             <Skeleton className="h-4 w-80 max-w-full" />
             <div className="grid gap-4 pt-2 md:grid-cols-2">
@@ -177,8 +177,7 @@ export default function Shell({
         </div>
       </header>
       <div className="lg:pl-64">
-        {/* Con la barra lateral el contenido ya no se compensa con el ancho de la ventana. */}
-        <main className="viewport-center mx-auto max-w-6xl animate-slide-up px-4 py-8 lg:static lg:px-8">
+        <main className="viewport-center mx-auto max-w-6xl animate-slide-up px-4 py-8 lg:max-w-7xl lg:px-8">
           {allowed ? children : <p className="text-sm text-stone-500">No tienes permiso para ver esta sección.</p>}
         </main>
       </div>
