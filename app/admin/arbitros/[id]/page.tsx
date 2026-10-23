@@ -86,7 +86,7 @@ export default function RefereeDetailPage() {
               <UpcomingAvailability data={data} />
             </div>
 
-            {user?.is_chief && !data.is_chief && (
+            {user?.perm_chief && !data.is_chief && (!data.is_system || !user.is_chief) && (
               <div className="card space-y-3 text-sm">
                 <h2 className="font-semibold">Permisos (solo Jefe)</h2>
                 {([

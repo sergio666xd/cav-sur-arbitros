@@ -113,13 +113,14 @@ export function Empty({ children, icon: Icon }: { children: React.ReactNode; ico
   );
 }
 
-export function Badge({ color = "stone", children }: { color?: "brand" | "green" | "stone" | "red" | "blue"; children: React.ReactNode }) {
+export function Badge({ color = "stone", children }: { color?: "brand" | "green" | "stone" | "red" | "blue" | "violet"; children: React.ReactNode }) {
   const styles = {
     brand: "bg-brand-100 text-brand-800",
     green: "bg-green-100 text-green-800",
     stone: "bg-stone-100 text-stone-700",
     red: "bg-red-100 text-red-700",
     blue: "bg-sky-100 text-sky-800",
+    violet: "bg-violet-100 text-violet-800",
   }[color];
   return <span className={`badge ${styles}`}>{children}</span>;
 }

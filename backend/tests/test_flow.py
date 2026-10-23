@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from app.database import SessionLocal
+from app.models import User
 from app.timeutil import today_local
 
 from .conftest import login
@@ -688,3 +690,43 @@ def test_suspend_and_delete_user(client):
     assert client.get(f"/api/users/{uid}", headers=chief).status_code == 404
     assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"] == []
     assert client.get("/api/auth/me", headers=ref).status_code == 401
+
+
+def test_system_role(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    sys_h = _register(client, code, "80000001", "Sys", "Tema")
+    sid = client.get("/api/auth/me", headers=sys_h).json()["id"]
+    # El rol system solo se pone en la base de datos; la API no lo acepta.
+    client.patch(f"/api/users/{sid}/roles", headers=chief, json={"is_system": True})
+    assert client.get("/api/auth/me", headers=sys_h).json()["perm_chief"] is False
+    with SessionLocal() as db:
+        u = db.get(User, sid)
+        u.is_system, u.is_referee = True, False
+        db.commit()
+
+    # Tiene todos los permisos del Jefe.
+    me = client.get("/api/auth/me", headers=sys_h).json()
+    assert me["perm_chief"] and me["perm_admin"] and me["perm_create_tournaments"] and not me["is_chief"]
+    assert client.get("/api/ratings/history", headers=sys_h).status_code == 200
+
+    # Sin rol de árbitro no aparece en la lista; el Jefe no lo puede modificar.
+    assert all(u["id"] != sid for u in client.get("/api/users", headers=chief).json())
+    assert client.get(f"/api/users/{sid}", headers=chief).status_code == 404
+    assert client.patch(f"/api/users/{sid}/roles", headers=chief, json={"active": False}).status_code == 400
+    assert client.post(f"/api/users/{sid}/reset-pin", headers=chief, json={"new_pin": "9999"}).status_code == 400
+    assert client.delete(f"/api/users/{sid}", headers=chief).status_code == 400
+
+    # Con rol de árbitro aparece como un árbitro más; solo quien tiene poderes de Jefe ve el rol.
+    with SessionLocal() as db:
+        db.get(User, sid).is_referee = True
+        db.commit()
+    row = next(u for u in client.get("/api/users", headers=chief).json() if u["id"] == sid)
+    assert row["is_system"] is True and row["is_chief"] is False and row["points"] == 0
+    client.patch(f"/api/users/{sid}/roles", headers=sys_h, json={"is_admin": True})  # system puede consigo
+    admin_ref = _register(client, code, "80000002", "Ad", "Min")
+    aid = client.get("/api/auth/me", headers=admin_ref).json()["id"]
+    client.patch(f"/api/users/{aid}/roles", headers=chief, json={"is_admin": True})
+    row = next(u for u in client.get("/api/users", headers=admin_ref).json() if u["id"] == sid)
+    assert "is_system" not in row
+    assert any(r["name"] == "Sys Tema" for r in client.get("/api/ranking", headers=admin_ref).json())

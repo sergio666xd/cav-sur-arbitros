@@ -24,7 +24,7 @@ const NAV: NavItem[] = [
   { href: "/admin/asignacion", label: "Asignación", icon: ViewColumnsIcon, show: (u) => u.perm_admin },
   { href: "/admin/arbitros", label: "Árbitros", icon: UserGroupIcon, show: (u) => u.perm_admin },
   { href: "/admin/clave", label: "Clave de registro", icon: KeyIcon, show: (u) => u.perm_admin },
-  { href: "/jefe/calificaciones", label: "Calificaciones", icon: StarIcon, show: (u) => u.is_chief },
+  { href: "/jefe/calificaciones", label: "Calificaciones", icon: StarIcon, show: (u) => u.perm_chief },
 ];
 
 /** Evento para que el menú vuelva a consultar las asignaciones por confirmar. */
@@ -44,7 +44,7 @@ function roleLabel(u: Me) {
   const roles = [];
   if (u.is_admin) roles.push("Administrador");
   if (u.is_referee) roles.push("Árbitro");
-  return roles.join(" · ");
+  return roles.join(" · ") || (u.perm_chief ? "Sistema" : "");
 }
 
 export default function Shell({
@@ -101,6 +101,10 @@ export default function Shell({
   if (!user.active) return <Suspended onLogout={logout} />;
 
   const items = NAV.filter((n) => n.show(user));
+  // Con todas las secciones (system que además es árbitro) el menú no cabe en una línea: se pasa antes al menú móvil.
+  const many = items.length > 7;
+  const desk = many ? "2xl:flex" : "lg:flex";
+  const mobile = many ? "2xl:hidden" : "lg:hidden";
   const allowed = allow ? allow(user) : true;
 
   return (
@@ -111,7 +115,7 @@ export default function Shell({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
           </Link>
-          <nav className="hidden gap-1 lg:flex">
+          <nav className={`hidden gap-1 ${desk}`}>
             {items.map((n) => (
               <Link
                 key={n.href}
@@ -125,7 +129,7 @@ export default function Shell({
               </Link>
             ))}
           </nav>
-          <div className="hidden items-center gap-3 lg:flex">
+          <div className={`hidden items-center gap-3 ${desk}`}>
             <Link href="/perfil" className="text-right text-xs leading-tight hover:underline">
               <div className="font-semibold">{user.first_name} {user.last_name}</div>
               <div className="text-white/60">{roleLabel(user)}</div>
@@ -134,14 +138,14 @@ export default function Shell({
               <ArrowRightStartOnRectangleIcon className="h-4 w-4" />Salir
             </button>
           </div>
-          <button className="relative rounded-md p-1.5 transition hover:bg-white/10 active:scale-90 lg:hidden" onClick={() => setMenuOpen(!menuOpen)}
+          <button className={`relative rounded-md p-1.5 transition hover:bg-white/10 active:scale-90 ${mobile}`} onClick={() => setMenuOpen(!menuOpen)}
             aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"} aria-expanded={menuOpen}>
             {menuOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
             {pending > 0 && !menuOpen && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 animate-pop rounded-full bg-red-600 ring-2 ring-night" />}
           </button>
         </div>
         {/* El menú móvil se despliega con una transición de altura. */}
-        <div className={`grid transition-all duration-300 ease-out lg:hidden ${menuOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className={`grid transition-all duration-300 ease-out ${mobile} ${menuOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
           <nav className="overflow-hidden" aria-hidden={!menuOpen}>
             <div className="border-t border-white/20 px-4 pb-3">
               <div className="py-2 text-xs text-white/60">{user.first_name} {user.last_name} · {roleLabel(user)}</div>

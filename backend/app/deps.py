@@ -47,6 +47,6 @@ def require_creator(user: User = Depends(current_user)) -> User:
 
 
 def require_chief(user: User = Depends(current_user)) -> User:
-    if not user.is_chief:
+    if not user.chief_powers:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el Jefe puede hacer esto.")
     return user
