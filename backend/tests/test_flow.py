@@ -762,7 +762,7 @@ def test_suspend_and_delete_user(client):
     me = client.get("/api/auth/me", headers=ref).json()
     assert me["active"] is False
     contact = client.get("/api/auth/suspension", headers=ref).json()
-    assert contact == {"chief_name": "Jefa Principal", "whatsapp": "3009998877"}
+    assert contact == {"chief_name": "Jefa", "whatsapp": "3009998877"}
     r = client.get("/api/availability", headers=ref)
     assert r.status_code == 403 and "suspendida" in r.json()["detail"]
     client.patch(f"/api/users/{uid}/roles", headers=chief, json={"active": True})
