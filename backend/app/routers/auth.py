@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..config import LOCK_MINUTES, MAX_FAILED_LOGINS
 from ..database import get_db
-from ..deps import current_user
+from ..deps import current_user, session_user
 from ..models import RegistrationCode, User
 from ..schemas import ChangePinIn, LoginIn, Me, RegisterIn, TokenOut, WhatsappIn
 from ..security import create_token, hash_pin, verify_pin
@@ -22,7 +22,7 @@ _BAD_LOGIN = "Documento o contraseña incorrectos."
 def login(data: LoginIn, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.document == data.document))
     now = utcnow()
-    if not user or not user.active:
+    if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, _BAD_LOGIN)
     if user.locked_until and user.locked_until > now:
         minutes = int((user.locked_until - now).total_seconds() // 60) + 1
@@ -73,8 +73,16 @@ def register(data: RegisterIn, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=Me)
-def me(user: User = Depends(current_user)):
+def me(user: User = Depends(session_user)):
     return me_out(user)
+
+
+@router.get("/suspension")
+def suspension(_: User = Depends(session_user), db: Session = Depends(get_db)):
+    """Contacto del Jefe para el aviso que ve un usuario suspendido."""
+    chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True)).order_by(User.id)).all()
+    chief = next((c for c in chiefs if c.whatsapp), chiefs[0] if chiefs else None)
+    return {"chief_name": chief.full_name if chief else None, "whatsapp": chief.whatsapp if chief else None}
 
 
 @router.post("/change-pin", status_code=204)
