@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDaysIcon, CheckBadgeIcon, ClipboardDocumentListIcon, FlagIcon, PuzzlePieceIcon } from "@heroicons/react/24/outline";
-import { CalendarIcon, CheckIcon, ChevronDownIcon, ClockIcon, ExclamationTriangleIcon, UserGroupIcon } from "@heroicons/react/20/solid";
+import { CalendarIcon, CheckIcon, ChevronDownIcon, ClockIcon, ExclamationTriangleIcon, InformationCircleIcon, UserGroupIcon } from "@heroicons/react/20/solid";
 import { useState } from "react";
 import DayFilter, { uniqueDates } from "@/components/DayFilter";
 import Place from "@/components/Place";
@@ -23,6 +23,7 @@ type Day = {
   effective_location: string;
   effective_categories: string[];
   role: string | null;
+  specification: string | null;
   confirmed: boolean;
   shirt: Shirt | null;
   crew: { name: string; role: string | null; me: boolean }[];
@@ -138,6 +139,9 @@ function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatche
           <div className="flex items-center gap-1"><CalendarIcon className="h-4 w-4 shrink-0 text-brand-500" />{formatDate(d.date)}</div>
           <div className="flex items-center gap-1"><ClockIcon className="h-4 w-4 shrink-0 text-brand-500" />{arrival(d)}</div>
           <div onClick={(e) => e.stopPropagation()}><Place place={d.effective_location} /></div>
+          {d.specification && (
+            <div className="flex items-start gap-1"><InformationCircleIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />{d.specification}</div>
+          )}
           {d.shirt && (
             <div className="flex items-center gap-1"><ShirtSwatch color={d.shirt.color} className="mx-0.5 h-3 w-3" />Camiseta {d.shirt.name}</div>
           )}

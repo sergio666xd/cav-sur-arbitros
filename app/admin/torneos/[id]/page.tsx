@@ -287,6 +287,7 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
             {d.effective_categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
           </div>
         )}
+        {d.specification && <p className="mt-1 text-sm italic text-stone-600">{d.specification}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <Badge color="brand">{d.slot_label}</Badge>
           {d.past ? (
@@ -319,6 +320,8 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
                 categories: t.is_visible ? d.effective_categories : [],
                 shirt,
                 hasRoles: t.has_roles,
+                roles: t.roles,
+                specification: d.specification,
                 entries: d.assignments,
               })}
             />

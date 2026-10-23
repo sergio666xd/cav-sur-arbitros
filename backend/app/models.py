@@ -125,6 +125,8 @@ class TournamentDay(Base):
     # Lugar y categorías propios de la franja; si están vacíos se usan los del torneo.
     location: Mapped[str | None] = mapped_column(String(200), nullable=True)
     categories: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Especificación opcional de la franja (p. ej. "Final, cancha 2"); sale en la imagen de asignación.
+    specification: Mapped[str | None] = mapped_column(String(300), nullable=True)
     shirt_id: Mapped[int | None] = mapped_column(ForeignKey("shirts.id", ondelete="SET NULL"), nullable=True)
 
     tournament: Mapped[Tournament] = relationship(back_populates="days")

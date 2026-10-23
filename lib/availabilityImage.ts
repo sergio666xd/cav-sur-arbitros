@@ -51,12 +51,16 @@ export function assignmentSpec(a: {
   slotLabel: string;
   location: string;
   categories: string[];
+  specification?: string | null;
   shirt?: { name: string; color: string } | null;
   hasRoles: boolean;
+  roles: string[];
   entries: { user_id: number; name: string; role: string | null }[];
 }): ImageSpec {
-  // Orden alfabético por nombre, sin importar el rol.
-  const entries = [...a.entries].sort((x, y) => x.name.localeCompare(y.name, "es", { sensitivity: "base" }));
+  // Con roles, primero por rol (en el orden del torneo) y luego por nombre; sin roles, solo por nombre.
+  const rank = (role: string | null) => (a.hasRoles && role && a.roles.includes(role) ? a.roles.indexOf(role) : a.roles.length);
+  const entries = [...a.entries].sort((x, y) =>
+    rank(x.role) - rank(y.role) || x.name.localeCompare(y.name, "es", { sensitivity: "base" }));
   return {
     kind: "assignment",
     title: a.tournament,
@@ -67,6 +71,7 @@ export function assignmentSpec(a: {
       ...(a.location ? [{ label: "Lugar", value: shortAddress(a.location) }] : []),
       ...(a.categories.length ? [{ label: "Categorías", value: a.categories.join(", ") }] : []),
       ...(a.shirt ? [{ label: "Camiseta", value: a.shirt.name, color: a.shirt.color }] : []),
+      ...(a.specification ? [{ label: "Especificación", value: a.specification }] : []),
     ],
     hideColumns: !a.hasRoles,
     footer: `Entra a Mis torneos (${window.location.host}/mis-torneos) para confirmar tu asignación y ver el lugar en el mapa.`,

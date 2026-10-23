@@ -18,6 +18,7 @@ export type DayForm = {
   custom: boolean; // categorías propias de la franja
   location: string; // sede elegida entre las del torneo
   categories: string[];
+  specification: string;
 };
 export type TournamentFormValue = {
   name: string;
@@ -43,6 +44,7 @@ export const emptyDay: DayForm = {
   custom: false,
   location: "",
   categories: [],
+  specification: "",
 };
 
 export const emptyTournament: TournamentFormValue = {
@@ -201,6 +203,7 @@ export default function TournamentForm({
           referees_required: d.referees_required ? Number(d.referees_required) : null,
           location: multi ? d.location.trim() : venues[0],
           categories: d.custom && d.categories.length ? d.categories : null,
+          specification: d.specification.trim() || null,
         })),
       });
     } catch (err) {
@@ -337,6 +340,11 @@ export default function TournamentForm({
                     placeholder={v.categories.join(", ") || "Categoría"} suggestions={categories} />
                 </div>
               )}
+              <div className="mt-3">
+                <label className="label" title="Sale en la imagen de asignación">Especificación (opcional)</label>
+                <input className="input" maxLength={300} value={d.specification} placeholder="Ej. Final, cancha 2"
+                  onChange={(e) => setDay(i, { specification: e.target.value })} />
+              </div>
             </div>
           ))}
         </div>

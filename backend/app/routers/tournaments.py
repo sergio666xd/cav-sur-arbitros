@@ -115,6 +115,7 @@ def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
         day.referees_required = day_in.referees_required
         day.location = day_in.location
         day.categories = day_in.categories
+        day.specification = day_in.specification
     for day_id, day in existing.items():
         if day_id not in keep_ids and day.date >= today:
             t.days.remove(day)

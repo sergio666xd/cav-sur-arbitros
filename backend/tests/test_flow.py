@@ -605,3 +605,15 @@ def test_confirm_assignment(client):
     assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"][0]["confirmed"] is True
     # No se puede confirmar una franja sin asignación.
     assert client.post(f"/api/me/assignments/{day['id']}/confirm", headers=chief).status_code == 404
+
+
+def test_day_specification(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=4)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
+        "days": [{"date": d, "start_time": "09:00", "specification": "  Final,   cancha 2 "}]}).json()["id"]
+    day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    assert day["specification"] == "Final, cancha 2"
+    client.put(f"/api/tournaments/{tid}", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
+        "days": [{"id": day["id"], "date": d, "start_time": "09:00", "specification": ""}]})
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["specification"] is None

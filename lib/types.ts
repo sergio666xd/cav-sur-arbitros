@@ -23,6 +23,7 @@ export type DayDetail = {
   required: number;
   location: string | null;
   categories: string[] | null;
+  specification: string | null;
   effective_location: string;
   effective_categories: string[];
   past: boolean;

@@ -26,6 +26,7 @@ type Column = {
   required: number;
   effective_location: string;
   effective_categories: string[];
+  specification: string | null;
   visible: boolean;
   shirt: Shirt | null;
 };
@@ -128,6 +129,8 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                           categories: c.visible ? c.effective_categories : [],
                           shirt: shirtOf[c.id],
                           hasRoles: c.has_roles,
+                          roles: c.roles,
+                          specification: c.specification,
                           entries: group.rows
                             .filter((r) => String(c.id) in r.assigned)
                             .map((r) => ({ user_id: r.user_id, name: r.name, role: r.assigned[String(c.id)] })),
