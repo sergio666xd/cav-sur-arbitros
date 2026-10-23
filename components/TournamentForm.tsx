@@ -291,15 +291,15 @@ export default function TournamentForm({
           <textarea className="input min-h-20" value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} />
         </div>
         <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.is_visible} onChange={(e) => setV({ ...v, is_visible: e.target.checked })} />
+          <input type="checkbox" className="mt-0.5 switch" checked={v.is_visible} onChange={(e) => setV({ ...v, is_visible: e.target.checked })} />
           <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán el nombre del torneo, la fecha y la franja.</span></span>
         </label>
         <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.show_required} onChange={(e) => setV({ ...v, show_required: e.target.checked })} />
+          <input type="checkbox" className="mt-0.5 switch" checked={v.show_required} onChange={(e) => setV({ ...v, show_required: e.target.checked })} />
           <span><b>Árbitros requeridos visibles</b><br /><span className="text-stone-500">Si no, en Disponibilidad los árbitros solo verán cuántos se han inscrito en cada franja.</span></span>
         </label>
         <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-500" checked={v.has_roles} onChange={(e) => setV({ ...v, has_roles: e.target.checked })} />
+          <input type="checkbox" className="mt-0.5 switch" checked={v.has_roles} onChange={(e) => setV({ ...v, has_roles: e.target.checked })} />
           <span><b>Torneo con roles</b><br /><span className="text-stone-500">Cada árbitro asignado recibe un rol, p. ej. Principal, Segundo y Planillero.</span></span>
         </label>
         {v.has_roles && (
@@ -351,7 +351,7 @@ export default function TournamentForm({
                   <DateInput value={d.date} onChange={(v) => setDay(i, { date: v })} required />
                 </div>
                 <label className="flex items-center gap-2 pb-2 text-sm">
-                  <input type="checkbox" className="h-5 w-5 accent-brand-500" checked={d.all_day} onChange={(e) => setDay(i, { all_day: e.target.checked })} />
+                  <input type="checkbox" className="switch" checked={d.all_day} onChange={(e) => setDay(i, { all_day: e.target.checked })} />
                   Todo el día
                 </label>
                 <div>
@@ -386,13 +386,13 @@ export default function TournamentForm({
                   <span className="inline-flex items-center gap-1 text-sm text-stone-500"><MapPinIcon className="h-4 w-4 text-brand-500" />{shortAddress(venues[0])}</span>
                 ) : null}
                 <label className="flex items-center gap-2 text-sm text-stone-600">
-                  <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.custom}
+                  <input type="checkbox" className="switch" checked={d.custom}
                     onChange={(e) => setDay(i, { custom: e.target.checked })} />
                   Categorías propias para esta franja
                 </label>
                 <label className="flex items-center gap-2 text-sm text-stone-600"
                   title="Para eventos privados: no sale en Disponibilidad y se puede asignar a cualquier árbitro.">
-                  <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={d.hidden}
+                  <input type="checkbox" className="switch" checked={d.hidden}
                     onChange={(e) => setDay(i, { hidden: e.target.checked })} />
                   Franja oculta (no sale en Disponibilidad)
                 </label>

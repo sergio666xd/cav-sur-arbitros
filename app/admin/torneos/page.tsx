@@ -172,7 +172,7 @@ function PastDays() {
           {tournaments.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
+          <input type="checkbox" className="switch" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
           Agrupar por torneo
         </label>
         <span className="text-sm text-stone-500">{rows.length} fecha(s)</span>
