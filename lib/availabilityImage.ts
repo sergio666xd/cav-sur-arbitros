@@ -20,6 +20,8 @@ export type ImageSpec = {
   hideColumns?: boolean;
   // footer: texto al pie de la imagen.
   footer?: string;
+  // hideRequired: en disponibilidad, sin la fila de solicitados.
+  hideRequired?: boolean;
   columns: ImageColumn[];
 };
 
@@ -28,7 +30,7 @@ export type SummaryRow = {
   date: string;
   slot_label: string;
   required: number;
-  tournament: { name: string; location: string } | null;
+  tournament: { name: string } | null;
   entries: ImageEntry[];
 };
 
@@ -37,7 +39,7 @@ export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColu
     date: r.date,
     top: withDate ? formatShortDate(r.date) : undefined,
     label: r.slot_label,
-    sub: r.tournament ? [r.tournament.name, shortAddress(r.tournament.location)].filter(Boolean).join(" · ") : undefined,
+    sub: r.tournament?.name,
     required: r.required,
     entries: r.entries,
   }));
@@ -187,7 +189,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const infoTop = HEADER + 8 + 32;
   const infoH = info.reduce((h, i) => h + i.lines.length * 36, 0) + (info.length ? 20 : 0);
   const tableTop = infoTop + infoH;
-  const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + (assignment ? 0 : 2 * ROW);
+  const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + (assignment ? 0 : spec.hideRequired ? ROW : 2 * ROW);
   canvas.width = W;
   ctx.font = `500 24px ${FONT}`;
   const footerLines = spec.footer ? wrap(ctx, spec.footer, W - PAD * 2) : [];
@@ -295,10 +297,10 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ry += ROW;
   });
 
-  // Totales (solo en disponibilidad): disponibles (en naranja si no alcanzan) y solicitados.
+  // Totales (solo en disponibilidad): total de inscritos (en naranja si no alcanzan) y solicitados, si se muestran.
   const totals: [string, (i: number) => number][] = assignment ? [] : [
-    ["Disponibles", (i) => marked[i].size],
-    ["Solicitados", (i) => cols[i].required],
+    ["Total", (i) => marked[i].size],
+    ...(spec.hideRequired ? [] : [["Solicitados", (i: number) => cols[i].required] as [string, (i: number) => number]]),
   ];
   for (const [label, value] of totals) {
     ctx.fillStyle = "#fff7ed";
@@ -307,7 +309,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ctx.font = `700 24px ${FONT}`;
     ctx.fillText(label, left + numW + 16, ry + 31);
     cols.forEach((c, i) => {
-      ctx.fillStyle = label === "Disponibles" && marked[i].size < c.required ? BRAND : INK;
+      ctx.fillStyle = label === "Total" && !spec.hideRequired && marked[i].size < c.required ? BRAND : INK;
       center(String(value(i)), colX(i), colW, ry + 31);
     });
     ry += ROW;

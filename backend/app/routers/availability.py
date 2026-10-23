@@ -142,11 +142,9 @@ def availability_summary(d: date | None = None, _: User = Depends(require_admin)
         days = [x for x in _ordered_days(w) if x.tournament_id not in w.hidden_tournament_ids]
         hidden = sum(1 for tid in _tournament_ids(w) if tid in w.hidden_tournament_ids)
         if days or hidden:
+            # Sin el lugar: la imagen de disponibilidad no lo muestra.
             names = list(dict.fromkeys(x.tournament.name for x in days))
-            locations = list(dict.fromkeys(
-                x.effective_location.split(",")[0] for x in days if x.effective_location and x.tournament.is_visible
-            ))
-            tournament = {"name": hidden_label(names, hidden), "location": " / ".join(locations)}
+            tournament = {"name": hidden_label(names, hidden)}
         result.append({
             "date": w.date.isoformat(),
             "slot_label": window_slot(w).label,

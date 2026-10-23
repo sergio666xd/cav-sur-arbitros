@@ -506,9 +506,9 @@ def test_availability_summary(client):
     rows = client.get("/api/availability/summary", headers=chief).json()
     assert [(r["date"], r["slot_label"]) for r in rows] == [(d1, "8:00 a. m. - 2:00 p. m."), (d2, "Todo el día")]
     # Franjas superpuestas se combinan; con los nombres ocultos solo se dice cuántos torneos son.
-    assert rows[0]["required"] == 4 and rows[0]["tournament"] == {"name": "2 torneos", "location": ""}
+    assert rows[0]["required"] == 4 and rows[0]["tournament"] == {"name": "2 torneos"}
     assert [e["name"] for e in rows[0]["entries"]] == ["Zoe Zapata", "Ana Alvarez"]  # orden de registro, no alfabético
-    assert rows[1]["tournament"] == {"name": "Solo Visible", "location": "Estadio"}
+    assert rows[1]["tournament"] == {"name": "Solo Visible"}
     assert [e["name"] for e in rows[1]["entries"]] == ["Ana Alvarez", "Zoe Zapata"]
     assert len(client.get(f"/api/availability/summary?d={d2}", headers=chief).json()) == 1
     assert client.get("/api/availability/summary", headers=ref_a).status_code == 403
@@ -562,7 +562,7 @@ def test_hidden_tournament_shows_only_name(client):
     slot = client.get("/api/availability", headers=ref).json()[0]
     assert slot["tournaments"] == [{"name": "Copa Secreta", "categories": [], "visible": False, "name_hidden": False, "required": 1}]
     rows = client.get(f"/api/availability/summary?d={d}", headers=chief).json()
-    assert rows[0]["tournament"] == {"name": "Copa Secreta", "location": ""}
+    assert rows[0]["tournament"] == {"name": "Copa Secreta"}
 
 
 def test_editing_slot_keeps_assignment(client):
@@ -926,8 +926,8 @@ def test_availability_windows(client):
     # El resumen para la imagen sale por disponibilidad.
     rows = client.get(f"/api/availability/summary?d={d}", headers=chief).json()
     assert [(r["slot_label"], r["tournament"], [e["name"] for e in r["entries"]]) for r in rows] == [
-        ("Todo el día", {"name": "Copa", "location": "B"}, ["Beto Bravo"]),
-        ("8:00 a. m. - 1:00 p. m.", {"name": "Liga y otros torneos", "location": "A"}, ["Ana Alvarez"])]
+        ("Todo el día", {"name": "Copa"}, ["Beto Bravo"]),
+        ("8:00 a. m. - 1:00 p. m.", {"name": "Liga y otros torneos"}, ["Ana Alvarez"])]
     me = client.get("/api/auth/me", headers=ana).json()["id"]
     assert [a["slot_label"] for a in client.get(f"/api/users/{me}", headers=chief).json()["upcoming_availability"]] == ["8:00 a. m. - 1:00 p. m."]
 
@@ -939,7 +939,7 @@ def test_availability_windows(client):
     client.put(f"/api/availability-windows/{w1['id']}", headers=chief, json={**morning, "hidden_tournament_ids": [t1, t2]})
     v = client.get("/api/availability", headers=ana).json()[1]
     assert (v["tournaments"], v["hidden_count"], v["required"]) == ([], 2, 5)
-    assert client.get(f"/api/availability/summary?d={d}", headers=chief).json()[1]["tournament"] == {"name": "2 torneos", "location": ""}
+    assert client.get(f"/api/availability/summary?d={d}", headers=chief).json()[1]["tournament"] == {"name": "2 torneos"}
     assert [w["id"] for w in client.get("/api/availability-windows", headers=chief).json()] == [w2["id"], w1["id"]]
     assert client.delete(f"/api/availability-windows/{w2['id']}", headers=chief).status_code == 204
     assert [v["key"] for v in client.get("/api/availability", headers=beto).json()] == [w1["id"]]

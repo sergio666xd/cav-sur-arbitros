@@ -22,13 +22,18 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
   // Datos de la imagen y fechas elegidas; al cambiar la selección se vuelve a dibujar.
   const [base, setBase] = useState<ImageSpec | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [showRequired, setShowRequired] = useState(true);
 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
 
   const dates = base ? [...new Set(base.columns.map((c) => c.date).filter((d): d is string => !!d))].sort() : [];
 
-  async function render(s: ImageSpec, sel: string[]) {
-    const blob = await renderAvailabilityImage({ ...s, columns: s.columns.filter((c) => !c.date || sel.includes(c.date)) });
+  async function render(s: ImageSpec, sel: string[], required = showRequired) {
+    const blob = await renderAvailabilityImage({
+      ...s,
+      hideRequired: s.hideRequired || !required,
+      columns: s.columns.filter((c) => !c.date || sel.includes(c.date)),
+    });
     const f = new File([blob], `${fileName}.png`, { type: "image/png" });
     setFile(f);
     setUrl(URL.createObjectURL(f));
@@ -58,6 +63,17 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
     setBusy(true);
     try {
       await render(base, sel);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleRequired(on: boolean) {
+    if (!base || busy) return;
+    setShowRequired(on);
+    setBusy(true);
+    try {
+      await render(base, selected, on);
     } finally {
       setBusy(false);
     }
@@ -107,6 +123,13 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
                   })}
                 </div>
               </div>
+            )}
+            {base?.kind !== "assignment" && (
+              <label className="flex items-center gap-2 border-b border-stone-200 px-4 py-3 text-sm">
+                <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={showRequired} disabled={busy}
+                  onChange={(e) => toggleRequired(e.target.checked)} />
+                Mostrar el número de solicitados
+              </label>
             )}
             <div className={`min-h-0 overflow-y-auto bg-stone-100 p-4 transition-opacity ${busy ? "opacity-60" : ""}`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
