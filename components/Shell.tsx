@@ -14,18 +14,21 @@ import { Skeleton } from "./ui";
 import { formatPhone } from "./Whatsapp";
 
 type Icon = React.ComponentType<{ className?: string }>;
-type NavItem = { href: string; label: string; icon: Icon; show: (u: Me) => boolean };
+type Section = "Arbitraje" | "Administración";
+type NavItem = { href: string; label: string; icon: Icon; section: Section; show: (u: Me) => boolean };
+
+const SECTIONS: Section[] = ["Arbitraje", "Administración"];
 
 const NAV: NavItem[] = [
-  { href: "/disponibilidad", label: "Disponibilidad", icon: CalendarDaysIcon, show: (u) => u.perm_availability },
-  { href: "/mis-torneos", label: "Mis torneos", icon: ClipboardDocumentCheckIcon, show: (u) => u.is_referee || u.is_chief },
-  { href: "/ranking", label: "Ranking", icon: TrophyIcon, show: () => true },
-  { href: "/admin/torneos", label: "Torneos", icon: CalendarDaysIcon, show: (u) => u.perm_admin },
-  { href: "/admin/disponibilidades", label: "Habilitar disponibilidad", icon: CalendarIcon, show: (u) => u.perm_admin },
-  { href: "/admin/asignacion", label: "Asignación", icon: ViewColumnsIcon, show: (u) => u.perm_admin },
-  { href: "/admin/arbitros", label: "Árbitros", icon: UserGroupIcon, show: (u) => u.perm_admin },
-  { href: "/admin/clave", label: "Clave de registro", icon: KeyIcon, show: (u) => u.perm_admin },
-  { href: "/jefe/calificaciones", label: "Calificaciones", icon: StarIcon, show: (u) => u.perm_chief },
+  { href: "/disponibilidad", section: "Arbitraje", label: "Disponibilidad", icon: CalendarDaysIcon, show: (u) => u.perm_availability },
+  { href: "/mis-torneos", section: "Arbitraje", label: "Mis torneos", icon: ClipboardDocumentCheckIcon, show: (u) => u.is_referee || u.is_chief },
+  { href: "/ranking", section: "Arbitraje", label: "Ranking", icon: TrophyIcon, show: () => true },
+  { href: "/admin/torneos", section: "Administración", label: "Torneos", icon: CalendarDaysIcon, show: (u) => u.perm_admin },
+  { href: "/admin/disponibilidades", section: "Administración", label: "Habilitar disponibilidad", icon: CalendarIcon, show: (u) => u.perm_admin },
+  { href: "/admin/asignacion", section: "Administración", label: "Asignación", icon: ViewColumnsIcon, show: (u) => u.perm_admin },
+  { href: "/admin/arbitros", section: "Administración", label: "Árbitros", icon: UserGroupIcon, show: (u) => u.perm_admin },
+  { href: "/admin/clave", section: "Administración", label: "Clave de registro", icon: KeyIcon, show: (u) => u.perm_admin },
+  { href: "/jefe/calificaciones", section: "Administración", label: "Calificaciones", icon: StarIcon, show: (u) => u.perm_chief },
 ];
 
 /** Evento para que el menú vuelva a consultar las asignaciones por confirmar. */
@@ -109,6 +112,9 @@ export default function Shell({
   if (!user.active) return <Suspended onLogout={logout} />;
 
   const items = NAV.filter((n) => n.show(user));
+  // Agrupa el menú por sección; los títulos solo aparecen si hay más de una.
+  const groups = SECTIONS.map((title) => ({ title, items: items.filter((n) => n.section === title) })).filter((g) => g.items.length);
+  const titled = groups.length > 1;
   const allowed = allow ? allow(user) : true;
   const linkClass = (href: string) =>
     `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition duration-200 ${
@@ -123,12 +129,17 @@ export default function Shell({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-10 w-auto" />
         </Link>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
-          {items.map((n) => (
-            <Link key={n.href} href={n.href} className={linkClass(n.href)}>
-              <n.icon className="h-5 w-5 shrink-0 opacity-80" />{n.label}
-              {n.href === "/mis-torneos" && pending > 0 && <span className="ml-auto"><PendingBadge count={pending} /></span>}
-            </Link>
+        <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
+          {groups.map((g) => (
+            <div key={g.title} className="space-y-1">
+              {titled && <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/45">{g.title}</div>}
+              {g.items.map((n) => (
+                <Link key={n.href} href={n.href} className={linkClass(n.href)}>
+                  <n.icon className="h-5 w-5 shrink-0 opacity-80" />{n.label}
+                  {n.href === "/mis-torneos" && pending > 0 && <span className="ml-auto"><PendingBadge count={pending} /></span>}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="space-y-1 border-t border-white/15 p-3">
@@ -163,12 +174,17 @@ export default function Shell({
           <nav className="overflow-hidden" aria-hidden={!menuOpen}>
             <div className="border-t border-white/20 px-4 pb-3">
               <div className="py-2 text-xs text-white/60">{user.first_name} {user.last_name} · {roleLabel(user)}</div>
-              {[...items, { href: "/perfil", label: "Mi perfil", icon: UserCircleIcon }].map((n) => (
-                <Link key={n.href} href={n.href} tabIndex={menuOpen ? 0 : -1}
-                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${pathname.startsWith(n.href) ? "bg-brand-500 font-semibold text-white" : "hover:bg-white/10"}`}>
-                  <n.icon className="h-5 w-5 opacity-80" />{n.label}
-                  {n.href === "/mis-torneos" && pending > 0 && <PendingBadge count={pending} />}
-                </Link>
+              {[...groups, { title: null, items: [{ href: "/perfil", label: "Mi perfil", icon: UserCircleIcon }] }].map((g) => (
+                <div key={g.title ?? "cuenta"} className={g.title ? "" : "mt-2 border-t border-white/15 pt-2"}>
+                  {titled && g.title && <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-white/45">{g.title}</div>}
+                  {g.items.map((n) => (
+                    <Link key={n.href} href={n.href} tabIndex={menuOpen ? 0 : -1}
+                      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${pathname.startsWith(n.href) ? "bg-brand-500 font-semibold text-white" : "hover:bg-white/10"}`}>
+                      <n.icon className="h-5 w-5 opacity-80" />{n.label}
+                      {n.href === "/mis-torneos" && pending > 0 && <PendingBadge count={pending} />}
+                    </Link>
+                  ))}
+                </div>
               ))}
               <button onClick={logout} tabIndex={menuOpen ? 0 : -1} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition hover:bg-white/10">
                 <ArrowRightStartOnRectangleIcon className="h-5 w-5 opacity-80" />Salir
