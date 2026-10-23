@@ -954,3 +954,13 @@ def test_legacy_availability_still_counts(client):
     day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
     assert [c["name"] for c in day["candidates"] if not c["is_chief"]] == ["Vera Vieja"]
     assert client.put(f"/api/tournament-days/{day['id']}/assignments", headers=chief, json=[{"user_id": uid}]).status_code == 200
+
+
+def test_tournament_without_slots(client):
+    chief = login(client, "10000000", "1111")
+    r = client.post("/api/tournaments", headers=chief, json={"name": "Sin Franjas", "location": "A", "referees_required": 2})
+    assert r.status_code == 201, r.text
+    tid = r.json()["id"]
+    t = next(x for x in client.get("/api/tournaments", headers=chief).json() if x["id"] == tid)
+    assert (t["days"], t["past_count"]) == ([], 0)
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"] == []

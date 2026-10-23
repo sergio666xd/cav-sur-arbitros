@@ -143,8 +143,7 @@ def _apply_fields(t: Tournament, data: TournamentIn) -> None:
 
 @router.post("/tournaments", status_code=201)
 def create_tournament(data: TournamentIn, user: User = Depends(require_creator), db: Session = Depends(get_db)):
-    if not data.days:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Añade al menos una franja.")
+    # Se puede crear sin franjas y añadirlas después.
     t = Tournament(created_by_id=user.id, days=[])
     db.add(t)
     _apply_fields(t, data)
