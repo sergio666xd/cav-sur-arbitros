@@ -6,6 +6,7 @@ import { api, formatClock, formatShortDate } from "@/lib/api";
 import { shortAddress } from "@/lib/maps";
 import DateInput from "./DateInput";
 import PlaceInput from "./PlaceInput";
+import type { UserRow } from "./RoleBadges";
 import { Alert, Badge, Spinner } from "./ui";
 
 export type DayForm = {
@@ -32,6 +33,7 @@ export type TournamentFormValue = {
   has_roles: boolean;
   roles: string[];
   notes: string;
+  admin_ids: number[];
   days: DayForm[];
 };
 
@@ -72,6 +74,7 @@ export const emptyTournament: TournamentFormValue = {
   has_roles: false,
   roles: DEFAULT_ROLES,
   notes: "",
+  admin_ids: [],
   days: [emptyDay],
 };
 
@@ -308,6 +311,9 @@ export default function TournamentForm({
             <ListInput value={v.roles} onChange={(roles) => setV({ ...v, roles })} placeholder="Nuevo rol" />
           </div>
         )}
+        <div className="md:col-span-2">
+          <AdminPicker value={v.admin_ids} onChange={(admin_ids) => setV({ ...v, admin_ids })} />
+        </div>
       </div>
 
       <div className="card">
@@ -423,5 +429,37 @@ export default function TournamentForm({
       {error && <Alert>{error}</Alert>}
       <button className="btn-primary" disabled={busy}>{busy ? <><Spinner />Guardando...</> : submitLabel}</button>
     </form>
+  );
+}
+
+// Administradores que gestionan el torneo: solo ellos (y el Jefe) lo ven en Torneos, Asignación y Disponibilidad.
+function AdminPicker({ value, onChange }: { value: number[]; onChange: (ids: number[]) => void }) {
+  const [admins, setAdmins] = useState<UserRow[] | null>(null);
+  useEffect(() => {
+    api<UserRow[]>("/users").then((u) => setAdmins(u.filter((x) => x.is_admin && !x.is_chief && x.active))).catch(() => setAdmins([]));
+  }, []);
+  const toggle = (id: number) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  return (
+    <>
+      <label className="label">Administradores del torneo</label>
+      <p className="mb-2 text-sm text-stone-500">Solo ellos y el Jefe podrán ver y gestionar este torneo.</p>
+      {admins === null ? (
+        <Spinner />
+      ) : admins.length === 0 ? (
+        <p className="text-sm text-stone-500">No hay administradores. Dale el rol a alguien desde Árbitros.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {admins.map((a) => {
+            const on = value.includes(a.id);
+            return (
+              <button key={a.id} type="button" aria-pressed={on} onClick={() => toggle(a.id)}
+                className={`rounded-full border px-3 py-1 text-sm transition active:scale-95 ${on ? "border-brand-500 bg-brand-500 font-semibold text-white" : "border-stone-300 hover:border-brand-500"}`}>
+                {a.first_name} {a.last_name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }

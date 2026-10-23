@@ -6,7 +6,6 @@ export type Me = {
   whatsapp: string | null;
   is_referee: boolean;
   is_admin: boolean;
-  can_create_tournaments: boolean;
   is_chief: boolean;
   active: boolean;
   perm_admin: boolean;

@@ -20,6 +20,7 @@ function toForm(t: TournamentDetail): TournamentFormValue {
     has_roles: t.has_roles,
     roles: t.roles.length ? t.roles : DEFAULT_ROLES,
     notes: t.notes,
+    admin_ids: t.admins.map((a) => a.id),
     // Las fechas pasadas no se editan aquí; el backend las conserva.
     days: t.days.filter((d) => !d.past).map((d) => ({
       id: d.id,

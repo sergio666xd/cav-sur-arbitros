@@ -1019,3 +1019,53 @@ def test_tournament_without_slots(client):
     t = next(x for x in client.get("/api/tournaments", headers=chief).json() if x["id"] == tid)
     assert (t["days"], t["past_count"]) == ([], 0)
     assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"] == []
+
+
+def test_tournaments_assigned_to_admins(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    admin = _register(client, code, "20000001", "Ana", "Admin")
+    ref = _register(client, code, "20000002", "Beto", "Bravo")
+    admin_id = client.get("/api/auth/me", headers=admin).json()["id"]
+    ref_id = client.get("/api/auth/me", headers=ref).json()["id"]
+    client.patch(f"/api/users/{admin_id}/roles", headers=chief, json={"is_admin": True})
+
+    # Solo el Jefe crea torneos; los administradores asignados deben ser administradores.
+    day = (today_local() + timedelta(days=2)).isoformat()
+    body = {"name": "Copa Asignada", "location": "A", "referees_required": 2,
+            "days": [{"date": day, "start_time": "08:00", "end_time": "12:00"}]}
+    assert client.post("/api/tournaments", headers=admin, json=body).status_code == 403
+    assert client.post("/api/tournaments", headers=chief, json={**body, "admin_ids": [ref_id]}).status_code == 400
+    mine = client.post("/api/tournaments", headers=chief, json={**body, "admin_ids": [admin_id]}).json()["id"]
+    other = client.post("/api/tournaments", headers=chief, json={**body, "name": "Liga Ajena"}).json()["id"]
+    assert client.get(f"/api/tournaments/{mine}", headers=chief).json()["admins"] == [{"id": admin_id, "name": "Ana Admin"}]
+    assert client.put(f"/api/tournaments/{mine}", headers=admin, json=body).status_code == 403
+
+    # El administrador solo ve y gestiona sus torneos.
+    assert [t["id"] for t in client.get("/api/tournaments", headers=admin).json()] == [mine]
+    assert client.get(f"/api/tournaments/{other}", headers=admin).status_code == 403
+    other_day = client.get(f"/api/tournaments/{other}", headers=chief).json()["days"][0]["id"]
+    mine_day = client.get(f"/api/tournaments/{mine}", headers=chief).json()["days"][0]["id"]
+    assert client.put(f"/api/tournament-days/{other_day}/assignments", headers=admin, json=[]).status_code == 403
+    board = client.get(f"/api/assignment-board?d={day}", headers=admin).json()
+    assert [c["tournament_id"] for g in board["groups"] for c in g["columns"]] == [mine]
+
+    # Disponibilidad: la habilita libremente, pero solo vincula y ve sus torneos.
+    assert [s["tournament_id"] for s in client.get(f"/api/availability-windows/slots?d={day}", headers=admin).json()] == [mine]
+    window = {"date": day, "all_day": True, "day_ids": [mine_day, other_day]}
+    assert client.post("/api/availability-windows", headers=admin, json=window).status_code == 403
+    r = client.post("/api/availability-windows", headers=chief, json=window)
+    wid = r.json()["id"]
+    w = next(x for x in client.get("/api/availability-windows", headers=admin).json() if x["id"] == wid)
+    assert ([d["tournament_id"] for d in w["days"]], w["required"]) == ([mine], 2)
+    summary = client.get(f"/api/availability/summary?d={day}", headers=admin).json()
+    assert summary[0]["tournament"] == {"name": "Copa Asignada"}
+    # Al editarla, la franja del torneo ajeno se conserva aunque el administrador no la vea.
+    r = client.put(f"/api/availability-windows/{wid}", headers=admin, json={"date": day, "all_day": True, "day_ids": []})
+    assert r.status_code == 200, r.text
+    w = next(x for x in client.get("/api/availability-windows", headers=chief).json() if x["id"] == wid)
+    assert [d["tournament_id"] for d in w["days"]] == [other]
+    assert client.delete(f"/api/availability-windows/{wid}", headers=admin).status_code == 403
+    r = client.post("/api/availability-windows", headers=admin, json={"date": day, "all_day": True, "day_ids": []})
+    assert r.status_code == 201
+    assert client.delete(f"/api/availability-windows/{r.json()['id']}", headers=admin).status_code == 204

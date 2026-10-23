@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..coverage import available_by_day, check_overlaps, covers, overlaps
 from ..database import get_db
-from ..deps import require_admin, require_creator
+from ..deps import check_manages, require_admin, require_creator
 from ..models import Assignment, AvailabilityWindow, MatchRecord, Tournament, TournamentDay, User
 from ..schemas import AssignmentIn, BoardIn, FinishedIn, MatchIn, TournamentIn
 from ..serializers import day_info, fold, name_key, tournament_info
@@ -25,17 +25,29 @@ def _get_tournament(db: Session, tournament_id: int) -> Tournament:
     return t
 
 
-def _get_day(db: Session, day_id: int) -> TournamentDay:
+def _get_day(db: Session, day_id: int, user: User) -> TournamentDay:
     d = db.get(TournamentDay, day_id)
     if not d:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Día de torneo no encontrado.")
+    check_manages(user, d.tournament)
     return d
 
 
+def _admins(db: Session, ids: list[int]) -> list[User]:
+    """Administradores (no Jefe) a los que se asigna un torneo."""
+    users = [db.get(User, i) for i in dict.fromkeys(ids)]
+    if any(u is None or not u.is_admin or u.chief_powers for u in users):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se pueden asignar administradores.")
+    return users
+
+
 @router.get("/tournaments")
-def list_tournaments(_: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Todos los torneos (nunca se archivan) con sus próximas franjas; las pasadas solo se cuentan."""
-    tournaments = db.scalars(select(Tournament).options(selectinload(Tournament.days))).all()
+def list_tournaments(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Torneos (nunca se archivan) con sus próximas franjas; las pasadas solo se cuentan.
+
+    El Jefe ve todos; un administrador, solo los que tiene asignados.
+    """
+    tournaments = [t for t in db.scalars(select(Tournament).options(selectinload(Tournament.days))).all() if user.manages(t)]
     today = today_local()
     future = [d for t in tournaments for d in t.days if d.date >= today]
     avail = available_by_day(db, future)
@@ -68,7 +80,7 @@ def list_tournaments(_: User = Depends(require_admin), db: Session = Depends(get
 
 @router.get("/tournament-days/past")
 def past_days(
-    tournament_id: int | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)
+    tournament_id: int | None = None, user: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
     """Franjas finalizadas (ya pasadas, o de hoy terminadas o marcadas como finalizadas), de la más reciente a la más antigua."""
     q = (
@@ -82,7 +94,7 @@ def past_days(
         q = q.where(TournamentDay.tournament_id == tournament_id)
     out = []
     for d in db.scalars(q).all():
-        if not is_finished(d):
+        if not is_finished(d) or not user.manages(d.tournament):
             continue
         refs = [a for a in d.assignments if not a.user.is_chief]
         out.append({
@@ -130,7 +142,7 @@ def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
     remember(db, "category", [*t.categories, *(c for d in data.days for c in (d.categories or []))])
 
 
-def _apply_fields(t: Tournament, data: TournamentIn) -> None:
+def _apply_fields(db: Session, t: Tournament, data: TournamentIn) -> None:
     t.name = data.name.strip()
     t.venues = data.venues
     t.location = data.venues[0]
@@ -141,6 +153,8 @@ def _apply_fields(t: Tournament, data: TournamentIn) -> None:
     t.has_roles = data.has_roles
     t.roles = data.roles
     t.notes = data.notes.strip()
+    if data.admin_ids is not None:
+        t.admins = _admins(db, data.admin_ids)
 
 
 @router.post("/tournaments", status_code=201)
@@ -148,7 +162,7 @@ def create_tournament(data: TournamentIn, user: User = Depends(require_creator),
     # Se puede crear sin franjas y añadirlas después.
     t = Tournament(created_by_id=user.id, days=[])
     db.add(t)
-    _apply_fields(t, data)
+    _apply_fields(db, t, data)
     _apply_days(db, t, data)
     db.commit()
     return {"id": t.id}
@@ -159,7 +173,7 @@ def update_tournament(
     tournament_id: int, data: TournamentIn, _: User = Depends(require_creator), db: Session = Depends(get_db)
 ):
     t = _get_tournament(db, tournament_id)
-    _apply_fields(t, data)
+    _apply_fields(db, t, data)
     _apply_days(db, t, data)
     if not t.has_roles:
         for d in t.days:
@@ -181,8 +195,9 @@ def delete_tournament(tournament_id: int, _: User = Depends(require_creator), db
 
 
 @router.get("/tournaments/{tournament_id}")
-def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def get_tournament(tournament_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     t = _get_tournament(db, tournament_id)
+    check_manages(user, t)
     dates = [d.date for d in t.days]
 
     available = available_by_day(db, list(t.days))
@@ -262,9 +277,9 @@ def _open_referees(db: Session) -> list[User]:
 
 @router.put("/tournament-days/{day_id}/assignments")
 def set_assignments(
-    day_id: int, items: list[AssignmentIn], _: User = Depends(require_admin), db: Session = Depends(get_db)
+    day_id: int, items: list[AssignmentIn], user: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
-    day = _get_day(db, day_id)
+    day = _get_day(db, day_id, user)
     check_overlaps(db, _apply_assignments(db, day, items))
     db.commit()
     return {"ok": True}
@@ -322,8 +337,8 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
 
 
 @router.put("/tournament-days/{day_id}/finished")
-def set_finished(day_id: int, data: FinishedIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    day = _get_day(db, day_id)
+def set_finished(day_id: int, data: FinishedIn, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    day = _get_day(db, day_id, user)
     if data.finished:
         if not has_started(day):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "La franja aún no ha comenzado.")
@@ -338,7 +353,7 @@ def set_finished(day_id: int, data: FinishedIn, _: User = Depends(require_admin)
 
 @router.put("/tournament-days/{day_id}/matches")
 def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    day = _get_day(db, day_id)
+    day = _get_day(db, day_id, user)
     if not is_finished(day):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los partidos se registran cuando la franja esté finalizada.")
     assigned = {a.user_id: a.user for a in day.assignments}
@@ -371,17 +386,21 @@ def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_
 
 # ---------- Asignación global por fecha ----------
 @router.get("/assignment-board")
-def assignment_board(d: date | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Para una fecha: por cada franja combinada, los árbitros disponibles (filas) y los torneos (columnas)."""
+def assignment_board(d: date | None = None, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Para una fecha: por cada franja combinada, los árbitros disponibles (filas) y los torneos (columnas).
+
+    Un administrador solo ve las franjas de los torneos que tiene asignados.
+    """
     today = today_local()
     # Las franjas finalizadas ya no se asignan: salen del tablero.
-    upcoming = sorted({x.date for x in db.scalars(select(TournamentDay).where(TournamentDay.date >= today)) if not is_finished(x)})
+    upcoming = sorted({x.date for x in db.scalars(select(TournamentDay).where(TournamentDay.date >= today))
+                       if not is_finished(x) and user.manages(x.tournament)})
     if d is None:
         d = upcoming[0] if upcoming else today
     days = [x for x in db.scalars(
         select(TournamentDay).where(TournamentDay.date == d)
         .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments))
-    ).all() if not is_finished(x)]
+    ).all() if not is_finished(x) and user.manages(x.tournament)]
     avail = available_by_day(db, list(days))
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
     referees = _open_referees(db) if any(x.hidden for x in days) else []
@@ -428,11 +447,11 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
 
 
 @router.put("/assignment-board")
-def save_assignment_board(data: BoardIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def save_assignment_board(data: BoardIn, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Guarda varias franjas a la vez: o se guardan todas o ninguna."""
     added = []
     for entry in data.days:
-        added += _apply_assignments(db, _get_day(db, entry.day_id), entry.items)
+        added += _apply_assignments(db, _get_day(db, entry.day_id, user), entry.items)
     check_overlaps(db, added)
     db.commit()
     return {"ok": True}

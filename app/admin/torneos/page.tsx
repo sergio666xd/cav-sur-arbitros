@@ -36,7 +36,8 @@ function TournamentCards() {
   const dates = useMemo(() => uniqueDates((data ?? []).flatMap((t) => t.days.map((d) => d.date))), [data]);
   if (loading) return <Loading />;
   if (error) return <Alert>{error}</Alert>;
-  if (!data?.length) return <Empty icon={TrophyIcon}>Todavía no hay torneos.</Empty>;
+  if (!data?.length)
+    return <Empty icon={TrophyIcon}>{user?.perm_chief ? "Todavía no hay torneos." : "No tienes torneos asignados. El Jefe te los asigna."}</Empty>;
   // Con un día elegido, solo los torneos que juegan ese día y solo sus franjas de ese día.
   const shown = day
     ? data.filter((t) => t.days.some((d) => d.date === day)).map((t) => ({ ...t, days: t.days.filter((d) => d.date === day) }))

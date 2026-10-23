@@ -23,7 +23,7 @@ export default function RefereeDetailPage() {
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [pin, setPin] = useState("");
 
-  async function setRole(patch: Partial<Pick<UserRow, "is_referee" | "is_admin" | "can_create_tournaments" | "active">>) {
+  async function setRole(patch: Partial<Pick<UserRow, "is_referee" | "is_admin" | "active">>) {
     setMsg(null);
     try {
       await api(`/users/${id}/roles`, { method: "PATCH", body: patch });
@@ -105,12 +105,10 @@ export default function RefereeDetailPage() {
                 {([
                   ["is_referee", "Árbitro", data.is_referee],
                   ["is_admin", "Administrador", data.is_admin],
-                  ["can_create_tournaments", "Puede crear torneos", data.can_create_tournaments],
                 ] as const).map(([key, label, value]) => (
                   <label key={key} className="flex items-center justify-between gap-3">
                     <span>{label}</span>
                     <input type="checkbox" className="switch" checked={value}
-                      disabled={key === "can_create_tournaments" && !data.is_admin}
                       onChange={(e) => setRole({ [key]: e.target.checked })} />
                   </label>
                 ))}

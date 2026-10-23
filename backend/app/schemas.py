@@ -97,7 +97,6 @@ class UserOut(BaseModel):
     whatsapp: str | None = None
     is_referee: bool
     is_admin: bool
-    can_create_tournaments: bool
     is_chief: bool
     active: bool
 
@@ -130,7 +129,6 @@ class CodeOut(BaseModel):
 class RolesIn(BaseModel):
     is_referee: bool | None = None
     is_admin: bool | None = None
-    can_create_tournaments: bool | None = None
     active: bool | None = None
 
 
@@ -193,6 +191,7 @@ class TournamentIn(BaseModel):
     has_roles: bool = False
     roles: list[str] = Field(default_factory=list)
     notes: str = ""
+    admin_ids: list[int] | None = None  # Sin enviar: se conservan los administradores asignados.
     days: list[DayIn] = Field(default_factory=list)
 
     @field_validator("venues", "categories", "roles")

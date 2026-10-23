@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..coverage import covers, window_slot
 from ..database import get_db
-from ..deps import current_user, require_admin, require_referee
+from ..deps import check_manages, current_user, require_admin, require_referee
 from ..models import AvailabilityWindow, TournamentDay, User, WindowHiddenName, WindowSignup
 from ..schemas import WindowIn
 from ..serializers import fold
@@ -75,16 +75,20 @@ def _base(w: AvailabilityWindow) -> dict:
     }
 
 
-def _admin_out(w: AvailabilityWindow) -> dict:
+def _admin_out(w: AvailabilityWindow, user: User) -> dict:
+    """Vista del Jefe o de un administrador: este último solo ve las franjas de sus torneos."""
+    days = [d for d in _ordered_days(w) if user.manages(d.tournament)]
     return {
         **_base(w),
+        "hidden_tournament_ids": sorted({d.tournament_id for d in days} & w.hidden_tournament_ids),
+        "required": sum(d.required for d in days),
         "days": [{
             "id": d.id,
             "tournament_id": d.tournament_id,
             "tournament": d.tournament.name,
             "slot_label": day_slot(d).label,
             "required": d.required,
-        } for d in _ordered_days(w)],
+        } for d in days],
     }
 
 
@@ -134,13 +138,17 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
 
 
 @router.get("/availability/summary")
-def availability_summary(d: date | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Disponibilidades con los árbitros inscritos (sin el Jefe), en orden de inscripción, para compartir."""
+def availability_summary(d: date | None = None, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Disponibilidades con los árbitros inscritos (sin el Jefe), en orden de inscripción, para compartir.
+
+    Un administrador solo ve en ellas los torneos que tiene asignados.
+    """
     result = []
     for w in _windows(db, on_date=d) if d else _windows(db, from_date=today_local()):
         tournament = None
-        days = [x for x in _ordered_days(w) if x.tournament_id not in w.hidden_tournament_ids]
-        hidden = sum(1 for tid in _tournament_ids(w) if tid in w.hidden_tournament_ids)
+        mine = [x for x in _ordered_days(w) if user.manages(x.tournament)]
+        days = [x for x in mine if x.tournament_id not in w.hidden_tournament_ids]
+        hidden = len({x.tournament_id for x in mine if x.tournament_id in w.hidden_tournament_ids})
         if days or hidden:
             # Sin el lugar: la imagen de disponibilidad no lo muestra.
             names = list(dict.fromkeys(x.tournament.name for x in days))
@@ -149,9 +157,9 @@ def availability_summary(d: date | None = None, _: User = Depends(require_admin)
             "date": w.date.isoformat(),
             "slot_label": window_slot(w).label,
             "start_time": w.start_time.strftime("%H:%M") if w.start_time else None,
-            "required": sum(x.required for x in w.days),
+            "required": sum(x.required for x in mine),
             # Franjas que cubre, para no contar dos veces sus requeridos al agrupar por fecha.
-            "days": [{"id": x.id, "required": x.required} for x in w.days],
+            "days": [{"id": x.id, "required": x.required} for x in mine],
             "tournament": tournament,
             "entries": [{"user_id": s.user_id, "name": s.user.full_name, "at": s.created_at.isoformat()}
                         for s in _active_signups(w) if not s.user.is_chief],
@@ -190,18 +198,21 @@ def referees_for_window(window_id: int, _: User = Depends(current_user), db: Ses
 
 # ---------- Jefe y administradores ----------
 @router.get("/availability-windows")
-def list_windows(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+def list_windows(user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Disponibilidades habilitadas de hoy en adelante."""
-    return [_admin_out(w) for w in _windows(db, from_date=today_local())]
+    return [_admin_out(w, user) for w in _windows(db, from_date=today_local())]
 
 
 @router.get("/availability-windows/slots")
-def slots_on(d: date, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Franjas de torneo (no ocultas) de una fecha, para elegir cuáles cubre una disponibilidad."""
-    days = db.scalars(
+def slots_on(d: date, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Franjas de torneo (no ocultas) de una fecha, para elegir cuáles cubre una disponibilidad.
+
+    Un administrador solo puede vincular las franjas de sus torneos.
+    """
+    days = [x for x in db.scalars(
         select(TournamentDay).where(TournamentDay.date == d, TournamentDay.hidden.isnot(True))
         .options(selectinload(TournamentDay.tournament))
-    ).all()
+    ).all() if user.manages(x.tournament)]
     windows = _windows(db, on_date=d)
     days = sorted(days, key=lambda x: (x.start_time or time.min, fold(x.tournament.name)))
     return [{
@@ -218,14 +229,21 @@ def slots_on(d: date, _: User = Depends(require_admin), db: Session = Depends(ge
     } for x in days]
 
 
-def _apply(db: Session, w: AvailabilityWindow, data: WindowIn) -> None:
+def _apply(db: Session, w: AvailabilityWindow, data: WindowIn, user: User) -> None:
+    # Las franjas de torneos que este administrador no gestiona se conservan tal cual.
+    others = [d for d in w.days if not user.manages(d.tournament)]
+    if others and data.date != w.date:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esta disponibilidad incluye torneos que no tienes asignados: no puedes cambiar su fecha.")
     w.date, w.all_day = data.date, data.all_day
     w.start_time, w.end_time = data.start_time, data.end_time
-    days = []
+    days = list(others)
     for day_id in data.day_ids:
         d = db.get(TournamentDay, day_id)
         if not d or d.date != data.date:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Las franjas deben ser de la misma fecha que la disponibilidad.")
+        if d in others:
+            continue
+        check_manages(user, d.tournament)
         if d.hidden:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La franja de {d.tournament.name} está oculta: no necesita disponibilidad.")
         if not covers(w, d):
@@ -234,8 +252,15 @@ def _apply(db: Session, w: AvailabilityWindow, data: WindowIn) -> None:
                 f"La franja de {d.tournament.name} ({day_slot(d).label}) no cabe en el horario de la disponibilidad.",
             )
         days.append(d)
+    for d in others:
+        if not covers(w, d):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"La franja de {d.tournament.name} ({day_slot(d).label}) quedaría fuera del horario, y ese torneo no está asignado a ti.",
+            )
     w.days = days
-    hide = set(data.hidden_tournament_ids) & {d.tournament_id for d in days}
+    other_ids = {d.tournament_id for d in others}
+    hide = (set(data.hidden_tournament_ids) - other_ids | (w.hidden_tournament_ids & other_ids)) & {d.tournament_id for d in days}
     w.hidden_names = [h for h in w.hidden_names if h.tournament_id in hide] + [
         WindowHiddenName(tournament_id=t) for t in sorted(hide - w.hidden_tournament_ids)
     ]
@@ -247,21 +272,24 @@ def create_window(data: WindowIn, user: User = Depends(require_admin), db: Sessi
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La fecha ya pasó.")
     w = AvailabilityWindow(created_by_id=user.id)
     db.add(w)
-    _apply(db, w, data)
+    _apply(db, w, data, user)
     db.commit()
-    return _admin_out(w)
+    return _admin_out(w, user)
 
 
 @router.put("/availability-windows/{window_id}")
-def update_window(window_id: int, data: WindowIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def update_window(window_id: int, data: WindowIn, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Editar conserva las inscripciones."""
     w = _get_window(db, window_id)
-    _apply(db, w, data)
+    _apply(db, w, data, user)
     db.commit()
-    return _admin_out(w)
+    return _admin_out(w, user)
 
 
 @router.delete("/availability-windows/{window_id}", status_code=204)
-def delete_window(window_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    db.delete(_get_window(db, window_id))
+def delete_window(window_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    w = _get_window(db, window_id)
+    if any(not user.manages(d.tournament) for d in w.days):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Esta disponibilidad incluye torneos que no tienes asignados: no puedes eliminarla.")
+    db.delete(w)
     db.commit()
