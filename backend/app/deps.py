@@ -9,13 +9,21 @@ from .security import decode_token
 _bearer = HTTPBearer(auto_error=False)
 
 
-def current_user(
+def session_user(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer), db: Session = Depends(get_db)
 ) -> User:
+    """Usuario de la sesión, aunque esté suspendido (solo para ver su perfil y el aviso)."""
     user_id = decode_token(creds.credentials) if creds else None
     user = db.get(User, user_id) if user_id else None
-    if not user or not user.active:
+    if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión no válida. Vuelve a ingresar.")
+    return user
+
+
+def current_user(user: User = Depends(session_user)) -> User:
+    # Un usuario suspendido puede ingresar, pero no usar nada más.
+    if not user.active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Tu cuenta está suspendida.")
     return user
 
 
