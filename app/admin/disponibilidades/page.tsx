@@ -5,11 +5,13 @@ import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import DateInput from "@/components/DateInput";
+import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import DateHeading from "@/components/DateHeading";
 import DayFilter from "@/components/DayFilter";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
 import { api, formatDate, formatDateTime } from "@/lib/api";
+import { summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import { useFetch } from "@/lib/useFetch";
 
 type WindowDay = { id: number; tournament_id: number; tournament: string; slot_label: string; required: number };
@@ -239,7 +241,22 @@ function WindowsPage() {
       <PageHeader
         title="Habilitar disponibilidad"
         subtitle="Abre la disponibilidad por fecha, de todo el día o de un horario, para que los árbitros se inscriban. Se cierra sola el día del torneo."
-        action={<button className="btn-primary" onClick={() => setDraft(emptyDraft())}><PlusIcon className="h-4 w-4" />Habilitar disponibilidad</button>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            {byDate.size > 0 && (
+              <AvailabilityImageButton
+                label="Imagen de disponibilidad"
+                fileName="disponibilidad-proximas-fechas"
+                spec={async () => ({
+                  title: "Árbitros disponibles",
+                  subtitle: "Próximas fechas",
+                  columns: summaryColumns(await api<SummaryRow[]>("/availability/summary"), true),
+                })}
+              />
+            )}
+            <button className="btn-primary" onClick={() => setDraft(emptyDraft())}><PlusIcon className="h-4 w-4" />Habilitar disponibilidad</button>
+          </div>
+        }
       />
       {msg && <div className="mb-4"><Alert>{msg}</Alert></div>}
       {loading && !data ? (
@@ -253,7 +270,19 @@ function WindowsPage() {
           <DayFilter dates={[...byDate.keys()]} value={day} onChange={setDay} />
           {shown.map(([date, windows]) => (
             <section key={date} className="animate-slide-up">
-              <DateHeading date={date} />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <DateHeading date={date} />
+                <AvailabilityImageButton
+                  label="Imagen de esta fecha"
+                  className="btn-ghost mb-2"
+                  fileName={`disponibilidad-${date}`}
+                  spec={async () => ({
+                    title: "Árbitros disponibles",
+                    subtitle: formatDate(date),
+                    columns: summaryColumns(await api<SummaryRow[]>(`/availability/summary?d=${date}`), false),
+                  })}
+                />
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {windows.map((w) => (
                   <div key={w.id} className="card">
