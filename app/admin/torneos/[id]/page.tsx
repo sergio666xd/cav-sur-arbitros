@@ -323,51 +323,53 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
       </div>
       {/* Oculta en vez de desmontada, para no perder cambios sin guardar al plegarla. */}
       <div className={open ? "animate-slide-down border-t border-stone-100 p-4 sm:p-5" : "hidden"}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <label className="inline-flex items-center gap-2 text-sm font-medium">
-            Camiseta
-            <ShirtSelect dayId={d.id} value={shirt} shirts={shirts} onSaved={setShirt} />
-          </label>
-          <div className="flex flex-wrap items-center gap-2">
-          {!status.finished ? (
-            <button type="button" className="btn-secondary text-sm" onClick={() => setFinished(true)}>
-              <CheckCircleIcon className="h-4 w-4" />Marcar como finalizada
-            </button>
-          ) : status.can_reopen && (
-            <button type="button" className="btn-ghost text-sm" onClick={() => setFinished(false)}>Reabrir franja</button>
-          )}
-          {assigned > 0 && (
-            <AvailabilityImageButton
-              label="Imagen de asignación"
-              className="btn-secondary text-sm"
-              fileName={`asignacion-${d.date}-${d.id}`}
-              spec={() => assignmentSpec({
-                tournament: t.name,
-                date: d.date,
-                slotLabel: d.slot_label,
-                location: t.is_visible ? d.effective_location : "",
-                categories: t.is_visible ? d.effective_categories : [],
-                shirt,
-                hasRoles: t.has_roles,
-                roles: t.roles,
-                specification: d.specification,
-                entries: d.assignments,
-              })}
-            />
-          )}
-          </div>
-        </div>
-        {finishMsg && <div className="mb-4"><Alert>{finishMsg}</Alert></div>}
-        <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
-          <AssignmentEditor day={d} t={t} onSaved={onSaved} />
-          {status.finished ? (
-            <MatchEditor day={d} t={t} onSaved={onSaved} />
-          ) : (
-            <div className="self-start rounded-lg border border-dashed border-stone-300 p-4 text-sm text-stone-500">
-              Los partidos se registran cuando la franja esté finalizada: al llegar su hora de fin, al día siguiente o al marcarla como finalizada.
+        {/* Finalizada: ya no se asigna; en su lugar se registran los partidos. */}
+        {(!status.finished || status.can_reopen) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            {!status.finished ? (
+              <label className="inline-flex items-center gap-2 text-sm font-medium">
+                Camiseta
+                <ShirtSelect dayId={d.id} value={shirt} shirts={shirts} onSaved={setShirt} />
+              </label>
+            ) : <span />}
+            <div className="flex flex-wrap items-center gap-2">
+              {status.finished ? (
+                <button type="button" className="btn-ghost text-sm" onClick={() => setFinished(false)}>Reabrir franja</button>
+              ) : d.started && (
+                <button type="button" className="btn-secondary text-sm" onClick={() => setFinished(true)}>
+                  <CheckCircleIcon className="h-4 w-4" />Marcar como finalizada
+                </button>
+              )}
+              {!status.finished && assigned > 0 && (
+                <AvailabilityImageButton
+                  label="Imagen de asignación"
+                  className="btn-secondary text-sm"
+                  fileName={`asignacion-${d.date}-${d.id}`}
+                  spec={() => assignmentSpec({
+                    tournament: t.name,
+                    date: d.date,
+                    slotLabel: d.slot_label,
+                    location: t.is_visible ? d.effective_location : "",
+                    categories: t.is_visible ? d.effective_categories : [],
+                    shirt,
+                    hasRoles: t.has_roles,
+                    roles: t.roles,
+                    specification: d.specification,
+                    entries: d.assignments,
+                  })}
+                />
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+        {finishMsg && <div className="mb-4"><Alert>{finishMsg}</Alert></div>}
+        {status.finished ? (
+          <MatchEditor day={d} t={t} onSaved={onSaved} />
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+            <AssignmentEditor day={d} t={t} onSaved={onSaved} />
+          </div>
+        )}
       </div>
     </section>
   );

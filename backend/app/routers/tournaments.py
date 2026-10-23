@@ -10,7 +10,7 @@ from ..deps import require_admin, require_creator
 from ..models import Assignment, Availability, MatchRecord, Tournament, TournamentDay, User
 from ..schemas import AssignmentIn, BoardIn, FinishedIn, MatchIn, TournamentIn
 from ..serializers import day_info, fold, name_key, tournament_info
-from ..slots import ended_by_time, group_days, is_finished
+from ..slots import ended_by_time, group_days, has_started, is_finished
 from ..timeutil import is_open_for_availability, today_local, utcnow
 from .catalog import remember
 
@@ -255,6 +255,8 @@ def set_assignments(
 def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn]) -> None:
     """Deja la asignación de la franja exactamente como `items` (sin confirmar la transacción)."""
     t = day.tournament
+    if is_finished(day):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La franja de {t.name} ya finalizó; su asignación no se puede cambiar.")
     current = {a.user_id: a for a in day.assignments}
     user_ids = [i.user_id for i in items]
     if len(user_ids) != len(set(user_ids)):
@@ -299,6 +301,8 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
 def set_finished(day_id: int, data: FinishedIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     day = _get_day(db, day_id)
     if data.finished:
+        if not has_started(day):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "La franja aún no ha comenzado.")
         day.finished_at = day.finished_at or utcnow()
     else:
         if ended_by_time(day):
@@ -346,14 +350,15 @@ def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_
 def assignment_board(d: date | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Para una fecha: por cada franja combinada, los árbitros disponibles (filas) y los torneos (columnas)."""
     today = today_local()
-    upcoming = sorted(set(db.scalars(select(TournamentDay.date).where(TournamentDay.date >= today)).all()))
+    # Las franjas finalizadas ya no se asignan: salen del tablero.
+    upcoming = sorted({x.date for x in db.scalars(select(TournamentDay).where(TournamentDay.date >= today)) if not is_finished(x)})
     if d is None:
         d = upcoming[0] if upcoming else today
-    days = db.scalars(
+    days = [x for x in db.scalars(
         select(TournamentDay).where(TournamentDay.date == d)
         .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments),
                  selectinload(TournamentDay.availabilities))
-    ).all()
+    ).all() if not is_finished(x)]
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
 
     groups = []

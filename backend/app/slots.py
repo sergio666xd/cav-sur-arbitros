@@ -80,6 +80,14 @@ def group_days(days: list[TournamentDay]) -> list[SlotGroup]:
     return groups
 
 
+def has_started(day: TournamentDay) -> bool:
+    """La franja ya comenzó: llegó su fecha y su hora de inicio (sin hora, desde el inicio del día)."""
+    now = now_local()
+    if day.date != now.date():
+        return day.date < now.date()
+    return day.start_time is None or now.time() >= day.start_time
+
+
 def ended_by_time(day: TournamentDay) -> bool:
     """La franja termina sola al llegar su hora de fin o, si no tiene, al día siguiente."""
     now = now_local()

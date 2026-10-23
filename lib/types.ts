@@ -27,6 +27,7 @@ export type DayDetail = {
   effective_location: string;
   effective_categories: string[];
   past: boolean;
+  started: boolean;
   finished: boolean;
   can_reopen: boolean;
   open: boolean;
