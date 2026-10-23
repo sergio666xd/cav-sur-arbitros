@@ -116,6 +116,7 @@ def _apply_days(db: Session, t: Tournament, data: TournamentIn) -> None:
         day.location = day_in.location
         day.categories = day_in.categories
         day.specification = day_in.specification
+        day.hidden = day_in.hidden
     for day_id, day in existing.items():
         if day_id not in keep_ids and day.date >= today:
             t.days.remove(day)
@@ -202,12 +203,16 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
             elsewhere[d][uid] = name
 
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
+    referees = _open_referees(db) if any(d.hidden for d in t.days) else []
 
     days = []
     for d in t.days:
         records = {r.user_id: r for r in d.match_records}
         candidates = []
-        avail = sorted(available_by_day.get(d.id, []), key=lambda x: name_key(x[0]))
+        if d.hidden:  # Franja oculta: cualquier árbitro activo es candidato.
+            avail = [(u, None) for u in referees]
+        else:
+            avail = sorted(available_by_day.get(d.id, []), key=lambda x: name_key(x[0]))
         for u, at in [*((c, None) for c in chiefs), *avail]:
             candidates.append({
                 "user_id": u.id,
@@ -241,6 +246,12 @@ def get_tournament(tournament_id: int, _: User = Depends(require_admin), db: Ses
     return {**tournament_info(t), "days": days}
 
 
+def _open_referees(db: Session) -> list[User]:
+    """Árbitros activos (sin el Jefe), en orden alfabético: candidatos de una franja oculta."""
+    users = db.scalars(select(User).where(User.is_referee.is_(True), User.is_chief.is_(False), User.active.is_(True))).all()
+    return sorted(users, key=name_key)
+
+
 @router.put("/tournament-days/{day_id}/assignments")
 def set_assignments(
     day_id: int, items: list[AssignmentIn], _: User = Depends(require_admin), db: Session = Depends(get_db)
@@ -264,7 +275,7 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
         u = db.get(User, item.user_id)
         if not u or not u.active:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Árbitro no encontrado.")
-        if not u.is_chief and (not u.is_referee or u.id not in available):
+        if not u.is_chief and (not u.is_referee or (u.id not in available and not day.hidden)):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 f"{u.full_name} no marcó disponibilidad para {t.name} el {day.date:%d/%m/%Y}.",
@@ -338,6 +349,7 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
                  selectinload(TournamentDay.availabilities))
     ).all()
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
+    referees = _open_referees(db) if any(x.hidden for x in days) else []
 
     groups = []
     for g in group_days(list(days)):
@@ -347,10 +359,10 @@ def assignment_board(d: date | None = None, _: User = Depends(require_admin), db
         assigned: dict[int, dict[str, str | None]] = defaultdict(dict)
         confirmed: dict[int, list[int]] = defaultdict(list)
         for day in cols:
-            for a in day.availabilities:
-                if a.user.active:
-                    people[a.user_id] = a.user
-                    available[a.user_id].append(day.id)
+            # En una franja oculta todos los árbitros cuentan como disponibles.
+            for u in referees if day.hidden else (a.user for a in day.availabilities if a.user.active):
+                people[u.id] = u
+                available[u.id].append(day.id)
             for a in day.assignments:
                 people[a.user_id] = a.user
                 assigned[a.user_id][str(day.id)] = a.role

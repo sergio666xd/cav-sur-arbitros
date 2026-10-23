@@ -56,6 +56,7 @@ def day_info(d: TournamentDay) -> dict:
         "effective_location": d.effective_location,
         "effective_categories": d.effective_categories,
         "specification": d.specification,
+        "hidden": bool(d.hidden),
         "past": d.date < today_local(),
         "shirt": shirt_info(d.shirt) if d.shirt else None,
     }
