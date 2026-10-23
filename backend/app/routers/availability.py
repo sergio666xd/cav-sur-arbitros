@@ -94,7 +94,6 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
             details = t.is_visible or user.admin
             tournaments.append({
                 "name": t.name,
-                "location": " / ".join(dict.fromkeys(x.effective_location for x in tdays)) if details else "",
                 "categories": list(dict.fromkeys(c for x in tdays for c in x.effective_categories)) if details else [],
                 "visible": t.is_visible,
                 "name_hidden": tid in hidden,

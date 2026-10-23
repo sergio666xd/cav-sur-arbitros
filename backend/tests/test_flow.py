@@ -314,12 +314,13 @@ def test_per_slot_fields_catalog_and_past_days(client):
     assert len(detail["days"]) == 4
     assert sum(d["past"] for d in detail["days"]) == 1
 
-    # El árbitro ve el lugar de cada franja.
+    # El árbitro no ve el lugar en Disponibilidad, solo las categorías de cada franja.
     _open_windows(client, chief)
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "60000001", "Fer")
     slots = [s for s in client.get("/api/availability", headers=ref).json() if s["date"] == soon]
-    assert [s["tournaments"][0]["location"] for s in slots] == ["Coliseo Sur", "Colegio Norte"]
+    assert all("location" not in t for s in slots for t in s["tournaments"])
+    assert [s["tournaments"][0]["categories"] for s in slots] == [["Mayores"], ["Sub-13"]]
 
 
 def test_migration_adds_new_columns():
@@ -559,7 +560,7 @@ def test_hidden_tournament_shows_only_name(client):
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "70000001", "Gabi")
     slot = client.get("/api/availability", headers=ref).json()[0]
-    assert slot["tournaments"] == [{"name": "Copa Secreta", "location": "", "categories": [], "visible": False, "name_hidden": False}]
+    assert slot["tournaments"] == [{"name": "Copa Secreta", "categories": [], "visible": False, "name_hidden": False}]
     rows = client.get(f"/api/availability/summary?d={d}", headers=chief).json()
     assert rows[0]["tournament"] == {"name": "Copa Secreta", "location": ""}
 

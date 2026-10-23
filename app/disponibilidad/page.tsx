@@ -4,7 +4,6 @@ import { CheckIcon, HandRaisedIcon, LockClosedIcon, UsersIcon, XMarkIcon } from 
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import DayFilter from "@/components/DayFilter";
-import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
 import { api, formatDate, formatDateTime } from "@/lib/api";
@@ -21,7 +20,7 @@ type Slot = {
   registered: number;
   mine: boolean;
   open: boolean;
-  tournaments: { name: string; location: string; categories: string[]; visible: boolean; name_hidden: boolean }[];
+  tournaments: { name: string; categories: string[]; visible: boolean; name_hidden: boolean }[];
 };
 
 type Referee = { name: string; since: string };
@@ -96,7 +95,6 @@ export default function AvailabilityPage() {
                                   {t.name} {!t.visible && user?.perm_admin && <Badge color="stone">Oculto</Badge>}
                                   {t.name_hidden && <Badge color="violet">Nombre oculto a árbitros</Badge>}
                                 </div>
-                                <Place place={t.location} />
                                 {t.categories.length > 0 && (
                                   <div className="mt-1 flex flex-wrap gap-1">
                                     {t.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
