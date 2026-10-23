@@ -124,6 +124,8 @@ class TournamentDay(Base):
     # Especificación opcional de la franja (p. ej. "Final, cancha 2"); sale en la imagen de asignación.
     specification: Mapped[str | None] = mapped_column(String(300), nullable=True)
     shirt_id: Mapped[int | None] = mapped_column(ForeignKey("shirts.id", ondelete="SET NULL"), nullable=True)
+    # Marcada como finalizada a mano antes de su hora de fin (o del día siguiente).
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     tournament: Mapped[Tournament] = relationship(back_populates="days")
     shirt: Mapped[Shirt | None] = relationship()

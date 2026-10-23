@@ -25,6 +25,7 @@ type Day = {
   role: string | null;
   specification: string | null;
   confirmed: boolean;
+  finished: boolean;
   shirt: Shirt | null;
   crew: { name: string; role: string | null; me: boolean }[];
   refereed: number | null;
@@ -99,7 +100,8 @@ function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatche
   const [confirmed, setConfirmed] = useState(d.confirmed);
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
-  const upcoming = d.date >= todayIso();
+  // Se confirma mientras la franja no haya finalizado.
+  const upcoming = d.date >= todayIso() && !d.finished;
 
   async function confirm() {
     setConfirming(true);

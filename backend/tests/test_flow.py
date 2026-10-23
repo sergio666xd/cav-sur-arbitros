@@ -1,5 +1,7 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
+from app.database import SessionLocal
+from app.models import TournamentDay
 from app.timeutil import today_local
 
 from .conftest import login
@@ -99,7 +101,12 @@ def test_full_flow(client):
                    json=[{"user_id": ids["Ana Alvarez"]}])
     assert r.status_code == 400
 
-    # Partidos.
+    # Partidos: solo cuando la franja está finalizada.
+    early = client.put(f"/api/tournament-days/{day['id']}/matches", headers=chief, json=[
+        {"user_id": ids["Ana Alvarez"], "refereed": 4, "scored": 0}])
+    assert early.status_code == 400
+    r = client.put(f"/api/tournament-days/{day['id']}/finished", headers=chief, json={"finished": True})
+    assert r.json()["finished"] and r.json()["can_reopen"]
     r = client.put(f"/api/tournament-days/{day['id']}/matches", headers=chief, json=[
         {"user_id": ids["Ana Alvarez"], "refereed": 4, "scored": 0},
         {"user_id": ids["Caro Castro"], "refereed": 0, "scored": 5},
@@ -427,6 +434,7 @@ def test_matches_by_category(client):
     d = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
     uid = next(c["user_id"] for c in d["candidates"] if c["name"] == "Lu Lopez")
     client.put(f"/api/tournament-days/{d['id']}/assignments", headers=chief, json=[{"user_id": uid}])
+    client.put(f"/api/tournament-days/{d['id']}/finished", headers=chief, json={"finished": True})
     bad = client.put(f"/api/tournament-days/{d['id']}/matches", headers=chief, json=[
         {"user_id": uid, "categories": [{"category": "Mayores", "refereed": 1}]}])
     assert bad.status_code == 400
@@ -651,3 +659,26 @@ def test_my_detail(client):
     assert d["assignments"] == [] and d["ratings"] == [] and d["points"] == 0 and d["age"] > 0
     uid = client.get("/api/auth/me", headers=ref).json()["id"]
     assert client.get(f"/api/users/{uid}", headers=ref).status_code == 403
+
+
+def test_finish_and_reopen_day(client):
+    chief = login(client, "10000000", "1111")
+    later = (today_local() + timedelta(days=3)).isoformat()
+    past = (today_local() - timedelta(days=1)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={
+        "name": "Copa Fin", "venues": ["Coliseo"], "referees_required": 1,
+        "days": [{"date": later, "all_day": True, "start_time": "08:00"}]}).json()["id"]
+    d = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    assert not d["finished"]
+    assert all(x["id"] != d["id"] for x in client.get("/api/tournament-days/past", headers=chief).json())
+    r = client.put(f"/api/tournament-days/{d['id']}/finished", headers=chief, json={"finished": True})
+    assert r.status_code == 200 and r.json()["finished"]
+    # Aparece en la lista para registrar partidos aunque la fecha no haya pasado.
+    assert any(x["id"] == d["id"] for x in client.get("/api/tournament-days/past", headers=chief).json())
+    r = client.put(f"/api/tournament-days/{d['id']}/finished", headers=chief, json={"finished": False})
+    assert r.status_code == 200 and not r.json()["finished"]
+    # Una franja que ya terminó por fecha no se puede reabrir.
+    with SessionLocal() as db:
+        db.get(TournamentDay, d["id"]).date = date.fromisoformat(past)
+        db.commit()
+    assert client.put(f"/api/tournament-days/{d['id']}/finished", headers=chief, json={"finished": False}).status_code == 400

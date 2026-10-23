@@ -256,6 +256,10 @@ class MatchCategoryIn(BaseModel):
     other: int = Field(default=0, ge=0, le=100)
 
 
+class FinishedIn(BaseModel):
+    finished: bool
+
+
 class MatchIn(BaseModel):
     user_id: int
     refereed: int = Field(default=0, ge=0, le=100)

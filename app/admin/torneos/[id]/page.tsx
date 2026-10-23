@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDownIcon, ExclamationTriangleIcon, MapPinIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/20/solid";
+import { CheckCircleIcon, ChevronDownIcon, ExclamationTriangleIcon, MapPinIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
@@ -8,7 +8,7 @@ import BackLink from "@/components/BackLink";
 import Place from "@/components/Place";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import { assignmentSpec } from "@/lib/availabilityImage";
-import Shell from "@/components/Shell";
+import Shell, { PENDING_EVENT } from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
 import { api, formatDate, formatShortDate } from "@/lib/api";
 import { shortAddress } from "@/lib/maps";
@@ -271,6 +271,22 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
   // La camiseta se guarda por separado; no se recarga la página para no perder cambios sin guardar.
   const [shirt, setShirt] = useState(d.shirt);
   useEffect(() => setShirt(d.shirt), [d.shirt]);
+  // Igual con el estado de finalizada, para no recargar y perder cambios.
+  const [status, setStatus] = useState({ finished: d.finished, can_reopen: d.can_reopen });
+  useEffect(() => setStatus({ finished: d.finished, can_reopen: d.can_reopen }), [d.finished, d.can_reopen]);
+  const [finishMsg, setFinishMsg] = useState<string | null>(null);
+
+  async function setFinished(finished: boolean) {
+    if (finished && !confirm("¿Marcar esta franja como finalizada? Después podrás registrar los partidos.")) return;
+    setFinishMsg(null);
+    try {
+      const r = await api<DayDetail>(`/tournament-days/${d.id}/finished`, { method: "PUT", body: { finished } });
+      setStatus({ finished: r.finished, can_reopen: r.can_reopen });
+      window.dispatchEvent(new Event(PENDING_EVENT)); // Una franja finalizada ya no pide confirmación.
+    } catch (e) {
+      setFinishMsg((e as Error).message);
+    }
+  }
   return (
     <section id={`dia-${d.id}`} className="card scroll-mt-24 animate-slide-up p-0 hover:shadow-md">
       <div className="cursor-pointer p-4 sm:p-5" onClick={() => setOpen(!open)}>
@@ -292,13 +308,15 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
           <Badge color="brand">{d.slot_label}</Badge>
           {d.past ? (
             <Badge color="stone">Fecha pasada</Badge>
+          ) : status.finished ? (
+            <Badge color="stone">Finalizada</Badge>
           ) : (
             <Badge color={d.open ? "green" : "stone"}>{d.open ? "Disponibilidad abierta" : "Disponibilidad cerrada"}</Badge>
           )}
           <span className="text-stone-500">{d.available_count} disponibles</span>
           {shirt && <span className="text-stone-600"><ShirtLabel shirt={shirt} /></span>}
           <span className={`font-medium ${assigned >= d.required ? "text-green-700" : "text-brand-700"}`}>{assigned} de {d.required} asignados</span>
-          {assigned > 0 && !d.past && (
+          {assigned > 0 && !status.finished && (
             <span className="text-stone-500">{d.assignments.filter((a) => a.confirmed).length} de {assigned} confirmaron</span>
           )}
         </div>
@@ -310,6 +328,14 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
             Camiseta
             <ShirtSelect dayId={d.id} value={shirt} shirts={shirts} onSaved={setShirt} />
           </label>
+          <div className="flex flex-wrap items-center gap-2">
+          {!status.finished ? (
+            <button type="button" className="btn-secondary text-sm" onClick={() => setFinished(true)}>
+              <CheckCircleIcon className="h-4 w-4" />Marcar como finalizada
+            </button>
+          ) : status.can_reopen && (
+            <button type="button" className="btn-ghost text-sm" onClick={() => setFinished(false)}>Reabrir franja</button>
+          )}
           {assigned > 0 && (
             <AvailabilityImageButton
               label="Imagen de asignación"
@@ -329,10 +355,18 @@ function DaySection({ d, t, shirts, onSaved }: { d: DayDetail; t: TournamentDeta
               })}
             />
           )}
+          </div>
         </div>
+        {finishMsg && <div className="mb-4"><Alert>{finishMsg}</Alert></div>}
         <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <AssignmentEditor day={d} t={t} onSaved={onSaved} />
-          <MatchEditor day={d} t={t} onSaved={onSaved} />
+          {status.finished ? (
+            <MatchEditor day={d} t={t} onSaved={onSaved} />
+          ) : (
+            <div className="self-start rounded-lg border border-dashed border-stone-300 p-4 text-sm text-stone-500">
+              Los partidos se registran cuando la franja esté finalizada: al llegar su hora de fin, al día siguiente o al marcarla como finalizada.
+            </div>
+          )}
         </div>
       </div>
     </section>

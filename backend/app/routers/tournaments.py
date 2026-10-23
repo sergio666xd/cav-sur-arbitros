@@ -8,10 +8,10 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..deps import require_admin, require_creator
 from ..models import Assignment, Availability, MatchRecord, Tournament, TournamentDay, User
-from ..schemas import AssignmentIn, BoardIn, MatchIn, TournamentIn
+from ..schemas import AssignmentIn, BoardIn, FinishedIn, MatchIn, TournamentIn
 from ..serializers import day_info, fold, name_key, tournament_info
-from ..slots import group_days
-from ..timeutil import is_open_for_availability, today_local
+from ..slots import ended_by_time, group_days, is_finished
+from ..timeutil import is_open_for_availability, today_local, utcnow
 from .catalog import remember
 
 router = APIRouter(tags=["tournaments"])
@@ -66,10 +66,10 @@ def list_tournaments(_: User = Depends(require_admin), db: Session = Depends(get
 def past_days(
     tournament_id: int | None = None, _: User = Depends(require_admin), db: Session = Depends(get_db)
 ):
-    """Franjas cuya fecha ya pasó (desde el día siguiente), de la más reciente a la más antigua."""
+    """Franjas finalizadas (ya pasadas, o de hoy terminadas o marcadas como finalizadas), de la más reciente a la más antigua."""
     q = (
         select(TournamentDay)
-        .where(TournamentDay.date < today_local())
+        .where((TournamentDay.date <= today_local()) | TournamentDay.finished_at.is_not(None))
         .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments),
                  selectinload(TournamentDay.match_records))
         .order_by(TournamentDay.date.desc(), TournamentDay.start_time)
@@ -78,6 +78,8 @@ def past_days(
         q = q.where(TournamentDay.tournament_id == tournament_id)
     out = []
     for d in db.scalars(q).all():
+        if not is_finished(d):
+            continue
         refs = [a for a in d.assignments if not a.user.is_chief]
         out.append({
             **day_info(d),
@@ -293,9 +295,24 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
     db.flush()
 
 
+@router.put("/tournament-days/{day_id}/finished")
+def set_finished(day_id: int, data: FinishedIn, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    day = _get_day(db, day_id)
+    if data.finished:
+        day.finished_at = day.finished_at or utcnow()
+    else:
+        if ended_by_time(day):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esta franja ya terminó; no se puede reabrir.")
+        day.finished_at = None
+    db.commit()
+    return day_info(day)
+
+
 @router.put("/tournament-days/{day_id}/matches")
 def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_admin), db: Session = Depends(get_db)):
     day = _get_day(db, day_id)
+    if not is_finished(day):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los partidos se registran cuando la franja esté finalizada.")
     assigned = {a.user_id: a.user for a in day.assignments}
     records = {r.user_id: r for r in day.match_records}
     categories = day.effective_categories
