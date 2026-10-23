@@ -157,6 +157,23 @@ def delete_user(user_id: int, chief: User = Depends(require_chief), db: Session 
     db.commit()
 
 
+@router.post("/{user_id}/transfer-chief")
+def transfer_chief(user_id: int, chief: User = Depends(require_chief), db: Session = Depends(get_db)):
+    """Solo hay un Jefe: lo traspasa a otro usuario y quien lo era queda como administrador."""
+    if not chief.is_chief:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el Jefe puede transferir su rol.")
+    u = _get(db, user_id)
+    if u.id == chief.id or u.is_chief:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ese usuario ya es el Jefe.")
+    if u.system or not u.active:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El rol de Jefe solo se puede transferir a un usuario activo.")
+    for c in db.scalars(select(User).where(User.is_chief.is_(True))).all():
+        c.is_chief, c.is_admin, c.can_create_tournaments = False, True, True
+    u.is_chief = u.is_admin = u.can_create_tournaments = True
+    db.commit()
+    return _base(u, chief)
+
+
 @router.post("/{user_id}/reset-pin", status_code=204)
 def reset_pin(user_id: int, data: ResetPinIn, chief: User = Depends(require_chief), db: Session = Depends(get_db)):
     u = _get(db, user_id)

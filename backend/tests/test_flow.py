@@ -730,3 +730,30 @@ def test_system_role(client):
     row = next(u for u in client.get("/api/users", headers=admin_ref).json() if u["id"] == sid)
     assert "is_system" not in row
     assert any(r["name"] == "Sys Tema" for r in client.get("/api/ranking", headers=admin_ref).json())
+
+
+def test_system_suspends_deletes_and_chief_transfer(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    sys_h = _register(client, code, "90000001", "Sys", "Tema")
+    a = _register(client, code, "90000002", "Ana", "Uno")
+    _register(client, code, "90000003", "Beto", "Dos")
+    ids = {u["document"]: u["id"] for u in client.get("/api/users", headers=chief).json()}
+    with SessionLocal() as db:
+        db.get(User, ids["90000001"]).is_system = True
+        db.commit()
+    # system suspende y elimina usuarios, pero no al Jefe.
+    assert client.patch(f"/api/users/{ids['90000002']}/roles", headers=sys_h, json={"active": False}).status_code == 200
+    assert client.patch(f"/api/users/{ids['90000002']}/roles", headers=sys_h, json={"active": True}).status_code == 200
+    assert client.delete(f"/api/users/{ids['90000003']}", headers=sys_h).status_code == 204
+    assert client.delete(f"/api/users/{ids['10000000']}", headers=sys_h).status_code == 400
+    # Transferir el rol de Jefe: solo el Jefe, y queda uno solo.
+    assert client.post(f"/api/users/{ids['90000002']}/transfer-chief", headers=sys_h).status_code == 403
+    assert client.post(f"/api/users/{ids['90000001']}/transfer-chief", headers=chief).status_code == 400
+    r = client.post(f"/api/users/{ids['90000002']}/transfer-chief", headers=chief)
+    assert r.status_code == 200 and r.json()["is_chief"]
+    old = client.get("/api/auth/me", headers=chief).json()
+    assert not old["is_chief"] and old["is_admin"] and not old["perm_chief"]
+    assert client.get("/api/auth/me", headers=a).json()["perm_chief"]
+    chiefs = [u for u in client.get("/api/users", headers=a).json() if u["is_chief"]]
+    assert [c["document"] for c in chiefs] == ["90000002"]
