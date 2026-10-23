@@ -20,6 +20,7 @@ def me_out(u: User) -> Me:
         perm_admin=u.admin,
         perm_create_tournaments=u.tournament_creator,
         perm_availability=u.is_referee and not u.is_chief,
+        perm_chief=u.chief_powers,
     )
 
 

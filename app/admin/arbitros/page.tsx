@@ -46,7 +46,7 @@ export default function RefereesPage() {
               <tr>
                 {header("name", "Nombre")}
                 {header("document", "Documento")}
-                {user?.is_chief && header("age", "Edad")}
+                {user?.perm_chief && header("age", "Edad")}
                 {header("roles", "Roles")}
                 {header("assignments", "Asignaciones", "text-right", "desc")}
                 {header("refereed", "Pitados", "text-right", "desc")}
@@ -60,7 +60,7 @@ export default function RefereesPage() {
                 <tr key={u.id} className="hover:bg-brand-50/50">
                   <td><Link href={`/admin/arbitros/${u.id}`} className="font-medium text-brand-700 hover:underline">{u.first_name} {u.last_name}</Link></td>
                   <td className="font-mono text-xs">{u.document}</td>
-                  {user?.is_chief && <td>{u.age}</td>}
+                  {user?.perm_chief && <td>{u.age}</td>}
                   <td><RoleBadges u={u} /></td>
                   <td className="text-right">{u.assignments}</td>
                   <td className="text-right">{u.is_chief ? "—" : u.refereed}</td>
