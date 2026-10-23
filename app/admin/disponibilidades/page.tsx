@@ -5,6 +5,7 @@ import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import DateInput from "@/components/DateInput";
+import DateHeading from "@/components/DateHeading";
 import DayFilter from "@/components/DayFilter";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
@@ -252,7 +253,7 @@ function WindowsPage() {
           <DayFilter dates={[...byDate.keys()]} value={day} onChange={setDay} />
           {shown.map(([date, windows]) => (
             <section key={date} className="animate-slide-up">
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{formatDate(date)}</h2>
+              <DateHeading date={date} />
               <div className="grid gap-3 md:grid-cols-2">
                 {windows.map((w) => (
                   <div key={w.id} className="card">

@@ -3,6 +3,7 @@
 import { CheckIcon, HandRaisedIcon, LockClosedIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
+import DateHeading from "@/components/DateHeading";
 import DayFilter from "@/components/DayFilter";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
@@ -82,7 +83,7 @@ export default function AvailabilityPage() {
           <DayFilter dates={[...byDate.keys()]} value={day} onChange={setDay} />
           {shownDates.map(([date, slots], i) => (
             <section key={date} className="animate-slide-up" style={{ animationDelay: `${Math.min(i, 6) * 60}ms` }}>
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{formatDate(date)}</h2>
+              <DateHeading date={date} />
               <div className="grid gap-3 md:grid-cols-2">
                 {slots.map((s) => {
                   return (
