@@ -4,7 +4,6 @@ import { CheckIcon, HandRaisedIcon, LockClosedIcon, UsersIcon, XMarkIcon } from 
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import DayFilter from "@/components/DayFilter";
-import Place from "@/components/Place";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
 import { api, formatDate, formatDateTime } from "@/lib/api";
@@ -21,7 +20,9 @@ type Slot = {
   registered: number;
   mine: boolean;
   open: boolean;
-  tournaments: { name: string; location: string; categories: string[]; visible: boolean }[];
+  tournaments: { name: string; categories: string[]; visible: boolean; name_hidden: boolean }[];
+  /** Torneos de la disponibilidad que el árbitro no ve por nombre. */
+  hidden_count: number;
 };
 
 type Referee = { name: string; since: string };
@@ -67,7 +68,7 @@ export default function AvailabilityPage() {
     <Shell allow={(u) => u.perm_availability}>
       <PageHeader
         title="Disponibilidad"
-        subtitle="Marca las franjas en las que puedes arbitrar. La selección se cierra automáticamente el día del torneo."
+        subtitle="Inscríbete en las disponibilidades habilitadas en las que puedes arbitrar. La inscripción se cierra automáticamente el día del torneo."
       />
       {actionError && <div className="mb-4"><Alert>{actionError}</Alert></div>}
       {loading && !data ? (
@@ -75,7 +76,7 @@ export default function AvailabilityPage() {
       ) : error ? (
         <Alert>{error}</Alert>
       ) : byDate.size === 0 ? (
-        <Empty icon={CalendarDaysIcon}>No hay torneos próximos que requieran disponibilidad.</Empty>
+        <Empty icon={CalendarDaysIcon}>No hay disponibilidades habilitadas por ahora.</Empty>
       ) : (
         <div className="space-y-6">
           <DayFilter dates={[...byDate.keys()]} value={day} onChange={setDay} />
@@ -94,8 +95,8 @@ export default function AvailabilityPage() {
                               <div key={t.name} className="mt-2 text-sm text-stone-600">
                                 <div className="font-medium text-ink">
                                   {t.name} {!t.visible && user?.perm_admin && <Badge color="stone">Oculto</Badge>}
+                                  {t.name_hidden && <Badge color="violet">Nombre oculto a árbitros</Badge>}
                                 </div>
-                                <Place place={t.location} />
                                 {t.categories.length > 0 && (
                                   <div className="mt-1 flex flex-wrap gap-1">
                                     {t.categories.map((c) => <Badge key={c} color="brand">{c}</Badge>)}
@@ -103,8 +104,11 @@ export default function AvailabilityPage() {
                                 )}
                               </div>
                             ))
-                          ) : (
-                            <div className="mt-1 text-sm italic text-stone-500">Detalles del torneo reservados</div>
+                          ) : null}
+                          {s.hidden_count > 0 && (
+                            <div className={`${s.tournaments.length ? "mt-1" : "mt-2"} text-sm font-medium text-stone-500`}>
+                              {s.tournaments.length ? "y otros torneos" : s.hidden_count === 1 ? "1 torneo" : `${s.hidden_count} torneos`}
+                            </div>
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1">

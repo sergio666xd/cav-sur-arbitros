@@ -322,7 +322,7 @@ export default function AssignmentBoardPage() {
               </div>
             )}
             <p className="mt-4 text-xs text-stone-500">
-              Solo se puede marcar a quien registró disponibilidad para la franja; en las franjas ocultas, a cualquier árbitro. El JEFE siempre puede asignarse.
+              Solo se puede marcar a quien se inscribió en una disponibilidad que cubre la franja; en las franjas ocultas, a cualquier árbitro. Nadie puede quedar en dos franjas que se cruzan, salvo el JEFE.
             </p>
           </>
         )

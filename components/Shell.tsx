@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, type Me } from "@/lib/api";
 import {
-  ArrowRightStartOnRectangleIcon, Bars3Icon, CalendarDaysIcon, ClipboardDocumentCheckIcon, KeyIcon, NoSymbolIcon,
+  ArrowRightStartOnRectangleIcon, Bars3Icon, CalendarDaysIcon, CalendarIcon, ClipboardDocumentCheckIcon, KeyIcon, NoSymbolIcon,
   StarIcon, TrophyIcon, UserCircleIcon, UserGroupIcon, ViewColumnsIcon, XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useFetch } from "@/lib/useFetch";
@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
   { href: "/mis-torneos", label: "Mis torneos", icon: ClipboardDocumentCheckIcon, show: (u) => u.is_referee || u.is_chief },
   { href: "/ranking", label: "Ranking", icon: TrophyIcon, show: () => true },
   { href: "/admin/torneos", label: "Torneos", icon: CalendarDaysIcon, show: (u) => u.perm_admin },
+  { href: "/admin/disponibilidades", label: "Habilitar disponibilidad", icon: CalendarIcon, show: (u) => u.perm_admin },
   { href: "/admin/asignacion", label: "Asignación", icon: ViewColumnsIcon, show: (u) => u.perm_admin },
   { href: "/admin/arbitros", label: "Árbitros", icon: UserGroupIcon, show: (u) => u.perm_admin },
   { href: "/admin/clave", label: "Clave de registro", icon: KeyIcon, show: (u) => u.perm_admin },

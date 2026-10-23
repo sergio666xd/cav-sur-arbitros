@@ -5,11 +5,13 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_admin, require_chief
 from ..models import (
-    Assignment, Availability, MatchRecord, Rating, RatingBatch, RegistrationCode, Tournament, TournamentDay, User,
+    Assignment, Availability, AvailabilityWindow, MatchRecord, Rating, RatingBatch, RegistrationCode, Tournament, TournamentDay,
+    User, WindowSignup,
 )
 from ..schemas import ResetPinIn, RolesIn, UserUpdateIn
 from ..security import hash_pin
 from ..serializers import name_key, user_out
+from ..coverage import window_slot
 from ..slots import day_slot
 from ..stats import assignment_counts, match_totals, points_totals
 from ..timeutil import age_on, today_local
@@ -69,6 +71,16 @@ def list_users(viewer: User = Depends(require_admin), db: Session = Depends(get_
 def user_detail(db: Session, u: User) -> dict:
     """Estadísticas e historial de un usuario (página del árbitro y Mi perfil)."""
     today = today_local()
+    windows = db.scalars(
+        select(AvailabilityWindow).join(WindowSignup)
+        .where(WindowSignup.user_id == u.id, AvailabilityWindow.date >= today)
+    ).all()
+    upcoming = [{
+        "date": w.date.isoformat(),
+        "slot_label": window_slot(w).label,
+        "tournament": " / ".join(dict.fromkeys(d.tournament.name for d in w.days)),
+    } for w in windows]
+    # Disponibilidades marcadas con el sistema anterior (por franja).
     availabilities = db.execute(
         select(TournamentDay, Tournament.name)
         .join(Availability, Availability.day_id == TournamentDay.id)
@@ -97,9 +109,9 @@ def user_detail(db: Session, u: User) -> dict:
     ).all()
     recs = db.scalars(select(MatchRecord).where(MatchRecord.user_id == u.id)).all()
     return {
-        "upcoming_availability": [
+        "upcoming_availability": sorted(upcoming + [
             {"date": d.date.isoformat(), "slot_label": day_slot(d).label, "tournament": name} for d, name in availabilities
-        ],
+        ], key=lambda x: x["date"]),
         "assignments": history,
         "refereed": sum(r.refereed for r in recs),
         "scored": sum(r.scored for r in recs),
@@ -149,9 +161,10 @@ def delete_user(user_id: int, chief: User = Depends(require_chief), db: Session 
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este usuario no se puede eliminar.")
     # Lo que registró este usuario (torneos, claves, calificaciones, partidos) pasa al Jefe que lo elimina.
     for model, column in ((Tournament, Tournament.created_by_id), (RegistrationCode, RegistrationCode.created_by_id),
+                          (AvailabilityWindow, AvailabilityWindow.created_by_id),
                           (RatingBatch, RatingBatch.created_by_id), (MatchRecord, MatchRecord.recorded_by_id)):
         db.execute(update(model).where(column == u.id).values({column.key: chief.id}))
-    for model in (Assignment, Availability, MatchRecord, Rating):
+    for model in (Assignment, Availability, WindowSignup, MatchRecord, Rating):
         db.execute(delete(model).where(model.user_id == u.id))
     db.delete(u)
     db.commit()
