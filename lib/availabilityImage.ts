@@ -69,7 +69,10 @@ export function groupByDate(cols: ImageColumn[]): ImageColumn[] {
     }
     let g = byDate.get(c.date);
     if (!g) {
-      g = { date: c.date, label: formatShortDate(c.date), required: 0, entries: [], seen: new Map(), loose: 0 };
+      // El día completo ("Sábado") y debajo la fecha.
+      const [day] = formatDate(c.date).split(" ");
+      const [, short] = formatShortDate(c.date).split(" ");
+      g = { date: c.date, label: day, sub: short, required: 0, entries: [], seen: new Map(), loose: 0 };
       byDate.set(c.date, g);
       out.push(g);
     }
