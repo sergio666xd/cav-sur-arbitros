@@ -15,12 +15,12 @@ type Slot = {
   date: string;
   slot_label: string;
   all_day: boolean;
-  /** null si el torneo no muestra cuántos árbitros se requieren. */
+  /** Total de requeridos: null si algún torneo los oculta (salvo que no se vea ninguno por nombre). */
   required: number | null;
   registered: number;
   mine: boolean;
   open: boolean;
-  tournaments: { name: string; categories: string[]; visible: boolean; name_hidden: boolean }[];
+  tournaments: { name: string; categories: string[]; visible: boolean; name_hidden: boolean; required: number | null }[];
   /** Torneos de la disponibilidad que el árbitro no ve por nombre. */
   hidden_count: number;
 };
@@ -94,7 +94,9 @@ export default function AvailabilityPage() {
                             s.tournaments.map((t) => (
                               <div key={t.name} className="mt-2 text-sm text-stone-600">
                                 <div className="font-medium text-ink">
-                                  {t.name} {!t.visible && user?.perm_admin && <Badge color="stone">Oculto</Badge>}
+                                  {t.name}
+                                  {t.required !== null && <span className="font-normal text-stone-500"> · {t.required} requeridos</span>}
+                                  {" "}{!t.visible && user?.perm_admin && <Badge color="stone">Oculto</Badge>}
                                   {t.name_hidden && <Badge color="violet">Nombre oculto a árbitros</Badge>}
                                 </div>
                                 {t.categories.length > 0 && (

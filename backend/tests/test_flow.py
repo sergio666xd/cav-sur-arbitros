@@ -580,7 +580,7 @@ def test_hidden_tournament_shows_only_name(client):
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "70000001", "Gabi")
     slot = client.get("/api/availability", headers=ref).json()[0]
-    assert slot["tournaments"] == [{"name": "Copa Secreta", "categories": [], "visible": False, "name_hidden": False}]
+    assert slot["tournaments"] == [{"name": "Copa Secreta", "categories": [], "visible": False, "name_hidden": False, "required": 1}]
     rows = client.get(f"/api/availability/summary?d={d}", headers=chief).json()
     assert rows[0]["tournament"] == {"name": "Copa Secreta", "location": ""}
 
@@ -621,7 +621,13 @@ def test_required_can_be_hidden(client):
     code = client.post("/api/codes", headers=chief).json()["code"]
     ref = _register(client, code, "90000001", "Iris")
     slot = client.get("/api/availability", headers=ref).json()[0]
-    assert (slot["required"], slot["registered"]) == (None, 0)
+    assert (slot["required"], slot["registered"], slot["tournaments"][0]["required"]) == (None, 0, None)
+    # Sin ningún torneo a la vista se muestra el total, aunque el torneo oculte sus requeridos.
+    w = next(x for x in client.get("/api/availability-windows", headers=chief).json() if x["id"] == slot["key"])
+    spec = {"date": d, "start_time": "09:00", "day_ids": [x["id"] for x in w["days"]], "hidden_tournament_ids": [tid]}
+    assert client.put(f"/api/availability-windows/{w['id']}", headers=chief, json=spec).status_code == 200
+    slot = next(x for x in client.get("/api/availability", headers=ref).json() if x["key"] == w["id"])
+    assert (slot["required"], slot["tournaments"]) == (3, [])
 
 
 def test_shirts(client):
@@ -932,8 +938,9 @@ def test_availability_windows(client):
     assert w2["slot_label"] == "Todo el día" and w2["required"] == 3
 
     view = client.get("/api/availability", headers=ana).json()
-    assert [(v["slot_label"], v["required"], [t["name"] for t in v["tournaments"]]) for v in view] == [
-        ("Todo el día", 3, ["Copa"]), ("8:00 a. m. - 1:00 p. m.", 5, ["Liga"])]
+    # Los requeridos van al lado de cada torneo a la vista, y el total si todos los muestran.
+    assert [(v["slot_label"], v["required"], [(t["name"], t["required"]) for t in v["tournaments"]]) for v in view] == [
+        ("Todo el día", 3, [("Copa", 3)]), ("8:00 a. m. - 1:00 p. m.", 5, [("Liga", 2)])]
     assert [v["hidden_count"] for v in view] == [0, 1]
 
     # Ana se inscribe en la mañana; Beto en todo el día.
@@ -979,7 +986,7 @@ def test_availability_windows(client):
     # Con todos ocultos solo se dice cuántos torneos son.
     client.put(f"/api/availability-windows/{w1['id']}", headers=chief, json={**morning, "hidden_tournament_ids": [t1, t2]})
     v = client.get("/api/availability", headers=ana).json()[1]
-    assert (v["tournaments"], v["hidden_count"]) == ([], 2)
+    assert (v["tournaments"], v["hidden_count"], v["required"]) == ([], 2, 5)
     assert client.get(f"/api/availability/summary?d={d}", headers=chief).json()[1]["tournament"] == {"name": "2 torneos", "location": ""}
     assert [w["id"] for w in client.get("/api/availability-windows", headers=chief).json()] == [w2["id"], w1["id"]]
     assert client.delete(f"/api/availability-windows/{w2['id']}", headers=chief).status_code == 204
