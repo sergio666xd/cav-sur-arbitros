@@ -11,8 +11,11 @@ export type RefereeDetail = {
   points: number | null;
   upcoming_availability: { date: string; slot_label: string; tournament: string }[];
   assignments: { tournament_id: number; tournament: string; date: string; role: string | null; refereed: number | null; scored: number | null; other: number | null }[];
-  ratings: { score: string; points: number; date: string }[];
+  ratings: { score: string; points: number; date: string; reason?: string | null }[];
 };
+
+/** Puntos con signo: "+20" o "−7". */
+export const signedPoints = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
 
 // Escala anterior a los puntos directos (+5...+50); las nuevas no llevan nombre.
 const LEGACY_LABEL: Record<string, string> = { MUY_MALO: "Muy Malo", MALO: "Malo", REGULAR: "Regular", BUENO: "Bueno", EXCELENTE: "Excelente" };
@@ -50,7 +53,7 @@ export function UpcomingAvailability({ data }: { data: RefereeDetail }) {
   );
 }
 
-export function RatingsCard({ data }: { data: RefereeDetail }) {
+export function RatingsCard({ data, children }: { data: RefereeDetail; children?: React.ReactNode }) {
   return (
     <div className="card text-sm">
       <h2 className="mb-2 font-semibold">Calificaciones</h2>
@@ -62,13 +65,15 @@ export function RatingsCard({ data }: { data: RefereeDetail }) {
             <li key={i} className="flex justify-between">
               <span>
                 {LEGACY_LABEL[r.score] && <>{LEGACY_LABEL[r.score]} <span className="text-stone-400">· </span></>}
-                <span className={LEGACY_LABEL[r.score] ? "text-stone-400" : ""}>{formatDateTime(r.date)}</span>
+                {r.score === "DESCUENTO" && <>Descuento{r.reason ? `: ${r.reason}` : ""} <span className="text-stone-400">· </span></>}
+                <span className={LEGACY_LABEL[r.score] || r.score === "DESCUENTO" ? "text-stone-400" : ""}>{formatDateTime(r.date)}</span>
               </span>
-              <span className="font-semibold">+{r.points}</span>
+              <span className={`shrink-0 pl-2 font-semibold ${r.points < 0 ? "text-red-600" : ""}`}>{signedPoints(r.points)}</span>
             </li>
           ))}
         </ul>
       )}
+      {children}
     </div>
   );
 }

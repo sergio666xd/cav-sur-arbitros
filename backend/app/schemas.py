@@ -306,8 +306,18 @@ class WindowIn(BaseModel):
 
 # ---------- Calificaciones ----------
 class RatingItemIn(BaseModel):
+    """Una calificación de la escala o un descuento: los puntos que el Jefe resta, con un motivo opcional."""
     user_id: int
-    score: RatingScore
+    score: RatingScore | None = None
+    deduct: int | None = Field(default=None, ge=1, le=1000)
+    reason: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _one(self):
+        if (self.score is None) == (self.deduct is None):
+            raise ValueError("Elige una calificación o los puntos a restar.")
+        self.reason = (self.reason or "").strip() or None if self.deduct else None
+        return self
 
 
 class RatingBatchIn(BaseModel):

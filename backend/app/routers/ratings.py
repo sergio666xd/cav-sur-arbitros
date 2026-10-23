@@ -13,6 +13,7 @@ router = APIRouter(tags=["ratings"])
 
 SCORE_LABELS = {
     **{k: f"+{v}" for k, v in RATING_POINTS.items()},
+    "DESCUENTO": "Descuento",
     # Escala anterior, para el historial.
     "MUY_MALO": "Muy Malo", "MALO": "Malo", "REGULAR": "Regular", "BUENO": "Bueno", "EXCELENTE": "Excelente",
 }
@@ -64,7 +65,10 @@ def create_batch(data: RatingBatchIn, chief: User = Depends(require_real_chief),
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se puede calificar a árbitros activos.")
     batch = RatingBatch(created_by_id=chief.id)
     for item in data.items:
-        batch.ratings.append(Rating(user_id=item.user_id, score=item.score, points=RATING_POINTS[item.score]))
+        if item.deduct:
+            batch.ratings.append(Rating(user_id=item.user_id, score="DESCUENTO", points=-item.deduct, reason=item.reason))
+        else:
+            batch.ratings.append(Rating(user_id=item.user_id, score=item.score, points=RATING_POINTS[item.score]))
     db.add(batch)
     db.commit()
     return {"id": batch.id, "count": len(batch.ratings)}
@@ -77,7 +81,7 @@ def history(_: User = Depends(require_chief), db: Session = Depends(get_db)):
         "id": b.id,
         "created_at": b.created_at.isoformat(),
         "items": [
-            {"name": r.user.full_name, "score": SCORE_LABELS.get(r.score, r.score), "points": r.points}
+            {"name": r.user.full_name, "score": SCORE_LABELS.get(r.score, r.score), "points": r.points, "reason": r.reason}
             for r in sorted(b.ratings, key=lambda r: name_key(r.user))
         ],
     } for b in batches]

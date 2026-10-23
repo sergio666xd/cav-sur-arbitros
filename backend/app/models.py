@@ -293,8 +293,9 @@ class Rating(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     batch_id: Mapped[int] = mapped_column(ForeignKey("rating_batches.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    score: Mapped[str] = mapped_column(String(20))
+    score: Mapped[str] = mapped_column(String(20))  # Valor de la escala, o DESCUENTO (puntos negativos que pone el Jefe).
     points: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)  # Motivo opcional de un descuento.
 
     batch: Mapped[RatingBatch] = relationship(back_populates="ratings")
     user: Mapped[User] = relationship()

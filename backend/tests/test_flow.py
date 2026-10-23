@@ -1019,3 +1019,23 @@ def test_tournament_without_slots(client):
     t = next(x for x in client.get("/api/tournaments", headers=chief).json() if x["id"] == tid)
     assert (t["days"], t["past_count"]) == ([], 0)
     assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"] == []
+
+
+def test_chief_deducts_points(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "20000001", "Ana", "Alvarez")
+    uid = client.get("/api/auth/me", headers=ref).json()["id"]
+    client.post("/api/ratings", headers=chief, json={"items": [{"user_id": uid, "score": "P20"}]})
+    # El Jefe resta los puntos que quiera, con un motivo opcional.
+    r = client.post("/api/ratings", headers=chief, json={"items": [{"user_id": uid, "deduct": 7, "reason": " Llegó tarde "}]})
+    assert r.status_code == 201, r.text
+    detail = client.get(f"/api/users/{uid}", headers=chief).json()
+    assert detail["points"] == 13
+    assert detail["ratings"][0] | {"date": None} == {"score": "DESCUENTO", "points": -7, "reason": "Llegó tarde", "date": None}
+    assert client.get("/api/ranking", headers=ref).json()[1]["points"] == 13
+    assert client.get("/api/ratings/history", headers=chief).json()[0]["items"][0]["score"] == "Descuento"
+    # Una calificación de la escala o un descuento, nunca los dos ni ninguno; y solo el Jefe.
+    for item in ({"user_id": uid}, {"user_id": uid, "score": "P5", "deduct": 3}, {"user_id": uid, "deduct": 0}):
+        assert client.post("/api/ratings", headers=chief, json={"items": [item]}).status_code == 422
+    assert client.post("/api/ratings", headers=ref, json={"items": [{"user_id": uid, "deduct": 3}]}).status_code == 403
