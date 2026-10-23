@@ -107,6 +107,7 @@ class Me(UserOut):
     perm_admin: bool
     perm_create_tournaments: bool
     perm_availability: bool
+    perm_chief: bool
 
 
 class TokenOut(BaseModel):

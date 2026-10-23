@@ -12,6 +12,7 @@ export type Me = {
   perm_admin: boolean;
   perm_create_tournaments: boolean;
   perm_availability: boolean;
+  perm_chief: boolean;
 };
 
 const TOKEN_KEY = "cav_token";
