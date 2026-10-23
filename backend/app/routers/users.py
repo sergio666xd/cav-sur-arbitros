@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_admin, require_chief
-from ..models import Assignment, Availability, MatchRecord, Rating, RatingBatch, Tournament, TournamentDay, User
+from ..models import (
+    Assignment, Availability, MatchRecord, Rating, RatingBatch, RegistrationCode, Tournament, TournamentDay, User,
+)
 from ..schemas import ResetPinIn, RolesIn, UserUpdateIn
 from ..security import hash_pin
 from ..serializers import name_key, user_out
@@ -120,6 +122,21 @@ def update_user(user_id: int, data: UserUpdateIn, chief: User = Depends(require_
         setattr(u, field, value.strip() if isinstance(value, str) else value)
     db.commit()
     return _base(u, chief)
+
+
+@router.delete("/{user_id}", status_code=204)
+def delete_user(user_id: int, chief: User = Depends(require_chief), db: Session = Depends(get_db)):
+    u = _get(db, user_id)
+    if u.is_chief:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El Jefe no se puede eliminar.")
+    # Lo que registró este usuario (torneos, claves, calificaciones, partidos) pasa al Jefe que lo elimina.
+    for model, column in ((Tournament, Tournament.created_by_id), (RegistrationCode, RegistrationCode.created_by_id),
+                          (RatingBatch, RatingBatch.created_by_id), (MatchRecord, MatchRecord.recorded_by_id)):
+        db.execute(update(model).where(column == u.id).values({column.key: chief.id}))
+    for model in (Assignment, Availability, MatchRecord, Rating):
+        db.execute(delete(model).where(model.user_id == u.id))
+    db.delete(u)
+    db.commit()
 
 
 @router.post("/{user_id}/reset-pin", status_code=204)

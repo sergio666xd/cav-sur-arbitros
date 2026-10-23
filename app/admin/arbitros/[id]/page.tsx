@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { CheckCircleIcon, NoSymbolIcon, TrashIcon } from "@heroicons/react/20/solid";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { RoleBadges, type UserRow } from "@/components/RoleBadges";
 import BackLink from "@/components/BackLink";
@@ -17,6 +18,7 @@ type Detail = UserRow & RefereeDetail & { created_at: string };
 export default function RefereeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const router = useRouter();
   const { data, loading, error, reload } = useFetch<Detail>(`/users/${id}`);
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [pin, setPin] = useState("");
@@ -26,6 +28,23 @@ export default function RefereeDetailPage() {
     try {
       await api(`/users/${id}/roles`, { method: "PATCH", body: patch });
       await reload();
+    } catch (e) {
+      setMsg({ kind: "error", text: (e as Error).message });
+    }
+  }
+
+  async function suspend(on: boolean) {
+    const name = `${data?.first_name} ${data?.last_name}`;
+    if (on && !confirm(`¿Suspender a ${name}? Podrá ingresar, pero solo verá un aviso para contactarte.`)) return;
+    await setRole({ active: !on });
+  }
+
+  async function removeUser() {
+    const name = `${data?.first_name} ${data?.last_name}`;
+    if (!confirm(`¿Eliminar a ${name}? Se borran su cuenta, disponibilidades, asignaciones, partidos y calificaciones. No se puede deshacer.`)) return;
+    try {
+      await api(`/users/${id}`, { method: "DELETE" });
+      router.replace("/admin/arbitros");
     } catch (e) {
       setMsg({ kind: "error", text: (e as Error).message });
     }
@@ -74,7 +93,6 @@ export default function RefereeDetailPage() {
                   ["is_referee", "Árbitro", data.is_referee],
                   ["is_admin", "Administrador", data.is_admin],
                   ["can_create_tournaments", "Puede crear torneos", data.can_create_tournaments],
-                  ["active", "Cuenta activa", data.active],
                 ] as const).map(([key, label, value]) => (
                   <label key={key} className="flex items-center justify-between gap-3">
                     <span>{label}</span>
@@ -90,6 +108,18 @@ export default function RefereeDetailPage() {
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} />
                     <button className="btn-secondary" disabled={pin.length !== 4} onClick={resetPin}>Guardar</button>
                   </div>
+                </div>
+                <div className="flex flex-wrap gap-2 border-t border-stone-100 pt-3">
+                  {data.active ? (
+                    <button className="btn-secondary text-amber-700" onClick={() => suspend(true)}>
+                      <NoSymbolIcon className="h-4 w-4" />Suspender
+                    </button>
+                  ) : (
+                    <button className="btn-secondary text-green-700" onClick={() => suspend(false)}>
+                      <CheckCircleIcon className="h-4 w-4" />Quitar suspensión
+                    </button>
+                  )}
+                  <button className="btn-ghost text-red-600" onClick={removeUser}><TrashIcon className="h-4 w-4" />Eliminar</button>
                 </div>
               </div>
             )}

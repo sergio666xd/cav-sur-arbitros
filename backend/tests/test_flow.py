@@ -651,3 +651,40 @@ def test_my_detail(client):
     assert d["assignments"] == [] and d["ratings"] == [] and d["points"] == 0 and d["age"] > 0
     uid = client.get("/api/auth/me", headers=ref).json()["id"]
     assert client.get(f"/api/users/{uid}", headers=ref).status_code == 403
+
+
+def test_suspend_and_delete_user(client):
+    chief = login(client, "10000000", "1111")
+    client.put("/api/auth/whatsapp", headers=chief, json={"whatsapp": "3009998877"})
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "70000001", "Susi")
+    uid = client.get("/api/auth/me", headers=ref).json()["id"]
+
+    # Suspendido: puede ingresar y ver su perfil y el contacto del Jefe, pero nada más.
+    assert client.patch(f"/api/users/{uid}/roles", headers=chief, json={"active": False}).status_code == 200
+    ref = login(client, "70000001", "2222")
+    me = client.get("/api/auth/me", headers=ref).json()
+    assert me["active"] is False
+    contact = client.get("/api/auth/suspension", headers=ref).json()
+    assert contact == {"chief_name": "Jefa Principal", "whatsapp": "3009998877"}
+    r = client.get("/api/availability", headers=ref)
+    assert r.status_code == 403 and "suspendida" in r.json()["detail"]
+    client.patch(f"/api/users/{uid}/roles", headers=chief, json={"active": True})
+    assert client.get("/api/availability", headers=ref).status_code == 200
+
+    # Eliminar: solo el Jefe, nunca al Jefe.
+    tid = client.post("/api/tournaments", headers=chief, json={
+        "name": "Copa Borrar", "venues": ["Coliseo"], "referees_required": 1,
+        "days": [{"date": (today_local() + timedelta(days=3)).isoformat(), "all_day": True, "start_time": "08:00"}]}).json()["id"]
+    key = client.get("/api/availability", headers=ref).json()[0]["key"]
+    client.post(f"/api/availability/{key}", headers=ref)
+    d = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    client.put(f"/api/tournament-days/{d['id']}/assignments", headers=chief, json=[{"user_id": uid}])
+    client.post("/api/ratings", headers=chief, json={"items": [{"user_id": uid, "score": "P20"}]})
+    chief_id = client.get("/api/auth/me", headers=chief).json()["id"]
+    assert client.delete(f"/api/users/{chief_id}", headers=chief).status_code == 400
+    assert client.delete(f"/api/users/{uid}", headers=ref).status_code == 403
+    assert client.delete(f"/api/users/{uid}", headers=chief).status_code == 204
+    assert client.get(f"/api/users/{uid}", headers=chief).status_code == 404
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"] == []
+    assert client.get("/api/auth/me", headers=ref).status_code == 401

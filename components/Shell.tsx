@@ -6,10 +6,12 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, type Me } from "@/lib/api";
 import {
-  ArrowRightStartOnRectangleIcon, Bars3Icon, CalendarDaysIcon, ClipboardDocumentCheckIcon, KeyIcon,
+  ArrowRightStartOnRectangleIcon, Bars3Icon, CalendarDaysIcon, ClipboardDocumentCheckIcon, KeyIcon, NoSymbolIcon,
   StarIcon, TrophyIcon, UserCircleIcon, UserGroupIcon, ViewColumnsIcon, XMarkIcon,
 } from "@heroicons/react/24/outline";
+import { useFetch } from "@/lib/useFetch";
 import { Skeleton } from "./ui";
+import { formatPhone } from "./Whatsapp";
 
 type Icon = React.ComponentType<{ className?: string }>;
 type NavItem = { href: string; label: string; icon: Icon; show: (u: Me) => boolean };
@@ -66,7 +68,7 @@ export default function Shell({
   // Alerta en el menú: asignaciones que el árbitro aún no confirma. Se actualiza al cambiar de
   // página y cuando Mis torneos avisa que se confirmó una.
   const [pending, setPending] = useState(0);
-  const tracksAssignments = !!user && (user.is_referee || user.is_chief);
+  const tracksAssignments = !!user && user.active && (user.is_referee || user.is_chief);
   useEffect(() => {
     if (!tracksAssignments) return;
     const load = () => api<{ count: number }>("/me/pending-confirmations").then((r) => setPending(r.count)).catch(() => {});
@@ -95,6 +97,8 @@ export default function Shell({
       </div>
     );
   }
+
+  if (!user.active) return <Suspended onLogout={logout} />;
 
   const items = NAV.filter((n) => n.show(user));
   const allowed = allow ? allow(user) : true;
@@ -157,6 +161,40 @@ export default function Shell({
       </header>
       <main className="viewport-center mx-auto max-w-6xl animate-slide-up px-4 py-8">
         {allowed ? children : <p className="text-sm text-stone-500">No tienes permiso para ver esta sección.</p>}
+      </main>
+    </div>
+  );
+}
+
+// Un usuario suspendido ingresa, pero solo ve este aviso con el contacto del Jefe.
+function Suspended({ onLogout }: { onLogout: () => void }) {
+  const { data } = useFetch<{ chief_name: string | null; whatsapp: string | null }>("/auth/suspension");
+  return (
+    <div className="min-h-screen">
+      <header className="border-b-2 border-brand-500 bg-night text-white shadow">
+        <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
+          <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-md bg-white/15 px-3 py-1.5 text-sm transition hover:bg-white/25 active:scale-95">
+            <ArrowRightStartOnRectangleIcon className="h-4 w-4" />Salir
+          </button>
+        </div>
+      </header>
+      <main className="viewport-center mx-auto max-w-xl animate-slide-up px-4 py-12">
+        <div className="card space-y-3 text-center">
+          <NoSymbolIcon className="mx-auto h-12 w-12 text-red-500" />
+          <h1 className="text-xl font-semibold">Tu cuenta está suspendida</h1>
+          <p className="text-sm text-stone-600">
+            Mientras esté suspendida no puedes usar la aplicación. Ponte en contacto con el Jefe
+            {data?.chief_name ? <> (<b>{data.chief_name}</b>)</> : null} para más información.
+          </p>
+          {data?.whatsapp && (
+            <a href={`https://wa.me/57${data.whatsapp}`} target="_blank" rel="noopener noreferrer"
+              className="btn-primary mx-auto bg-green-600 hover:bg-green-700">
+              Escribir por WhatsApp · {formatPhone(data.whatsapp)}
+            </a>
+          )}
+        </div>
       </main>
     </div>
   );
