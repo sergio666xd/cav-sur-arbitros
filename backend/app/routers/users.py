@@ -51,9 +51,8 @@ def list_users(viewer: User = Depends(require_admin), db: Session = Depends(get_
     return out
 
 
-@router.get("/{user_id}")
-def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = Depends(get_db)):
-    u = _get(db, user_id)
+def user_detail(db: Session, u: User) -> dict:
+    """Estadísticas e historial de un usuario (página del árbitro y Mi perfil)."""
     today = today_local()
     availabilities = db.execute(
         select(TournamentDay, Tournament.name)
@@ -83,7 +82,6 @@ def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = 
     ).all()
     recs = db.scalars(select(MatchRecord).where(MatchRecord.user_id == u.id)).all()
     return {
-        **_base(u, viewer),
         "upcoming_availability": [
             {"date": d.date.isoformat(), "slot_label": day_slot(d).label, "tournament": name} for d, name in availabilities
         ],
@@ -94,6 +92,12 @@ def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = 
         "points": None if u.is_chief else sum(p for _, p, _ in ratings),
         "ratings": [{"score": s, "points": p, "date": c.isoformat()} for s, p, c in ratings],
     }
+
+
+@router.get("/{user_id}")
+def get_user(user_id: int, viewer: User = Depends(require_admin), db: Session = Depends(get_db)):
+    u = _get(db, user_id)
+    return {**_base(u, viewer), **user_detail(db, u)}
 
 
 @router.patch("/{user_id}/roles")

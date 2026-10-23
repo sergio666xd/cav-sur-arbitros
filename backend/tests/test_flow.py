@@ -635,3 +635,15 @@ def test_whatsapp_is_cleaned(client):
     assert r.status_code == 200 and r.json()["whatsapp"] == "3112223333"
     uid = r.json()["id"]
     assert client.get(f"/api/users/{uid}", headers=chief).json()["whatsapp"] == "3112223333"
+
+
+def test_my_detail(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "60000001", "Pepe")
+    r = client.get("/api/me/detail", headers=ref)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["assignments"] == [] and d["ratings"] == [] and d["points"] == 0 and d["age"] > 0
+    uid = client.get("/api/auth/me", headers=ref).json()["id"]
+    assert client.get(f"/api/users/{uid}", headers=ref).status_code == 403
