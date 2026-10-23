@@ -23,8 +23,21 @@ def _check_pin(v: str) -> str:
     return v
 
 
+def _clean_whatsapp(v: str) -> str:
+    # Celular colombiano de 10 dígitos; si escriben el indicativo (+57, 0057, 57) se quita.
+    v = re.sub(r"\D", "", v or "")
+    if v.startswith("00"):
+        v = v[2:]
+    if len(v) == 12 and v.startswith("57"):
+        v = v[2:]
+    if not re.fullmatch(r"3\d{9}", v):
+        raise ValueError("El número de WhatsApp debe ser un celular de 10 dígitos.")
+    return v
+
+
 Document = Annotated[str, AfterValidator(_clean_document)]
 Pin = Annotated[str, AfterValidator(_check_pin)]
+Whatsapp = Annotated[str, AfterValidator(_clean_whatsapp)]
 
 
 # ---------- Autenticación ----------
@@ -38,6 +51,7 @@ class RegisterIn(BaseModel):
     last_name: str = Field(min_length=1, max_length=80)
     document: Document
     birth_date: date
+    whatsapp: Whatsapp
     code: str
     pin: Pin
 
@@ -67,6 +81,10 @@ class ChangePinIn(BaseModel):
     new_pin: Pin
 
 
+class WhatsappIn(BaseModel):
+    whatsapp: Whatsapp
+
+
 class ResetPinIn(BaseModel):
     new_pin: Pin
 
@@ -76,6 +94,7 @@ class UserOut(BaseModel):
     first_name: str
     last_name: str
     document: str
+    whatsapp: str | None = None
     is_referee: bool
     is_admin: bool
     can_create_tournaments: bool
@@ -118,6 +137,7 @@ class UserUpdateIn(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=80)
     last_name: str | None = Field(default=None, min_length=1, max_length=80)
     birth_date: date | None = None
+    whatsapp: Whatsapp | None = None
 
 
 # ---------- Torneos ----------
