@@ -8,7 +8,16 @@ import { shortAddress } from "./maps";
 // at: cuándo marcó disponibilidad (ordena las filas). mark: rol asignado.
 export type ImageEntry = { user_id: number; name: string; at: string; mark?: string };
 // date (AAAA-MM-DD) permite elegir qué fechas incluir al generar la imagen.
-export type ImageColumn = { date?: string; top?: string; label: string; sub?: string; required: number; entries: ImageEntry[] };
+// days: franjas de torneo que cubre la columna, para sumar bien los solicitados al agrupar por fecha.
+export type ImageColumn = {
+  date?: string;
+  top?: string;
+  label: string;
+  sub?: string;
+  required: number;
+  days?: { id: number; required: number }[];
+  entries: ImageEntry[];
+};
 // info: datos que se muestran debajo del encabezado (p. ej. fecha, hora y lugar); color dibuja
 // una muestra antes del valor (camiseta).
 // hideColumns: solo se listan los árbitros, sin columnas (asignación de un torneo sin roles).
@@ -20,6 +29,8 @@ export type ImageSpec = {
   hideColumns?: boolean;
   // footer: texto al pie de la imagen.
   footer?: string;
+  // hideRequired: en disponibilidad, sin la fila de solicitados.
+  hideRequired?: boolean;
   columns: ImageColumn[];
 };
 
@@ -28,7 +39,8 @@ export type SummaryRow = {
   date: string;
   slot_label: string;
   required: number;
-  tournament: { name: string; location: string } | null;
+  days: { id: number; required: number }[];
+  tournament: { name: string } | null;
   entries: ImageEntry[];
 };
 
@@ -37,10 +49,43 @@ export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColu
     date: r.date,
     top: withDate ? formatShortDate(r.date) : undefined,
     label: r.slot_label,
-    sub: r.tournament ? [r.tournament.name, shortAddress(r.tournament.location)].filter(Boolean).join(" · ") : undefined,
+    sub: r.tournament?.name,
     required: r.required,
+    days: r.days,
     entries: r.entries,
   }));
+}
+
+// Una sola columna por fecha: junta las franjas de cada día. Un árbitro cuenta una vez por fecha
+// (con su primera inscripción) y los solicitados suman cada franja de torneo una sola vez, aunque
+// la cubran varias disponibilidades.
+export function groupByDate(cols: ImageColumn[]): ImageColumn[] {
+  const out: ImageColumn[] = [];
+  const byDate = new Map<string, ImageColumn & { seen: Map<number, number>; loose: number }>();
+  for (const c of cols) {
+    if (!c.date) {
+      out.push(c);
+      continue;
+    }
+    let g = byDate.get(c.date);
+    if (!g) {
+      // El día completo ("Sábado") y debajo la fecha.
+      const [day] = formatDate(c.date).split(" ");
+      const [, short] = formatShortDate(c.date).split(" ");
+      g = { date: c.date, label: day, sub: short, required: 0, entries: [], seen: new Map(), loose: 0 };
+      byDate.set(c.date, g);
+      out.push(g);
+    }
+    if (c.days) for (const d of c.days) g.seen.set(d.id, d.required);
+    else g.loose += c.required;
+    g.required = g.loose + [...g.seen.values()].reduce((a, b) => a + b, 0);
+    for (const e of c.entries) {
+      const i = g.entries.findIndex((x) => x.user_id === e.user_id);
+      if (i < 0) g.entries.push(e);
+      else if (e.at < g.entries[i].at) g.entries[i] = e;
+    }
+  }
+  return out;
 }
 
 // Imagen de los asignados a una franja de un torneo. La columna de rol solo aparece si el torneo
@@ -187,7 +232,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const infoTop = HEADER + 8 + 32;
   const infoH = info.reduce((h, i) => h + i.lines.length * 36, 0) + (info.length ? 20 : 0);
   const tableTop = infoTop + infoH;
-  const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + (assignment ? 0 : 2 * ROW);
+  const tableBottom = tableTop + headH + Math.max(rows.length, 1) * ROW + (assignment ? 0 : spec.hideRequired ? ROW : 2 * ROW);
   canvas.width = W;
   ctx.font = `500 24px ${FONT}`;
   const footerLines = spec.footer ? wrap(ctx, spec.footer, W - PAD * 2) : [];
@@ -295,10 +340,10 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ry += ROW;
   });
 
-  // Totales (solo en disponibilidad): disponibles (en naranja si no alcanzan) y solicitados.
+  // Totales (solo en disponibilidad): total de inscritos (en naranja si no alcanzan) y solicitados, si se muestran.
   const totals: [string, (i: number) => number][] = assignment ? [] : [
-    ["Disponibles", (i) => marked[i].size],
-    ["Solicitados", (i) => cols[i].required],
+    ["Total", (i) => marked[i].size],
+    ...(spec.hideRequired ? [] : [["Solicitados", (i: number) => cols[i].required] as [string, (i: number) => number]]),
   ];
   for (const [label, value] of totals) {
     ctx.fillStyle = "#fff7ed";
@@ -307,7 +352,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ctx.font = `700 24px ${FONT}`;
     ctx.fillText(label, left + numW + 16, ry + 31);
     cols.forEach((c, i) => {
-      ctx.fillStyle = label === "Disponibles" && marked[i].size < c.required ? BRAND : INK;
+      ctx.fillStyle = label === "Total" && !spec.hideRequired && marked[i].size < c.required ? BRAND : INK;
       center(String(value(i)), colX(i), colW, ry + 31);
     });
     ry += ROW;
