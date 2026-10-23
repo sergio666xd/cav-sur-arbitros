@@ -66,7 +66,8 @@ export function RatingsCard({ data, children }: { data: RefereeDetail; children?
               <span>
                 {LEGACY_LABEL[r.score] && <>{LEGACY_LABEL[r.score]} <span className="text-stone-400">· </span></>}
                 {r.score === "DESCUENTO" && <>Descuento{r.reason ? `: ${r.reason}` : ""} <span className="text-stone-400">· </span></>}
-                <span className={LEGACY_LABEL[r.score] || r.score === "DESCUENTO" ? "text-stone-400" : ""}>{formatDateTime(r.date)}</span>
+                {r.score === "INGRESO" && <>Puntos de ingreso <span className="text-stone-400">· </span></>}
+                <span className={LEGACY_LABEL[r.score] || r.score === "DESCUENTO" || r.score === "INGRESO" ? "text-stone-400" : ""}>{formatDateTime(r.date)}</span>
               </span>
               <span className={`shrink-0 pl-2 font-semibold ${r.points < 0 ? "text-red-600" : ""}`}>{signedPoints(r.points)}</span>
             </li>
