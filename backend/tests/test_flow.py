@@ -890,9 +890,9 @@ def test_availability_windows(client):
     assert w2["slot_label"] == "Todo el día" and w2["required"] == 3
 
     view = client.get("/api/availability", headers=ana).json()
-    # Con algún torneo a la vista, los requeridos van al lado de cada uno y no hay total.
+    # Los requeridos van al lado de cada torneo a la vista, y el total si todos los muestran.
     assert [(v["slot_label"], v["required"], [(t["name"], t["required"]) for t in v["tournaments"]]) for v in view] == [
-        ("Todo el día", None, [("Copa", 3)]), ("8:00 a. m. - 1:00 p. m.", None, [("Liga", 2)])]
+        ("Todo el día", 3, [("Copa", 3)]), ("8:00 a. m. - 1:00 p. m.", 5, [("Liga", 2)])]
     assert [v["hidden_count"] for v in view] == [0, 1]
 
     # Ana se inscribe en la mañana; Beto en todo el día.

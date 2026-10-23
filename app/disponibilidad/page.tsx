@@ -15,7 +15,7 @@ type Slot = {
   date: string;
   slot_label: string;
   all_day: boolean;
-  /** Total de requeridos: solo cuando no se muestra ningún torneo por nombre. */
+  /** Total de requeridos: null si algún torneo los oculta (salvo que no se vea ninguno por nombre). */
   required: number | null;
   registered: number;
   mine: boolean;

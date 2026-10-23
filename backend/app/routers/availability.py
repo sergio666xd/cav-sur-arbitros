@@ -115,9 +115,12 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
                 # Al lado del nombre, los requeridos de ese torneo si el torneo los muestra.
                 "required": sum(x.required for x in tdays) if user.admin or t.show_required is not False else None,
             })
-        # Si los árbitros no ven ningún torneo por nombre, se muestra el total de todos, se muestren o no
-        # los requeridos en cada torneo.
-        show_total = bool(w.days) and all(tid in hidden for tid in by_tournament)
+        # El total (inscritos / requeridos) se muestra si todos los torneos elegidos muestran sus requeridos,
+        # o si los árbitros no ven ningún torneo por nombre (entonces aunque alguno los oculte).
+        show_total = bool(w.days) and (
+            all(tid in hidden for tid in by_tournament)
+            or all(d.tournament.show_required is not False for d in w.days)
+        )
         base = _base(w)
         result.append({
             **base,
