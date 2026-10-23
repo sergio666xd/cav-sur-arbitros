@@ -3,7 +3,7 @@
 import { ArrowDownTrayIcon, PhotoIcon, ShareIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useState } from "react";
 import { formatShortDate } from "@/lib/api";
-import { renderAvailabilityImage, type ImageSpec } from "@/lib/availabilityImage";
+import { groupByDate, renderAvailabilityImage, type ImageSpec } from "@/lib/availabilityImage";
 import { Portal, Spinner } from "./ui";
 
 // Botón que genera la imagen de disponibilidad y la muestra para descargar o compartir.
@@ -22,17 +22,21 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
   // Datos de la imagen y fechas elegidas; al cambiar la selección se vuelve a dibujar.
   const [base, setBase] = useState<ImageSpec | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [showRequired, setShowRequired] = useState(true);
+  // Opciones de la imagen de disponibilidad: fila de solicitados y una columna por fecha.
+  const [opts, setOpts] = useState({ required: true, grouped: false });
 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
 
+  const canGroup = !!base && new Set(base.columns.map((c) => c.date).filter(Boolean)).size
+    < base.columns.filter((c) => c.date).length;
   const dates = base ? [...new Set(base.columns.map((c) => c.date).filter((d): d is string => !!d))].sort() : [];
 
-  async function render(s: ImageSpec, sel: string[], required = showRequired) {
+  async function render(s: ImageSpec, sel: string[], o = opts) {
+    const columns = s.columns.filter((c) => !c.date || sel.includes(c.date));
     const blob = await renderAvailabilityImage({
       ...s,
-      hideRequired: s.hideRequired || !required,
-      columns: s.columns.filter((c) => !c.date || sel.includes(c.date)),
+      hideRequired: s.hideRequired || !o.required,
+      columns: o.grouped ? groupByDate(columns) : columns,
     });
     const f = new File([blob], `${fileName}.png`, { type: "image/png" });
     setFile(f);
@@ -68,12 +72,13 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
     }
   }
 
-  async function toggleRequired(on: boolean) {
+  async function setOption(patch: Partial<typeof opts>) {
     if (!base || busy) return;
-    setShowRequired(on);
+    const o = { ...opts, ...patch };
+    setOpts(o);
     setBusy(true);
     try {
-      await render(base, selected, on);
+      await render(base, selected, o);
     } finally {
       setBusy(false);
     }
@@ -125,11 +130,20 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
               </div>
             )}
             {base?.kind !== "assignment" && (
-              <label className="flex items-center gap-2 border-b border-stone-200 px-4 py-3 text-sm">
-                <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={showRequired} disabled={busy}
-                  onChange={(e) => toggleRequired(e.target.checked)} />
-                Mostrar el número de solicitados
-              </label>
+              <div className="space-y-2 border-b border-stone-200 px-4 py-3 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={opts.required} disabled={busy}
+                    onChange={(e) => setOption({ required: e.target.checked })} />
+                  Mostrar el número de solicitados
+                </label>
+                {canGroup && (
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={opts.grouped} disabled={busy}
+                      onChange={(e) => setOption({ grouped: e.target.checked })} />
+                    Agrupar las franjas de cada fecha en una sola columna
+                  </label>
+                )}
+              </div>
             )}
             <div className={`min-h-0 overflow-y-auto bg-stone-100 p-4 transition-opacity ${busy ? "opacity-60" : ""}`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}

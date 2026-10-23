@@ -8,7 +8,16 @@ import { shortAddress } from "./maps";
 // at: cuándo marcó disponibilidad (ordena las filas). mark: rol asignado.
 export type ImageEntry = { user_id: number; name: string; at: string; mark?: string };
 // date (AAAA-MM-DD) permite elegir qué fechas incluir al generar la imagen.
-export type ImageColumn = { date?: string; top?: string; label: string; sub?: string; required: number; entries: ImageEntry[] };
+// days: franjas de torneo que cubre la columna, para sumar bien los solicitados al agrupar por fecha.
+export type ImageColumn = {
+  date?: string;
+  top?: string;
+  label: string;
+  sub?: string;
+  required: number;
+  days?: { id: number; required: number }[];
+  entries: ImageEntry[];
+};
 // info: datos que se muestran debajo del encabezado (p. ej. fecha, hora y lugar); color dibuja
 // una muestra antes del valor (camiseta).
 // hideColumns: solo se listan los árbitros, sin columnas (asignación de un torneo sin roles).
@@ -30,6 +39,7 @@ export type SummaryRow = {
   date: string;
   slot_label: string;
   required: number;
+  days: { id: number; required: number }[];
   tournament: { name: string } | null;
   entries: ImageEntry[];
 };
@@ -41,8 +51,38 @@ export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColu
     label: r.slot_label,
     sub: r.tournament?.name,
     required: r.required,
+    days: r.days,
     entries: r.entries,
   }));
+}
+
+// Una sola columna por fecha: junta las franjas de cada día. Un árbitro cuenta una vez por fecha
+// (con su primera inscripción) y los solicitados suman cada franja de torneo una sola vez, aunque
+// la cubran varias disponibilidades.
+export function groupByDate(cols: ImageColumn[]): ImageColumn[] {
+  const out: ImageColumn[] = [];
+  const byDate = new Map<string, ImageColumn & { seen: Map<number, number>; loose: number }>();
+  for (const c of cols) {
+    if (!c.date) {
+      out.push(c);
+      continue;
+    }
+    let g = byDate.get(c.date);
+    if (!g) {
+      g = { date: c.date, label: formatShortDate(c.date), required: 0, entries: [], seen: new Map(), loose: 0 };
+      byDate.set(c.date, g);
+      out.push(g);
+    }
+    if (c.days) for (const d of c.days) g.seen.set(d.id, d.required);
+    else g.loose += c.required;
+    g.required = g.loose + [...g.seen.values()].reduce((a, b) => a + b, 0);
+    for (const e of c.entries) {
+      const i = g.entries.findIndex((x) => x.user_id === e.user_id);
+      if (i < 0) g.entries.push(e);
+      else if (e.at < g.entries[i].at) g.entries[i] = e;
+    }
+  }
+  return out;
 }
 
 // Imagen de los asignados a una franja de un torneo. La columna de rol solo aparece si el torneo
