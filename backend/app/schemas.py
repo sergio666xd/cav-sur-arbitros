@@ -7,7 +7,7 @@ from pydantic import AfterValidator, BaseModel, Field, field_validator, model_va
 PIN_RE = re.compile(r"^\d{4}$")
 DOC_RE = re.compile(r"^[A-Za-z0-9]{5,20}$")
 
-RatingScore = Literal["MUY_MALO", "MALO", "REGULAR", "BUENO", "EXCELENTE"]
+RatingScore = Literal["P5", "P10", "P20", "P35", "P50"]
 
 
 def _clean_document(v: str) -> str:

@@ -14,7 +14,8 @@ export type RefereeDetail = {
   ratings: { score: string; points: number; date: string }[];
 };
 
-const SCORE_LABEL: Record<string, string> = { MUY_MALO: "Muy Malo", MALO: "Malo", REGULAR: "Regular", BUENO: "Bueno", EXCELENTE: "Excelente" };
+// Escala anterior a los puntos directos (+5...+50); las nuevas no llevan nombre.
+const LEGACY_LABEL: Record<string, string> = { MUY_MALO: "Muy Malo", MALO: "Malo", REGULAR: "Regular", BUENO: "Bueno", EXCELENTE: "Excelente" };
 
 export function StatsRow({ data, isChief }: { data: RefereeDetail; isChief: boolean }) {
   return (
@@ -59,7 +60,10 @@ export function RatingsCard({ data }: { data: RefereeDetail }) {
         <ul className="space-y-1">
           {data.ratings.map((r, i) => (
             <li key={i} className="flex justify-between">
-              <span>{SCORE_LABEL[r.score]} <span className="text-stone-400">· {formatDateTime(r.date)}</span></span>
+              <span>
+                {LEGACY_LABEL[r.score] && <>{LEGACY_LABEL[r.score]} <span className="text-stone-400">· </span></>}
+                <span className={LEGACY_LABEL[r.score] ? "text-stone-400" : ""}>{formatDateTime(r.date)}</span>
+              </span>
               <span className="font-semibold">+{r.points}</span>
             </li>
           ))}
