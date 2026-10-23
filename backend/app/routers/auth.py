@@ -82,7 +82,7 @@ def suspension(_: User = Depends(session_user), db: Session = Depends(get_db)):
     """Contacto del Jefe para el aviso que ve un usuario suspendido."""
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True)).order_by(User.id)).all()
     chief = next((c for c in chiefs if c.whatsapp), chiefs[0] if chiefs else None)
-    return {"chief_name": chief.full_name if chief else None, "whatsapp": chief.whatsapp if chief else None}
+    return {"chief_name": chief.first_name if chief else None, "whatsapp": chief.whatsapp if chief else None}
 
 
 @router.post("/change-pin", status_code=204)
