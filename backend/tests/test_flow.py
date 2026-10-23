@@ -377,10 +377,13 @@ def test_migration_gives_entry_points_to_existing_users():
     m.engine = old
     try:
         m.migrate()
+        with old.begin() as c:
+            c.execute(text("UPDATE users SET entry_points = 5 WHERE id = 2"))
+        m.migrate()  # Otro despliegue: no vuelve a tocar a quien ya tiene sus puntos de ingreso.
     finally:
         m.engine = original
     with old.begin() as c:
-        assert c.execute(text("SELECT entry_points FROM users ORDER BY id")).scalars().all() == [20, 20]
+        assert c.execute(text("SELECT entry_points FROM users ORDER BY id")).scalars().all() == [20, 5]
 
 
 def test_assignment_board(client):
