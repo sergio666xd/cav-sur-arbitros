@@ -103,6 +103,15 @@ class Tournament(Base):
         return out
 
 
+class Shirt(Base):
+    """Camiseta que pueden llevar los árbitros; se asigna a cada franja."""
+    __tablename__ = "shirts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(60))
+    color: Mapped[str] = mapped_column(String(7))  # #RRGGBB
+
+
 class TournamentDay(Base):
     __tablename__ = "tournament_days"
 
@@ -116,8 +125,10 @@ class TournamentDay(Base):
     # Lugar y categorías propios de la franja; si están vacíos se usan los del torneo.
     location: Mapped[str | None] = mapped_column(String(200), nullable=True)
     categories: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    shirt_id: Mapped[int | None] = mapped_column(ForeignKey("shirts.id", ondelete="SET NULL"), nullable=True)
 
     tournament: Mapped[Tournament] = relationship(back_populates="days")
+    shirt: Mapped[Shirt | None] = relationship()
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="day", cascade="all, delete-orphan")
     match_records: Mapped[list["MatchRecord"]] = relationship(back_populates="day", cascade="all, delete-orphan")
     availabilities: Mapped[list["Availability"]] = relationship(back_populates="day", cascade="all, delete-orphan")

@@ -5,10 +5,12 @@ import { CalendarIcon, ChevronDownIcon, ClockIcon, UserGroupIcon } from "@heroic
 import { useState } from "react";
 import DayFilter, { uniqueDates } from "@/components/DayFilter";
 import Place from "@/components/Place";
+import { ShirtSwatch } from "@/components/Shirt";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, StatCard, StatSkeleton } from "@/components/ui";
 import { atClock, formatDate, todayIso } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import type { Shirt } from "@/lib/types";
 import { useFetch } from "@/lib/useFetch";
 
 type Day = {
@@ -21,6 +23,7 @@ type Day = {
   effective_location: string;
   effective_categories: string[];
   role: string | null;
+  shirt: Shirt | null;
   crew: { name: string; role: string | null; me: boolean }[];
   refereed: number | null;
   scored: number | null;
@@ -110,6 +113,9 @@ function DayCard({ t, d, showMatches, delay }: { t: Assigned; d: Day; showMatche
           <div className="flex items-center gap-1"><CalendarIcon className="h-4 w-4 shrink-0 text-brand-500" />{formatDate(d.date)}</div>
           <div className="flex items-center gap-1"><ClockIcon className="h-4 w-4 shrink-0 text-brand-500" />{arrival(d)}</div>
           <div onClick={(e) => e.stopPropagation()}><Place place={d.effective_location} /></div>
+          {d.shirt && (
+            <div className="flex items-center gap-1"><ShirtSwatch color={d.shirt.color} className="mx-0.5 h-3 w-3" />Camiseta {d.shirt.name}</div>
+          )}
         </div>
       </div>
       {open && (

@@ -9,13 +9,14 @@ import { shortAddress } from "./maps";
 export type ImageEntry = { user_id: number; name: string; at: string; mark?: string };
 // date (AAAA-MM-DD) permite elegir qué fechas incluir al generar la imagen.
 export type ImageColumn = { date?: string; top?: string; label: string; sub?: string; required: number; entries: ImageEntry[] };
-// info: datos que se muestran debajo del encabezado (p. ej. fecha, hora y lugar).
+// info: datos que se muestran debajo del encabezado (p. ej. fecha, hora y lugar); color dibuja
+// una muestra antes del valor (camiseta).
 // hideColumns: solo se listan los árbitros, sin columnas (asignación de un torneo sin roles).
 export type ImageSpec = {
   title: string;
   subtitle?: string;
   kind?: "availability" | "assignment";
-  info?: { label: string; value: string }[];
+  info?: { label: string; value: string; color?: string }[];
   hideColumns?: boolean;
   columns: ImageColumn[];
 };
@@ -47,6 +48,7 @@ export function assignmentSpec(a: {
   date: string;
   slotLabel: string;
   location: string;
+  shirt?: { name: string; color: string } | null;
   hasRoles: boolean;
   entries: { user_id: number; name: string; role: string | null }[];
 }): ImageSpec {
@@ -58,6 +60,7 @@ export function assignmentSpec(a: {
       { label: "Fecha", value: formatDate(a.date) },
       { label: "Hora", value: a.slotLabel },
       ...(a.location ? [{ label: "Lugar", value: shortAddress(a.location) }] : []),
+      ...(a.shirt ? [{ label: "Camiseta", value: a.shirt.name, color: a.shirt.color }] : []),
     ],
     hideColumns: !a.hasRoles,
     columns: [{
@@ -161,12 +164,13 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const HEADER = Math.max(170, textH + 60);
   // Datos debajo del encabezado: "Etiqueta: valor", partidos en líneas si no caben.
   ctx.font = `700 26px ${FONT}`;
-  const info = (spec.info ?? []).map(({ label, value }) => {
-    const labelW = ctx.measureText(`${label}: `).width;
+  const SWATCH = 34;
+  const info = (spec.info ?? []).map(({ label, value, color }) => {
+    const labelW = ctx.measureText(`${label}: `).width + (color ? SWATCH : 0);
     ctx.font = `400 26px ${FONT}`;
     const lines = wrap(ctx, value, W - PAD * 2 - labelW);
     ctx.font = `700 26px ${FONT}`;
-    return { label: `${label}: `, labelW, lines };
+    return { label: `${label}: `, labelW, lines, color };
   });
   const infoTop = HEADER + 8 + 32;
   const infoH = info.reduce((h, i) => h + i.lines.length * 36, 0) + (info.length ? 20 : 0);
@@ -205,6 +209,16 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ctx.fillStyle = BRAND;
     ctx.font = `700 26px ${FONT}`;
     ctx.fillText(i.label, PAD, iy + 26);
+    if (i.color) {
+      const cx = PAD + i.labelW - SWATCH + 12;
+      ctx.beginPath();
+      ctx.arc(cx, iy + 17, 12, 0, Math.PI * 2);
+      ctx.fillStyle = i.color;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
     ctx.fillStyle = INK;
     ctx.font = `400 26px ${FONT}`;
     for (const l of i.lines) { ctx.fillText(l, PAD + i.labelW, iy + 26); iy += 36; }

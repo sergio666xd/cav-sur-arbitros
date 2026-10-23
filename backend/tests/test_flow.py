@@ -557,3 +557,26 @@ def test_required_can_be_hidden(client):
     ref = _register(client, code, "90000001", "Iris")
     slot = client.get("/api/availability", headers=ref).json()[0]
     assert (slot["required"], slot["registered"]) == (None, 0)
+
+
+def test_shirts(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=4)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
+        "days": [{"date": d, "start_time": "09:00"}]}).json()["id"]
+    day_id = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["id"]
+    r = client.post("/api/shirts", headers=chief, json={"name": " Naranja ", "color": "#F65A03"})
+    assert r.status_code == 201, r.text
+    shirt = r.json()
+    assert shirt == {"id": shirt["id"], "name": "Naranja", "color": "#f65a03"}
+    assert client.post("/api/shirts", headers=chief, json={"name": "naranja", "color": "#000000"}).status_code == 409
+    assert client.post("/api/shirts", headers=chief, json={"name": "X", "color": "rojo"}).status_code == 422
+    assert client.put(f"/api/tournament-days/{day_id}/shirt", headers=chief, json={"shirt_id": shirt["id"]}).status_code == 200
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["shirt"]["name"] == "Naranja"
+    # Editar el torneo conserva la camiseta de la franja.
+    assert client.put(f"/api/tournaments/{tid}", headers=chief, json={"name": "T", "location": "A", "referees_required": 1,
+        "days": [{"id": day_id, "date": d, "start_time": "10:00"}]}).status_code == 200
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["shirt"]["name"] == "Naranja"
+    # Al borrar la camiseta, la franja queda sin camiseta.
+    assert client.delete(f"/api/shirts/{shirt['id']}", headers=chief).status_code == 204
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["shirt"] is None

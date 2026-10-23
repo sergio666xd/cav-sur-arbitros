@@ -1,6 +1,6 @@
 import unicodedata
 
-from .models import Tournament, TournamentDay, User
+from .models import Shirt, Tournament, TournamentDay, User
 from .schemas import Me, UserOut
 from .slots import day_slot
 from .timeutil import today_local
@@ -55,7 +55,12 @@ def day_info(d: TournamentDay) -> dict:
         "effective_location": d.effective_location,
         "effective_categories": d.effective_categories,
         "past": d.date < today_local(),
+        "shirt": shirt_info(d.shirt) if d.shirt else None,
     }
+
+
+def shirt_info(s: Shirt) -> dict:
+    return {"id": s.id, "name": s.name, "color": s.color}
 
 
 def fold(text: str) -> str:

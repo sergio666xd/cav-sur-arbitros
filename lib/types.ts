@@ -1,3 +1,4 @@
+export type Shirt = { id: number; name: string; color: string };
 export type Candidate = { user_id: number; name: string; is_chief: boolean; assigned_elsewhere: string | null; available_at: string | null };
 export type AssignedRef = {
   user_id: number;
@@ -25,6 +26,7 @@ export type DayDetail = {
   effective_categories: string[];
   past: boolean;
   open: boolean;
+  shirt: Shirt | null;
   available_count: number;
   assigned_count?: number;
   candidates: Candidate[];
