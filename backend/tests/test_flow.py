@@ -1065,6 +1065,11 @@ def test_tournaments_assigned_to_admins(client):
     mine = client.post("/api/tournaments", headers=chief, json={**body, "admin_ids": [admin_id]}).json()["id"]
     other = client.post("/api/tournaments", headers=chief, json={**body, "name": "Liga Ajena"}).json()["id"]
     assert client.get(f"/api/tournaments/{mine}", headers=chief).json()["admins"] == [{"id": admin_id, "name": "Ana Admin"}]
+    # El Jefe (o el rol system) ya gestiona todo: si se envía, se ignora sin error.
+    chief_id = client.get("/api/auth/me", headers=chief).json()["id"]
+    r = client.put(f"/api/tournaments/{mine}", headers=chief, json={**body, "admin_ids": [admin_id, chief_id]})
+    assert r.status_code == 200, r.text
+    assert [a["id"] for a in client.get(f"/api/tournaments/{mine}", headers=chief).json()["admins"]] == [admin_id]
     assert client.put(f"/api/tournaments/{mine}", headers=admin, json=body).status_code == 403
 
     # El administrador solo ve y gestiona sus torneos.
