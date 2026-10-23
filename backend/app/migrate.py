@@ -2,7 +2,7 @@
 from sqlalchemy import insert, inspect, select, text
 
 from .database import Base, engine
-from .models import Tournament, TournamentAdmin, User
+from .models import ENTRY_POINTS, Tournament, TournamentAdmin, User
 
 
 def migrate() -> None:
@@ -17,6 +17,8 @@ def migrate() -> None:
                     continue
                 col_type = column.type.compile(dialect=engine.dialect)
                 conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {col_type}'))
+        # Los usuarios anteriores a los puntos de ingreso también los reciben.
+        conn.execute(text("UPDATE users SET entry_points = :p WHERE entry_points IS NULL"), {"p": ENTRY_POINTS})
     if not had_admins:
         _assign_creators()
 

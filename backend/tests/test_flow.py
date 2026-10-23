@@ -168,7 +168,7 @@ def test_full_flow(client):
     assert r.status_code == 201
     ranking = client.get("/api/ranking", headers=ref_c).json()
     assert [r["name"] for r in ranking] == ["Jefa Principal", "Beto Bravo", "Ana Alvarez", "Caro Castro"]
-    assert ranking[1]["points"] == 50
+    assert ranking[1]["points"] == 70  # 20 de ingreso + 50
 
     # Empate en puntos: gana quien tiene más partidos pitados (Caro 0 pitados vs Beto 0; Ana 4).
     client.post("/api/ratings", headers=chief, json={"items": [{"user_id": ids["Caro Castro"], "score": "P50"},
@@ -359,6 +359,31 @@ def test_migration_adds_new_columns():
         m.engine = original
     cols = {c["name"] for c in inspect(old).get_columns("tournament_days")}
     assert {"location", "categories", "all_day"} <= cols
+
+
+def test_migration_gives_entry_points_to_existing_users():
+    import os
+    import tempfile
+
+    from sqlalchemy import create_engine, text
+
+    import app.migrate as m
+
+    old = create_engine(f"sqlite:///{os.path.join(tempfile.mkdtemp(), 'old.db')}")
+    with old.begin() as c:
+        c.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, first_name VARCHAR(80))"))
+        c.execute(text("INSERT INTO users (id, first_name) VALUES (1, 'Ana'), (2, 'Beto')"))
+    original = m.engine
+    m.engine = old
+    try:
+        m.migrate()
+        with old.begin() as c:
+            c.execute(text("UPDATE users SET entry_points = 5 WHERE id = 2"))
+        m.migrate()  # Otro despliegue: no vuelve a tocar a quien ya tiene sus puntos de ingreso.
+    finally:
+        m.engine = original
+    with old.begin() as c:
+        assert c.execute(text("SELECT entry_points FROM users ORDER BY id")).scalars().all() == [20, 5]
 
 
 def test_assignment_board(client):
@@ -716,7 +741,8 @@ def test_my_detail(client):
     r = client.get("/api/me/detail", headers=ref)
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["assignments"] == [] and d["ratings"] == [] and d["points"] == 0 and d["age"] > 0
+    assert d["assignments"] == [] and d["points"] == 20 and d["age"] > 0
+    assert [(x["score"], x["points"]) for x in d["ratings"]] == [("INGRESO", 20)]  # Puntos de ingreso.
     uid = client.get("/api/auth/me", headers=ref).json()["id"]
     assert client.get(f"/api/users/{uid}", headers=ref).status_code == 403
 
@@ -820,7 +846,7 @@ def test_system_role(client):
         db.get(User, sid).is_referee = True
         db.commit()
     row = next(u for u in client.get("/api/users", headers=chief).json() if u["id"] == sid)
-    assert row["is_system"] is True and row["is_chief"] is False and row["points"] == 0
+    assert row["is_system"] is True and row["is_chief"] is False and row["points"] == 20
     client.patch(f"/api/users/{sid}/roles", headers=sys_h, json={"is_admin": True})  # system puede consigo
     admin_ref = _register(client, code, "80000002", "Ad", "Min")
     aid = client.get("/api/auth/me", headers=admin_ref).json()["id"]
@@ -1069,3 +1095,23 @@ def test_tournaments_assigned_to_admins(client):
     r = client.post("/api/availability-windows", headers=admin, json={"date": day, "all_day": True, "day_ids": []})
     assert r.status_code == 201
     assert client.delete(f"/api/availability-windows/{r.json()['id']}", headers=admin).status_code == 204
+
+
+def test_chief_deducts_points(client):
+    chief = login(client, "10000000", "1111")
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "20000001", "Ana", "Alvarez")
+    uid = client.get("/api/auth/me", headers=ref).json()["id"]
+    client.post("/api/ratings", headers=chief, json={"items": [{"user_id": uid, "score": "P20"}]})
+    # El Jefe resta los puntos que quiera, con un motivo opcional.
+    r = client.post("/api/ratings", headers=chief, json={"items": [{"user_id": uid, "deduct": 7, "reason": " Llegó tarde "}]})
+    assert r.status_code == 201, r.text
+    detail = client.get(f"/api/users/{uid}", headers=chief).json()
+    assert detail["points"] == 33  # 20 de ingreso + 20 - 7
+    assert detail["ratings"][0] | {"date": None} == {"score": "DESCUENTO", "points": -7, "reason": "Llegó tarde", "date": None}
+    assert client.get("/api/ranking", headers=ref).json()[1]["points"] == 33
+    assert client.get("/api/ratings/history", headers=chief).json()[0]["items"][0]["score"] == "Descuento"
+    # Una calificación de la escala o un descuento, nunca los dos ni ninguno; y solo el Jefe.
+    for item in ({"user_id": uid}, {"user_id": uid, "score": "P5", "deduct": 3}, {"user_id": uid, "deduct": 0}):
+        assert client.post("/api/ratings", headers=chief, json={"items": [item]}).status_code == 422
+    assert client.post("/api/ratings", headers=ref, json={"items": [{"user_id": uid, "deduct": 3}]}).status_code == 403

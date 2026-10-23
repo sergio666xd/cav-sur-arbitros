@@ -104,7 +104,7 @@ def user_detail(db: Session, u: User) -> dict:
             "by_category": rec.by_category if rec else None,
         })
     ratings = db.execute(
-        select(Rating.score, Rating.points, RatingBatch.created_at)
+        select(Rating.score, Rating.points, RatingBatch.created_at, Rating.reason)
         .join(RatingBatch).where(Rating.user_id == u.id).order_by(RatingBatch.created_at.desc())
     ).all()
     recs = db.scalars(select(MatchRecord).where(MatchRecord.user_id == u.id)).all()
@@ -116,8 +116,11 @@ def user_detail(db: Session, u: User) -> dict:
         "refereed": sum(r.refereed for r in recs),
         "scored": sum(r.scored for r in recs),
         "other": sum(r.other or 0 for r in recs),
-        "points": None if u.is_chief else sum(p for _, p, _ in ratings),
-        "ratings": [{"score": s, "points": p, "date": c.isoformat()} for s, p, c in ratings],
+        "points": None if u.is_chief else (u.entry_points or 0) + sum(r.points for r in ratings),
+        "ratings": [{"score": s, "points": p, "date": c.isoformat(), "reason": why} for s, p, c, why in ratings] + (
+            [{"score": "INGRESO", "points": u.entry_points, "date": u.created_at.isoformat(), "reason": None}]
+            if u.entry_points and not u.is_chief else []
+        ),
     }
 
 

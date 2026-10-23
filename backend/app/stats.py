@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import Assignment, MatchRecord, Rating
+from .models import Assignment, MatchRecord, Rating, User
 
 
 def match_totals(db: Session) -> dict[int, dict]:
@@ -19,6 +19,6 @@ def assignment_counts(db: Session) -> dict[int, int]:
 
 
 def points_totals(db: Session) -> dict[int, int]:
-    return {uid: int(p or 0) for uid, p in db.execute(
-        select(Rating.user_id, func.sum(Rating.points)).group_by(Rating.user_id)
-    ).all()}
+    """Puntos de cada usuario: los de ingreso más los de sus calificaciones (y descuentos)."""
+    rated = dict(db.execute(select(Rating.user_id, func.sum(Rating.points)).group_by(Rating.user_id)).all())
+    return {uid: (entry or 0) + int(rated.get(uid) or 0) for uid, entry in db.execute(select(User.id, User.entry_points)).all()}

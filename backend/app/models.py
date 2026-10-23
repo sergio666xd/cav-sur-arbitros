@@ -11,6 +11,9 @@ RATING_POINTS = {"P5": 5, "P10": 10, "P20": 20, "P35": 35, "P50": 50}
 
 DEFAULT_ROLES = ["Principal", "Segundo", "Planillero"]
 
+# Puntos con los que empieza cada árbitro en el ranking.
+ENTRY_POINTS = 20
+
 
 class User(Base):
     __tablename__ = "users"
@@ -31,6 +34,8 @@ class User(Base):
     # Rol oculto con todos los permisos del Jefe. Solo se cambia directamente en la base de datos.
     is_system: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Puntos de ingreso. Se guardan por usuario para que cambiar ENTRY_POINTS no altere a los que ya están.
+    entry_points: Mapped[int | None] = mapped_column(Integer, default=ENTRY_POINTS, nullable=True)
 
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -307,8 +312,9 @@ class Rating(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     batch_id: Mapped[int] = mapped_column(ForeignKey("rating_batches.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    score: Mapped[str] = mapped_column(String(20))
+    score: Mapped[str] = mapped_column(String(20))  # Valor de la escala, o DESCUENTO (puntos negativos que pone el Jefe).
     points: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)  # Motivo opcional de un descuento.
 
     batch: Mapped[RatingBatch] = relationship(back_populates="ratings")
     user: Mapped[User] = relationship()
