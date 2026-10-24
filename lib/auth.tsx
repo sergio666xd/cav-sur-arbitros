@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api, getToken, setToken, type Me } from "./api";
+import { THEME_KEY } from "./theme";
 
 type AuthState = {
   user: Me | null;
@@ -12,6 +13,14 @@ type AuthState = {
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+
+/** Color de la app según el rol: azul para el jefe (y el sistema), verde para coordinadores (administradores); naranja para el resto. */
+function themeFor(u: Me | null): string | null {
+  if (!u) return null;
+  if (u.perm_chief) return "chief";
+  if (u.perm_admin) return "admin";
+  return null;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Me | null>(null);
@@ -35,6 +44,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (loading) return;
+    const theme = themeFor(user);
+    const root = document.documentElement;
+    if (theme) root.dataset.theme = theme;
+    else delete root.dataset.theme;
+    try {
+      if (theme) localStorage.setItem(THEME_KEY, theme);
+      else localStorage.removeItem(THEME_KEY);
+    } catch {}
+  }, [user, loading]);
 
   const login = (token: string, me: Me) => {
     setToken(token);

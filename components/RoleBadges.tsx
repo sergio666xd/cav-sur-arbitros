@@ -23,10 +23,10 @@ export type UserRow = {
 export function RoleBadges({ u }: { u: Pick<UserRow, "is_chief" | "is_admin" | "is_referee" | "active" | "is_system"> }) {
   return (
     <span className="inline-flex flex-wrap gap-1">
-      {u.is_chief && <Badge color="brand">Jefe</Badge>}
+      {u.is_chief && <Badge color="chief">Jefe</Badge>}
       {u.is_system && <Badge color="violet">System</Badge>}
-      {!u.is_chief && u.is_admin && <Badge color="blue">Admin</Badge>}
-      {!u.is_chief && u.is_referee && <Badge color="stone">Árbitro</Badge>}
+      {!u.is_chief && u.is_admin && <Badge color="admin">Coordinador</Badge>}
+      {!u.is_chief && u.is_referee && <Badge color="referee">Árbitro</Badge>}
       {!u.active && <Badge color="red">Suspendido</Badge>}
     </span>
   );

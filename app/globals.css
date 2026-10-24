@@ -51,6 +51,35 @@
   }
 }
 
+/* Color de la app según el rol (lib/auth.tsx): verde para coordinadores y azul para el jefe. */
+:root[data-theme="admin"] {
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-300: #86efac;
+  --color-brand-400: #22c55e;
+  --color-brand-500: #16a34a;
+  --color-brand-600: #15803d;
+  --color-brand-700: #166534;
+  --color-brand-800: #14532d;
+  --color-brand-900: #0f3f22;
+  --color-brand-950: #052e16;
+}
+:root[data-theme="chief"] {
+  /* Paleta derivada del azul #090273 */
+  --color-brand-50: #eeedfb;
+  --color-brand-100: #dddbf7;
+  --color-brand-200: #b9b5ee;
+  --color-brand-300: #8a84e0;
+  --color-brand-400: #3b33b0;
+  --color-brand-500: #090273;
+  --color-brand-600: #07025f;
+  --color-brand-700: #06024d;
+  --color-brand-800: #05023d;
+  --color-brand-900: #04012f;
+  --color-brand-950: #020118;
+}
+
 /* Quien prefiere menos movimiento no ve animaciones. */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
