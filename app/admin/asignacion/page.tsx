@@ -157,7 +157,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                 <tr key={r.user_id} className={warn ? "bg-amber-50" : ""}>
                   <td className={`sticky left-0 z-10 px-4 py-2 ${warn ? "bg-amber-50" : "bg-white"}`}>
                     <div className="flex items-center gap-2 whitespace-nowrap">
-                      {r.name} {r.is_chief && <Badge color="brand">Jefe</Badge>}
+                      {r.name} {r.is_chief && <Badge color="chief">Jefe</Badge>}
                     </div>
                     {warn && <div className="flex animate-fade-in items-center gap-1 text-xs text-amber-700"><ExclamationTriangleIcon className="h-3.5 w-3.5" />Asignado en torneos con horario cruzado</div>}
                   </td>

@@ -57,7 +57,7 @@ export default function RankingPage() {
                     <td className="font-medium">
                       <span className="inline-flex items-center gap-1.5">
                         {medals.has(r.position) && <TrophySolid className={`h-5 w-5 animate-pop ${medals.get(r.position)}`} aria-label="Medalla" />}
-                        {r.name} {r.is_chief && <Badge color="brand">Jefe</Badge>}
+                        {r.name} {r.is_chief && <Badge color="chief">Jefe</Badge>}
                       </span>
                     </td>
                     <td className="text-right text-stone-600">{r.refereed ?? "—"}</td>

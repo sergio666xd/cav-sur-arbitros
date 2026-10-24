@@ -75,7 +75,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
               <li key={c.user_id} className={`flex flex-wrap items-center gap-3 px-3 py-2 text-sm transition-colors duration-200 ${on ? "bg-brand-50" : ""}`}>
                 <input type="checkbox" className="switch" checked={on} onChange={() => toggle(c.user_id)} />
                 <span className="flex-1">
-                  {c.name} {c.is_chief && <Badge color="brand">Jefe</Badge>}
+                  {c.name} {c.is_chief && <Badge color="chief">Jefe</Badge>}
                   {c.assigned_elsewhere && (
                     <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-700">
                       <ExclamationTriangleIcon className="h-3.5 w-3.5" />Asignado en {c.assigned_elsewhere}

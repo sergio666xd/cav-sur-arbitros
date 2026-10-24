@@ -113,7 +113,9 @@ export function Empty({ children, icon: Icon }: { children: React.ReactNode; ico
   );
 }
 
-export function Badge({ color = "stone", children }: { color?: "brand" | "green" | "stone" | "red" | "blue" | "violet"; children: React.ReactNode }) {
+type BadgeColor = "brand" | "green" | "stone" | "red" | "blue" | "violet" | "chief" | "admin" | "referee";
+
+export function Badge({ color = "stone", children }: { color?: BadgeColor; children: React.ReactNode }) {
   const styles = {
     brand: "bg-brand-100 text-brand-800",
     green: "bg-green-100 text-green-800",
@@ -121,6 +123,10 @@ export function Badge({ color = "stone", children }: { color?: "brand" | "green"
     red: "bg-red-100 text-red-700",
     blue: "bg-sky-100 text-sky-800",
     violet: "bg-violet-100 text-violet-800",
+    // Roles: los mismos colores de la app para cada uno (globals.css), fijos sin importar quién mira.
+    chief: "bg-blue-100 text-blue-800",
+    admin: "bg-green-100 text-green-800",
+    referee: "bg-[#ffe5d2] text-[#8f300b]",
   }[color];
   return <span className={`badge ${styles}`}>{children}</span>;
 }
