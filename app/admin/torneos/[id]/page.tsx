@@ -456,7 +456,7 @@ export default function TournamentDetailPage() {
             <Badge color={t.is_visible ? "green" : "stone"}>{t.is_visible ? "Visible para árbitros" : "Oculto para árbitros"}</Badge>
             {t.has_roles && <Badge color="blue">Roles: {t.roles.join(", ")}</Badge>}
             {user?.perm_chief && (
-              <Badge color="violet">{t.admins.length ? `Administran: ${t.admins.map((a) => a.name).join(", ")}` : "Sin administradores asignados"}</Badge>
+              <Badge color="violet">{t.admins.length ? `Coordinan: ${t.admins.map((a) => a.name).join(", ")}` : "Sin coordinadores asignados"}</Badge>
             )}
           </div>
           {t.notes && <p className="card mb-6 whitespace-pre-line text-sm text-stone-600">{t.notes}</p>}

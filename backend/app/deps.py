@@ -36,7 +36,7 @@ def require_referee(user: User = Depends(current_user)) -> User:
 
 def require_admin(user: User = Depends(current_user)) -> User:
     if not user.admin:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Se requiere rol de administrador.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Se requiere rol de coordinador.")
     return user
 
 

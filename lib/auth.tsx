@@ -14,7 +14,7 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-/** Color de la app según el rol: azul para el jefe (y el sistema), verde para administradores; naranja para el resto. */
+/** Color de la app según el rol: azul para el jefe (y el sistema), verde para coordinadores (administradores); naranja para el resto. */
 function themeFor(u: Me | null): string | null {
   if (!u) return null;
   if (u.perm_chief) return "chief";

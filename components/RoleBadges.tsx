@@ -25,7 +25,7 @@ export function RoleBadges({ u }: { u: Pick<UserRow, "is_chief" | "is_admin" | "
     <span className="inline-flex flex-wrap gap-1">
       {u.is_chief && <Badge color="chief">Jefe</Badge>}
       {u.is_system && <Badge color="violet">System</Badge>}
-      {!u.is_chief && u.is_admin && <Badge color="admin">Admin</Badge>}
+      {!u.is_chief && u.is_admin && <Badge color="admin">Coordinador</Badge>}
       {!u.is_chief && u.is_referee && <Badge color="referee">Árbitro</Badge>}
       {!u.active && <Badge color="red">Suspendido</Badge>}
     </span>

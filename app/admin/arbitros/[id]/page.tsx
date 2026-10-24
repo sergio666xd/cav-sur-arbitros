@@ -52,7 +52,7 @@ export default function RefereeDetailPage() {
 
   async function transferChief() {
     const name = `${data?.first_name} ${data?.last_name}`;
-    if (!confirm(`¿Transferir el rol de Jefe a ${name}? Solo puede haber un Jefe: tú quedarás como administrador.`)) return;
+    if (!confirm(`¿Transferir el rol de Jefe a ${name}? Solo puede haber un Jefe: tú quedarás como coordinador.`)) return;
     try {
       await api(`/users/${id}/transfer-chief`, { method: "POST" });
       await refresh();
@@ -104,7 +104,7 @@ export default function RefereeDetailPage() {
                 <h2 className="font-semibold">Permisos (solo Jefe)</h2>
                 {([
                   ["is_referee", "Árbitro", data.is_referee],
-                  ["is_admin", "Administrador", data.is_admin],
+                  ["is_admin", "Coordinador", data.is_admin],
                 ] as const).map(([key, label, value]) => (
                   <label key={key} className="flex items-center justify-between gap-3">
                     <span>{label}</span>

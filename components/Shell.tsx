@@ -46,7 +46,7 @@ function PendingBadge({ count }: { count: number }) {
 function roleLabel(u: Me) {
   if (u.is_chief) return "Jefe";
   const roles = [];
-  if (u.is_admin) roles.push("Administrador");
+  if (u.is_admin) roles.push("Coordinador");
   if (u.is_referee) roles.push("Árbitro");
   return roles.join(" · ") || (u.perm_chief ? "Sistema" : "");
 }

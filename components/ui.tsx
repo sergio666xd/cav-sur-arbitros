@@ -124,7 +124,7 @@ export function Badge({ color = "stone", children }: { color?: BadgeColor; child
     blue: "bg-sky-100 text-sky-800",
     violet: "bg-violet-100 text-violet-800",
     // Roles: los mismos colores de la app para cada uno (globals.css), fijos sin importar quién mira.
-    chief: "bg-blue-100 text-blue-800",
+    chief: "bg-[#dddbf7] text-[#090273]",
     admin: "bg-green-100 text-green-800",
     referee: "bg-[#ffe5d2] text-[#8f300b]",
   }[color];

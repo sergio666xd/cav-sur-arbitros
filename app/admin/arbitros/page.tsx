@@ -19,7 +19,7 @@ export default function RefereesPage() {
     const term = q.trim().toLowerCase();
     return (data ?? []).filter((u) => !term || `${u.first_name} ${u.last_name} ${u.document}`.toLowerCase().includes(term));
   }, [data, q]);
-  const roleLabel = (u: UserRow) => (u.is_chief ? "Jefe" : [u.is_admin && "Administrador", u.is_referee && "Árbitro"].filter(Boolean).join(" "));
+  const roleLabel = (u: UserRow) => (u.is_chief ? "Jefe" : [u.is_admin && "Coordinador", u.is_referee && "Árbitro"].filter(Boolean).join(" "));
   const { sorted, header } = useSort(rows, {
     name: (u) => `${u.first_name} ${u.last_name}`, document: (u) => u.document, age: (u) => u.age, roles: roleLabel,
     assignments: (u) => u.assignments, refereed: (u) => (u.is_chief ? null : u.refereed),

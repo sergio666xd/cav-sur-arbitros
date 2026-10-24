@@ -441,12 +441,12 @@ function AdminPicker({ value, onChange }: { value: number[]; onChange: (ids: num
   const toggle = (id: number) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
   return (
     <>
-      <label className="label">Administradores del torneo</label>
+      <label className="label">Coordinadores del torneo</label>
       <p className="mb-2 text-sm text-stone-500">Solo ellos y el Jefe podrán ver y gestionar este torneo.</p>
       {admins === null ? (
         <Spinner />
       ) : admins.length === 0 ? (
-        <p className="text-sm text-stone-500">No hay administradores. Dale el rol a alguien desde Árbitros.</p>
+        <p className="text-sm text-stone-500">No hay coordinadores. Dale el rol a alguien desde Árbitros.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {admins.map((a) => {

@@ -40,7 +40,7 @@ def _admins(db: Session, ids: list[int]) -> list[User]:
     """
     users = [db.get(User, i) for i in dict.fromkeys(ids)]
     if any(u is None or not u.admin for u in users):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se pueden asignar administradores.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se pueden asignar coordinadores.")
     return [u for u in users if not u.chief_powers]
 
 
