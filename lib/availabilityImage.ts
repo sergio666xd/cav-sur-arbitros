@@ -164,7 +164,7 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[
 }
 
 export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
-  const logo = await loadImage("/brand/horizontal-negativo-transparente.svg");
+  const logo = await loadImage("/brand/horizontal-negativo.svg");
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
   const assignment = spec.kind === "assignment";
@@ -211,7 +211,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   // Encabezado oscuro: logo a la izquierda; título, subtítulo y fecha de generación a la derecha.
   // Así todo el espacio debajo queda para la tabla.
   const logoH = 100;
-  const logoW = logoH * (1320 / 375);
+  const logoW = logoH * (983.7 / 378.1);
   const textW = W - PAD * 2 - logoW - 40;
   ctx.font = `800 40px ${FONT}`;
   const titleLines = wrap(ctx, spec.title, textW);
@@ -246,7 +246,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.fillRect(0, 0, W, HEADER);
   ctx.fillStyle = BRAND;
   ctx.fillRect(0, HEADER, W, 8);
-  if (logo) ctx.drawImage(logo, PAD - 10, (HEADER - logoH) / 2, logoW, logoH);
+  if (logo) ctx.drawImage(logo, PAD - 8, (HEADER - logoH) / 2, logoW, logoH);
   else {
     ctx.fillStyle = "#fff";
     ctx.font = `800 60px ${FONT}`;
