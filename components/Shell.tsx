@@ -86,13 +86,13 @@ export default function Shell({
       <div className="min-h-screen">
         <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col gap-2 border-r-2 border-brand-500 bg-night px-3 py-5 lg:flex">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="mx-2 mb-4 h-10 w-auto self-start" />
+          <img src="/brand/horizontal-negativo.svg" alt="CAV.SUR" className="mx-2 mb-4 h-12 w-auto self-start" />
           {Array.from({ length: 5 }, (_, i) => <div key={i} className="h-9 animate-pulse rounded-md bg-white/10" />)}
         </aside>
         <div className="border-b-2 border-brand-500 bg-night lg:hidden">
           <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
+            <img src="/brand/horizontal-negativo.svg" alt="CAV.SUR" className="h-10 w-auto" />
             <div className="h-8 w-10 animate-pulse rounded-md bg-white/10" />
           </div>
         </div>
@@ -127,7 +127,7 @@ export default function Shell({
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r-2 border-brand-500 bg-night text-white lg:flex">
         <Link href="/" className="px-5 py-5" aria-label="Inicio">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-10 w-auto" />
+          <img src="/brand/horizontal-negativo.svg" alt="CAV.SUR" className="h-12 w-auto" />
         </Link>
         <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
           {groups.map((g) => (
@@ -161,7 +161,7 @@ export default function Shell({
         <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
+            <img src="/brand/horizontal-negativo.svg" alt="CAV.SUR" className="h-10 w-auto" />
           </Link>
           <button className="relative rounded-md p-1.5 transition hover:bg-white/10 active:scale-90" onClick={() => setMenuOpen(!menuOpen)}
             aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"} aria-expanded={menuOpen}>
@@ -210,7 +210,7 @@ function Suspended({ onLogout }: { onLogout: () => void }) {
       <header className="border-b-2 border-brand-500 bg-night text-white shadow">
         <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/horizontal-negativo-transparente.svg" alt="CAV-SUR" className="h-9 w-auto" />
+          <img src="/brand/horizontal-negativo.svg" alt="CAV.SUR" className="h-10 w-auto" />
           <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-md bg-white/15 px-3 py-1.5 text-sm transition hover:bg-white/25 active:scale-95">
             <ArrowRightStartOnRectangleIcon className="h-4 w-4" />Salir
           </button>

@@ -4,7 +4,7 @@ export default function AuthCard({ title, subtitle, children }: { title: string;
       <div className="w-full max-w-md">
         <div className="mb-6 animate-fade-in text-center text-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/vertical-negativo-transparente.svg" alt="CAV-SUR" className="mx-auto mb-4 h-32 w-auto" />
+          <img src="/brand/vertical-negativo.svg" alt="CAV.SUR" className="mx-auto mb-4 h-36 w-auto" />
           <p className="text-sm text-white/70">Gestión arbitral de voleibol</p>
         </div>
         <div className="animate-slide-up rounded-2xl bg-white p-6 shadow-xl" style={{ animationDelay: "80ms" }}>
