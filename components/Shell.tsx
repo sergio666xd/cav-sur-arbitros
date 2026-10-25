@@ -203,7 +203,7 @@ export default function Shell({
             </div>
           </Link>
           <button onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/10 hover:text-white">
-            <ArrowRightStartOnRectangleIcon className="h-5 w-5 opacity-80" />Salir
+            <ArrowRightStartOnRectangleIcon className="h-5 w-5 opacity-80" />Cerrar sesión
           </button>
         </div>
       </aside>
@@ -242,7 +242,7 @@ export default function Shell({
               </div>
             ))}
             <button onClick={logout} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-lg transition hover:bg-white/10">
-              <ArrowRightStartOnRectangleIcon className="h-6 w-6 opacity-80" />Salir
+              <ArrowRightStartOnRectangleIcon className="h-6 w-6 opacity-80" />Cerrar sesión
             </button>
           </div>
         </nav>
@@ -266,7 +266,7 @@ function Suspended({ onLogout }: { onLogout: () => void }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/horizontal-negativo.svg" alt="CAV.SUR" className="h-12 w-auto" />
           <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-md bg-white/15 px-3 py-1.5 text-sm transition hover:bg-white/25 active:scale-95">
-            <ArrowRightStartOnRectangleIcon className="h-4 w-4" />Salir
+            <ArrowRightStartOnRectangleIcon className="h-4 w-4" />Cerrar sesión
           </button>
         </div>
       </header>
