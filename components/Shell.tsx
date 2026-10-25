@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, type Me } from "@/lib/api";
 import {
@@ -31,6 +31,12 @@ const NAV: NavItem[] = [
   { href: "/jefe/calificaciones", section: "Administración", label: "Calificaciones", icon: StarIcon, show: (u) => u.perm_chief },
 ];
 
+/**
+ * Cada página monta su propio Shell, así que al navegar desde el menú móvil el menú anterior desaparece
+ * de golpe. Se anota aquí para que el Shell de la página nueva lo muestre cerrándose con su animación.
+ */
+let menuOpenOnLeave = false;
+
 /** Evento para que el menú vuelva a consultar las asignaciones por confirmar. */
 export const PENDING_EVENT = "assignments-changed";
 
@@ -41,6 +47,31 @@ function PendingBadge({ count }: { count: number }) {
       {count}
     </span>
   );
+}
+
+/**
+ * Espacio visible debajo de `header` mientras `active`. En móviles el alto de la pantalla cambia cuando
+ * la barra de direcciones se oculta o aparece al deslizar, así que se lee de visualViewport en cada cambio.
+ */
+function useSpaceBelow(header: React.RefObject<HTMLElement | null>, active: boolean) {
+  const [space, setSpace] = useState<{ top: number; height: number } | null>(null);
+  // Antes de pintar, para que el menú no aparezca un instante con otro tamaño.
+  useLayoutEffect(() => {
+    if (!active) return;
+    const vv = window.visualViewport;
+    const update = () => {
+      const top = header.current?.offsetHeight ?? 0;
+      setSpace({ top, height: (vv ? vv.height : window.innerHeight) - top });
+    };
+    update();
+    vv?.addEventListener("resize", update);
+    window.addEventListener("resize", update);
+    return () => {
+      vv?.removeEventListener("resize", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [header, active]);
+  return space;
 }
 
 function roleLabel(u: Me) {
@@ -68,6 +99,27 @@ export default function Shell({
   }, [loading, user, router]);
 
   useEffect(() => setMenuOpen(false), [pathname]);
+
+  // Con el menú móvil abierto, la página de atrás no se desplaza y el menú ocupa todo el alto visible
+  // debajo de la barra superior.
+  // Al cerrarse (también al cambiar de página) el menú sigue montado hasta terminar su animación de salida.
+  const [menuMounted, setMenuMounted] = useState(() => menuOpenOnLeave);
+  useEffect(() => {
+    menuOpenOnLeave = false;
+  }, []);
+  useEffect(() => {
+    if (menuOpen) setMenuMounted(true);
+  }, [menuOpen]);
+  const headerRef = useRef<HTMLElement>(null);
+  const menuSpace = useSpaceBelow(headerRef, menuMounted);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menuOpen]);
 
   // Alerta en el menú: asignaciones que el árbitro aún no confirma. Se actualiza al cambiar de
   // página y cuando Mis torneos avisa que se confirmó una.
@@ -157,7 +209,7 @@ export default function Shell({
       </aside>
 
       {/* Móvil y tableta: barra superior con menú desplegable. */}
-      <header className="sticky top-0 z-40 border-b-2 border-brand-500 bg-night text-white shadow lg:hidden">
+      <header ref={headerRef} className="sticky top-0 z-40 border-b-2 border-brand-500 bg-night text-white shadow lg:hidden">
         <div className="viewport-center mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="Inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -169,30 +221,32 @@ export default function Shell({
             {pending > 0 && !menuOpen && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 animate-pop rounded-full bg-red-600 ring-2 ring-night" />}
           </button>
         </div>
-        {/* El menú móvil se despliega con una transición de altura. */}
-        <div className={`grid transition-all duration-300 ease-out ${menuOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-          <nav className="overflow-hidden" aria-hidden={!menuOpen}>
-            <div className="border-t border-white/20 px-4 pb-3">
-              <div className="py-2 text-xs text-white/60">{user.first_name} {user.last_name} · {roleLabel(user)}</div>
-              {[...groups, { title: null, items: [{ href: "/perfil", label: "Mi perfil", icon: UserCircleIcon }] }].map((g) => (
-                <div key={g.title ?? "cuenta"} className={g.title ? "" : "mt-2 border-t border-white/15 pt-2"}>
-                  {titled && g.title && <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-white/45">{g.title}</div>}
-                  {g.items.map((n) => (
-                    <Link key={n.href} href={n.href} tabIndex={menuOpen ? 0 : -1}
-                      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${pathname.startsWith(n.href) ? "bg-brand-500 font-semibold text-white" : "hover:bg-white/10"}`}>
-                      <n.icon className="h-5 w-5 opacity-80" />{n.label}
-                      {n.href === "/mis-torneos" && pending > 0 && <PendingBadge count={pending} />}
-                    </Link>
-                  ))}
-                </div>
-              ))}
-              <button onClick={logout} tabIndex={menuOpen ? 0 : -1} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition hover:bg-white/10">
-                <ArrowRightStartOnRectangleIcon className="h-5 w-5 opacity-80" />Salir
-              </button>
-            </div>
-          </nav>
-        </div>
       </header>
+      {/* Menú móvil: ocupa toda la pantalla visible debajo de la barra superior. */}
+      {menuMounted && (
+        <nav onAnimationEnd={(e) => e.target === e.currentTarget && !menuOpen && setMenuMounted(false)}
+          className={`fixed inset-x-0 bottom-0 z-40 ${menuOpen ? "animate-slide-down" : "pointer-events-none animate-slide-up-out"} overflow-y-auto overscroll-contain bg-night text-white lg:hidden`}
+          style={menuSpace ?? undefined}>
+          <div className="viewport-center mx-auto max-w-6xl px-4 pb-6">
+            <div className="py-3 text-sm text-white/60">{user.first_name} {user.last_name} · {roleLabel(user)}</div>
+            {[...groups, { title: null, items: [{ href: "/perfil", label: "Mi perfil", icon: UserCircleIcon }] }].map((g) => (
+              <div key={g.title ?? "cuenta"} className={g.title ? "" : "mt-2 border-t border-white/15 pt-2"}>
+                {titled && g.title && <div className="px-3 pb-1 pt-3 text-sm font-semibold uppercase tracking-wider text-white/45">{g.title}</div>}
+                {g.items.map((n) => (
+                  <Link key={n.href} href={n.href} onClick={() => (menuOpenOnLeave = !pathname.startsWith(n.href))}
+                    className={`flex items-center gap-3 rounded-md px-3 py-3 text-lg transition ${pathname.startsWith(n.href) ? "bg-brand-500 font-semibold text-white" : "hover:bg-white/10"}`}>
+                    <n.icon className="h-6 w-6 opacity-80" />{n.label}
+                    {n.href === "/mis-torneos" && pending > 0 && <PendingBadge count={pending} />}
+                  </Link>
+                ))}
+              </div>
+            ))}
+            <button onClick={logout} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-lg transition hover:bg-white/10">
+              <ArrowRightStartOnRectangleIcon className="h-6 w-6 opacity-80" />Salir
+            </button>
+          </div>
+        </nav>
+      )}
       <div className="lg:pl-64">
         <main className="viewport-center mx-auto max-w-6xl animate-slide-up px-4 py-8 lg:max-w-7xl lg:px-8">
           {allowed ? children : <p className="text-sm text-stone-500">No tienes permiso para ver esta sección.</p>}
