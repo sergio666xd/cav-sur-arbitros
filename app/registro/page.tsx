@@ -10,11 +10,16 @@ import { api, type Me } from "@/lib/api";
 import { homeFor, useAuth } from "@/lib/auth";
 
 export default function RegisterPage() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const router = useRouter();
   const [form, setForm] = useState({ first_name: "", last_name: "", document: "", birth_date: "", whatsapp: "", code: "", pin: "", pin2: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Quien ya tiene sesión no necesita registrarse: va a su página de inicio.
+  useEffect(() => {
+    if (user) router.replace(homeFor(user));
+  }, [user, router]);
 
   // Enlace compartido desde Clave de registro: /registro?clave=ABC123
   useEffect(() => {
