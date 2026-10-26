@@ -130,7 +130,10 @@ export function assignmentSpec(a: {
 
 const PAD = 56;
 const INK = "#1b1f24";
-const BRAND = "#f65a03";
+// Azul del logo; ACCENT es el azul claro para textos sobre fondo azul.
+const BRAND = "#1f2a6b";
+const ACCENT = "#a5b4fc";
+const SHORT = "#dc2626";
 const MUTED = "#78716c";
 const LINE = "#d6d3d1";
 const MARK = "#c6e7b4";
@@ -242,9 +245,9 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
 
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, W, canvas.height);
-  ctx.fillStyle = INK;
-  ctx.fillRect(0, 0, W, HEADER);
   ctx.fillStyle = BRAND;
+  ctx.fillRect(0, 0, W, HEADER);
+  ctx.fillStyle = ACCENT;
   ctx.fillRect(0, HEADER, W, 8);
   if (logo) ctx.drawImage(logo, PAD - 8, (HEADER - logoH) / 2, logoW, logoH);
   else {
@@ -258,10 +261,10 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.fillStyle = "#fff";
   ctx.font = `800 40px ${FONT}`;
   for (const l of titleLines) { right(l, y + 38); y += 48; }
-  ctx.fillStyle = "#fdba74";
+  ctx.fillStyle = ACCENT;
   ctx.font = `400 26px ${FONT}`;
   for (const l of subLines) { right(l, y + 28); y += 34; }
-  ctx.fillStyle = "#a8a29e";
+  ctx.fillStyle = "#c7d2fe";
   ctx.font = `400 20px ${FONT}`;
   right(generated, y + 22);
 
@@ -289,7 +292,7 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   const center = (text: string, x: number, w: number, yy: number) => ctx.fillText(text, x + (w - ctx.measureText(text).width) / 2, yy);
 
   // Encabezado de la tabla.
-  ctx.fillStyle = INK;
+  ctx.fillStyle = BRAND;
   ctx.fillRect(left, tableTop, tableW, headH);
   ctx.fillStyle = "#fff";
   ctx.font = `700 24px ${FONT}`;
@@ -297,13 +300,13 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
   ctx.fillText("Árbitro", left + numW + 16, tableTop + headH - 20);
   headLines.forEach((h, i) => {
     let hy = tableTop + 24;
-    ctx.fillStyle = "#fdba74";
+    ctx.fillStyle = ACCENT;
     ctx.font = `700 22px ${FONT}`;
     for (const l of h.top) { center(l, colX(i), colW, hy + 18); hy += 30; }
     ctx.fillStyle = "#fff";
     ctx.font = `700 24px ${FONT}`;
     for (const l of h.label) { center(l, colX(i), colW, hy + 20); hy += 30; }
-    ctx.fillStyle = "#d6d3d1";
+    ctx.fillStyle = "#c7d2fe";
     ctx.font = `400 20px ${FONT}`;
     for (const l of h.sub) { center(l, colX(i), colW, hy + 16); hy += 24; }
   });
@@ -341,19 +344,19 @@ export async function renderAvailabilityImage(spec: ImageSpec): Promise<Blob> {
     ry += ROW;
   });
 
-  // Totales (solo en disponibilidad): total de inscritos (en naranja si no alcanzan) y solicitados, si se muestran.
+  // Totales (solo en disponibilidad): total de inscritos (en rojo si no alcanzan) y solicitados, si se muestran.
   const totals: [string, (i: number) => number][] = assignment ? [] : [
     ["Total", (i) => marked[i].size],
     ...(spec.hideRequired ? [] : [["Solicitados", (i: number) => cols[i].required] as [string, (i: number) => number]]),
   ];
   for (const [label, value] of totals) {
-    ctx.fillStyle = "#fff7ed";
+    ctx.fillStyle = "#eef2ff";
     ctx.fillRect(left, ry, tableW, ROW);
     ctx.fillStyle = INK;
     ctx.font = `700 24px ${FONT}`;
     ctx.fillText(label, left + numW + 16, ry + 31);
     cols.forEach((c, i) => {
-      ctx.fillStyle = label === "Total" && !spec.hideRequired && marked[i].size < c.required ? BRAND : INK;
+      ctx.fillStyle = label === "Total" && !spec.hideRequired && marked[i].size < c.required ? SHORT : INK;
       center(String(value(i)), colX(i), colW, ry + 31);
     });
     ry += ROW;
