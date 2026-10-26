@@ -10,7 +10,7 @@ import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import { assignmentSpec } from "@/lib/availabilityImage";
 import Shell, { PENDING_EVENT } from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
-import { api, formatClock, formatDate, formatShortDate } from "@/lib/api";
+import { api, formatDate, formatShortDate, hoursLabel } from "@/lib/api";
 import { shortAddress } from "@/lib/maps";
 import { useAuth } from "@/lib/auth";
 import { fold } from "@/lib/text";
@@ -95,9 +95,9 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
                 <input type="checkbox" className="switch" checked={on} onChange={() => toggle(c.user_id)} />
                 <span className="flex-1">
                   {c.name} {c.is_chief && <Badge color="chief">Jefe</Badge>}
-                  {c.available_from && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-sky-700" title="Indicó desde qué hora puede">
-                      <ClockIcon className="h-3.5 w-3.5" />Desde {formatClock(c.available_from)}
+                  {c.available_hours && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-sky-700" title="Horario que indicó el árbitro">
+                      <ClockIcon className="h-3.5 w-3.5" />{hoursLabel(c.available_hours.from, c.available_hours.until)}
                     </span>
                   )}
                   {c.assigned_elsewhere && (
@@ -472,8 +472,7 @@ export default function TournamentDetailPage() {
                         required: d.required,
                         entries: d.candidates
                           .filter((c) => !c.is_chief && c.available_at)
-                          .map((c) => ({ user_id: c.user_id, name: c.name, at: c.available_at!,
-                            mark: c.available_from ? formatClock(c.available_from) : undefined })),
+                          .map((c) => ({ user_id: c.user_id, name: c.name, at: c.available_at! })),
                       })),
                     })}
                   />

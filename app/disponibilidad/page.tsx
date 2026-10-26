@@ -7,7 +7,7 @@ import DateHeading from "@/components/DateHeading";
 import DayFilter from "@/components/DayFilter";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
-import { api, atClock, formatClock, formatDate, formatDateTime } from "@/lib/api";
+import { api, formatDate, formatDateTime, hoursLabel } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 
@@ -18,10 +18,11 @@ type Slot = {
   all_day: boolean;
   start_time: string | null;
   end_time: string | null;
-  /** El árbitro puede indicar desde qué hora está disponible (dentro del horario). */
-  allow_custom_start: boolean;
-  /** Hora que indicó al inscribirse; null: todo el horario. */
+  /** El árbitro puede indicar su horario (dentro del de la disponibilidad). */
+  allow_custom_hours: boolean;
+  /** Horario que indicó al inscribirse; null: desde el inicio / hasta el final. */
   my_start_time: string | null;
+  my_end_time: string | null;
   /** Total de requeridos: null si algún torneo los oculta (salvo que no se vea ninguno por nombre). */
   required: number | null;
   registered: number;
@@ -32,7 +33,9 @@ type Slot = {
   hidden_count: number;
 };
 
-type Referee = { name: string; since: string; start_time: string | null };
+type Referee = { name: string; since: string; start_time: string | null; end_time: string | null };
+// Horario escrito en una disponibilidad; vacío: desde el inicio / hasta el final.
+type Draft = { from: string; until: string };
 
 export default function AvailabilityPage() {
   const { user } = useAuth();
@@ -41,9 +44,12 @@ export default function AvailabilityPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [listFor, setListFor] = useState<Slot | null>(null);
   const [list, setList] = useState<Referee[] | null>(null);
-  // Hora de inicio escrita en cada disponibilidad (vacía: todo el horario).
-  const [starts, setStarts] = useState<Record<number, string>>({});
-  const startOf = (s: Slot) => starts[s.key] ?? s.my_start_time ?? "";
+  const [drafts, setDrafts] = useState<Record<number, Draft>>({});
+  const saved = (s: Slot): Draft => ({ from: s.my_start_time ?? "", until: s.my_end_time ?? "" });
+  const hoursOf = (s: Slot) => drafts[s.key] ?? saved(s);
+  const bodyOf = (s: Slot) => ({ start_time: hoursOf(s).from || null, end_time: hoursOf(s).until || null });
+  const changed = (s: Slot) => hoursOf(s).from !== saved(s).from || hoursOf(s).until !== saved(s).until;
+  const forget = (s: Slot) => setDrafts(({ [s.key]: _, ...rest }) => rest);
 
   async function toggle(s: Slot) {
     setBusy(s.key);
@@ -51,9 +57,9 @@ export default function AvailabilityPage() {
     try {
       await api(`/availability/${s.key}`, s.mine
         ? { method: "DELETE" }
-        : { method: "POST", body: s.allow_custom_start ? { start_time: startOf(s) || null } : undefined });
+        : { method: "POST", body: s.allow_custom_hours ? bodyOf(s) : undefined });
       await reload();
-      setStarts(({ [s.key]: _, ...rest }) => rest);
+      forget(s);
     } catch (e) {
       setActionError((e as Error).message);
     } finally {
@@ -61,13 +67,13 @@ export default function AvailabilityPage() {
     }
   }
 
-  async function saveStart(s: Slot) {
+  async function saveHours(s: Slot) {
     setBusy(s.key);
     setActionError(null);
     try {
-      await api(`/availability/${s.key}`, { method: "POST", body: { start_time: startOf(s) || null } });
+      await api(`/availability/${s.key}`, { method: "POST", body: bodyOf(s) });
       await reload();
-      setStarts(({ [s.key]: _, ...rest }) => rest);
+      forget(s);
     } catch (e) {
       setActionError((e as Error).message);
     } finally {
@@ -156,27 +162,36 @@ export default function AvailabilityPage() {
                           <ProgressBar pct={Math.min(100, Math.round((s.registered / Math.max(1, s.required)) * 100))} />
                         </div>
                       )}
-                      {s.mine && s.my_start_time && !s.open && (
-                        <p className="mt-3 flex items-center gap-1 text-sm text-sky-700"><ClockIcon className="h-4 w-4" />Disponible desde {formatClock(s.my_start_time)}</p>
+                      {s.mine && (s.my_start_time || s.my_end_time) && !s.open && (
+                        <p className="mt-3 flex items-center gap-1 text-sm text-sky-700">
+                          <ClockIcon className="h-4 w-4" />Tu horario: {hoursLabel(s.my_start_time, s.my_end_time)}
+                        </p>
                       )}
-                      {s.open && s.allow_custom_start && (
+                      {s.open && s.allow_custom_hours && (
                         <div className="mt-4 rounded-lg bg-stone-50 p-3">
-                          <label className="label" htmlFor={`start-${s.key}`}>¿Desde qué hora puedes? <span className="font-normal text-stone-500">(opcional)</span></label>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <input id={`start-${s.key}`} className="input w-36" type="time" value={startOf(s)}
-                              min={s.all_day ? undefined : s.start_time ?? undefined} max={s.end_time ?? undefined}
-                              onChange={(e) => setStarts({ ...starts, [s.key]: e.target.value })} />
-                            {s.mine && startOf(s) !== (s.my_start_time ?? "") && (
-                              <button className="btn-secondary" disabled={busy === s.key} onClick={() => saveStart(s)}>
-                                {busy === s.key ? <Spinner /> : <CheckIcon className="h-4 w-4" />}Guardar hora
+                          <div className="mb-2 text-sm font-medium">Tu horario <span className="font-normal text-stone-500">(opcional)</span></div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {(["from", "until"] as const).map((k) => (
+                              <div key={k}>
+                                <label className="label" htmlFor={`${k}-${s.key}`}>{k === "from" ? "Desde" : "Hasta"}</label>
+                                <input id={`${k}-${s.key}`} className="input" type="time" value={hoursOf(s)[k]}
+                                  min={s.all_day ? undefined : s.start_time ?? undefined} max={s.end_time ?? undefined}
+                                  onChange={(e) => setDrafts({ ...drafts, [s.key]: { ...hoursOf(s), [k]: e.target.value } })} />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs text-stone-500">
+                              {s.mine
+                                ? s.my_start_time || s.my_end_time ? `Inscrito: ${hoursLabel(s.my_start_time, s.my_end_time)}` : "Inscrito para todo el horario"
+                                : "Déjalo vacío si puedes todo el horario."}
+                            </p>
+                            {s.mine && changed(s) && (
+                              <button className="btn-secondary" disabled={busy === s.key} onClick={() => saveHours(s)}>
+                                {busy === s.key ? <Spinner /> : <CheckIcon className="h-4 w-4" />}Guardar horario
                               </button>
                             )}
                           </div>
-                          <p className="mt-1 text-xs text-stone-500">
-                            {s.mine
-                              ? s.my_start_time ? `Inscrito desde ${atClock(s.my_start_time)}` : "Inscrito para todo el horario"
-                              : "Déjalo vacío si puedes todo el horario."}
-                          </p>
                         </div>
                       )}
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -209,7 +224,9 @@ export default function AvailabilityPage() {
               <li key={i} className="flex animate-fade-in justify-between py-2 text-sm" style={{ animationDelay: `${i * 30}ms` }}>
                 <span>
                   {i + 1}. {r.name}
-                  {r.start_time && <span className="ml-1.5 text-xs font-medium text-sky-700">desde {formatClock(r.start_time)}</span>}
+                  {(r.start_time || r.end_time) && (
+                    <span className="ml-1.5 text-xs font-medium text-sky-700">{hoursLabel(r.start_time, r.end_time)}</span>
+                  )}
                 </span>
                 <span className="text-xs text-stone-400">{formatDateTime(r.since)}</span>
               </li>

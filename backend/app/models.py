@@ -209,8 +209,8 @@ class AvailabilityWindow(Base):
     all_day: Mapped[bool] = mapped_column(Boolean, default=False)
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    # Los árbitros pueden indicar desde qué hora están disponibles (dentro del horario).
-    allow_custom_start: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
+    # Los árbitros pueden indicar su propio horario (desde y hasta qué hora pueden, dentro del de la disponibilidad).
+    allow_custom_hours: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -246,8 +246,9 @@ class WindowSignup(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     window_id: Mapped[int] = mapped_column(ForeignKey("availability_windows.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    # Hora desde la que el árbitro está disponible, si la disponibilidad lo permite. Vacía: todo el horario.
+    # Horario propio del árbitro, si la disponibilidad lo permite. Vacías: desde el inicio / hasta el final.
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     window: Mapped[AvailabilityWindow] = relationship(back_populates="signups")

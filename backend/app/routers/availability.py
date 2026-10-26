@@ -77,7 +77,7 @@ def _base(w: AvailabilityWindow) -> dict:
         "required": sum(d.required for d in w.days),
         "registered": len(_active_signups(w)),
         "open": is_open_for_availability(w.date),
-        "allow_custom_start": bool(w.allow_custom_start),
+        "allow_custom_hours": bool(w.allow_custom_hours),
     }
 
 
@@ -140,6 +140,7 @@ def list_availability(user: User = Depends(require_referee), db: Session = Depen
             "required": base["required"] if show_total else None,
             "mine": any(s.user_id == user.id for s in w.signups),
             "my_start_time": next((_hhmm(s.start_time) for s in w.signups if s.user_id == user.id), None),
+            "my_end_time": next((_hhmm(s.end_time) for s in w.signups if s.user_id == user.id), None),
             "tournaments": tournaments,
             "hidden_count": hidden_count,
         })
@@ -171,7 +172,7 @@ def availability_summary(d: date | None = None, user: User = Depends(require_adm
             "days": [{"id": x.id, "required": x.required} for x in mine],
             "tournament": tournament,
             "entries": [{"user_id": s.user_id, "name": s.user.full_name, "at": s.created_at.isoformat(),
-                         "is_guest": s.user.guest, "start_time": _hhmm(s.start_time)}
+                         "is_guest": s.user.guest}
                         for s in _active_signups(w) if not s.user.is_chief],
         })
     return result
@@ -182,31 +183,43 @@ def _check_open(w: AvailabilityWindow) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La selección de disponibilidad para esa fecha ya está cerrada.")
 
 
-def _custom_start(w: AvailabilityWindow, start: time | None) -> time | None:
-    """Hora de inicio que indicó el árbitro: debe estar dentro del horario. La misma de inicio es todo el horario."""
-    if start is None:
-        return None
-    if not w.allow_custom_start:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esta disponibilidad no permite indicar otra hora de inicio.")
+def _fit_hours(w: AvailabilityWindow, start: time | None, end: time | None) -> tuple[time | None, time | None]:
+    """Horario propio del árbitro dentro del de la disponibilidad. Las mismas horas de inicio o fin cuentan como vacías.
+
+    Lanza ValueError con el motivo si no cabe.
+    """
     slot = window_slot(w)
-    if (w.end_time and start >= w.end_time) or (slot.start and start < slot.start):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La hora debe estar dentro del horario de la disponibilidad ({slot.label}).")
-    return None if slot.start and start == slot.start else start
+    if slot.start and start == slot.start:
+        start = None
+    if w.end_time and end == w.end_time:
+        end = None
+    if (start or end) and not w.allow_custom_hours:
+        raise ValueError("Esta disponibilidad no permite indicar otro horario.")
+    outside = f"Tu horario debe estar dentro del de la disponibilidad ({slot.label})."
+    for t in (start, end):
+        if t and ((slot.start and t <= slot.start) or (w.end_time and t >= w.end_time)):
+            raise ValueError(outside)
+    if end and end <= (start or slot.start or time.min):
+        raise ValueError("La hora hasta la que puedes debe ser posterior a la hora desde la que puedes.")
+    return start, end
 
 
 @router.post("/availability/{window_id}", status_code=204)
 def add_availability(
     window_id: int, data: SignupIn | None = None, user: User = Depends(require_referee), db: Session = Depends(get_db)
 ):
-    """Inscribe al árbitro (o le cambia la hora de inicio si ya estaba inscrito)."""
+    """Inscribe al árbitro (o le cambia su horario si ya estaba inscrito)."""
     w = _get_window(db, window_id)
     _check_open(w)
-    start = _custom_start(w, data.start_time if data else None)
+    try:
+        start, end = _fit_hours(w, data.start_time if data else None, data.end_time if data else None)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
     mine = next((s for s in w.signups if s.user_id == user.id), None)
     if mine:
-        mine.start_time = start
+        mine.start_time, mine.end_time = start, end
     else:
-        w.signups.append(WindowSignup(user_id=user.id, start_time=start))
+        w.signups.append(WindowSignup(user_id=user.id, start_time=start, end_time=end))
     db.commit()
 
 
@@ -222,7 +235,8 @@ def remove_availability(window_id: int, user: User = Depends(require_referee), d
 @router.get("/availability/{window_id}/referees")
 def referees_for_window(window_id: int, _: User = Depends(current_user), db: Session = Depends(get_db)):
     w = _get_window(db, window_id)
-    return [{"name": s.user.full_name, "since": s.created_at.isoformat(), "start_time": _hhmm(s.start_time)}
+    return [{"name": s.user.full_name, "since": s.created_at.isoformat(),
+             "start_time": _hhmm(s.start_time), "end_time": _hhmm(s.end_time)}
             for s in _active_signups(w)]
 
 
@@ -289,13 +303,13 @@ def _apply(db: Session, w: AvailabilityWindow, data: WindowIn, user: User) -> No
                 f"La franja de {d.tournament.name} ({day_slot(d).label}) quedaría fuera del horario, y ese torneo no está asignado a ti.",
             )
     w.days = days
-    w.allow_custom_start = data.allow_custom_start
-    # Las horas que ya no caben (o si ya no se permite indicarlas) vuelven a ser todo el horario.
-    slot = window_slot(w)
+    w.allow_custom_hours = data.allow_custom_hours
+    # Los horarios que ya no caben (o si ya no se permite indicarlos) vuelven a ser todo el horario.
     for s in w.signups:
-        if s.start_time and (not w.allow_custom_start or (slot.start and s.start_time <= slot.start)
-                             or (w.end_time and s.start_time >= w.end_time)):
-            s.start_time = None
+        try:
+            s.start_time, s.end_time = _fit_hours(w, s.start_time, s.end_time)
+        except ValueError:
+            s.start_time = s.end_time = None
     other_ids = {d.tournament_id for d in others}
     hide = (set(data.hidden_tournament_ids) - other_ids | (w.hidden_tournament_ids & other_ids)) & {d.tournament_id for d in days}
     w.hidden_names = [h for h in w.hidden_names if h.tournament_id in hide] + [

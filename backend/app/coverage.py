@@ -50,8 +50,9 @@ def overlaps(a: TournamentDay, b: TournamentDay) -> bool:
 
 
 def reaches(s: WindowSignup, d: TournamentDay) -> bool:
-    """Un árbitro que indicó una hora de inicio sirve para la franja si esta no termina antes de esa hora."""
-    return s.start_time is None or day_span(d)[1] > s.start_time
+    """Un árbitro que indicó su horario sirve para la franja si se cruza con ella (aunque sea en parte)."""
+    ds, de = day_span(d)
+    return (s.start_time is None or s.start_time < de) and (s.end_time is None or ds < s.end_time)
 
 
 def _covering_signups(db: Session, days: list[TournamentDay]) -> list[tuple[TournamentDay, WindowSignup]]:
@@ -84,18 +85,26 @@ def available_by_day(db: Session, days: list[TournamentDay]) -> dict[int, dict[i
     return out
 
 
-def start_times_by_day(db: Session, days: list[TournamentDay]) -> dict[int, dict[int, time]]:
-    """Para cada franja: árbitro -> hora desde la que está disponible, si la indicó y empieza después de la franja.
+def hours_by_day(db: Session, days: list[TournamentDay]) -> dict[int, dict[int, tuple[time | None, time | None]]]:
+    """Para cada franja: árbitro -> (desde, hasta) cuando su horario no cubre la franja completa.
 
-    Si otra inscripción suya cubre la franja completa, no hay restricción.
+    "desde" solo si empieza después que la franja y "hasta" solo si termina antes. Con varias inscripciones
+    que cubren la franja se toma el horario más amplio.
     """
     days = [d for d in days if not d.hidden]
-    starts: dict[int, dict[int, time | None]] = defaultdict(dict)
+    hours: dict[int, dict[int, tuple[time, time]]] = defaultdict(dict)
     for d, s in _covering_signups(db, days) if days else []:
-        prev = starts[d.id].get(s.user_id, time.max)
-        start = s.start_time if s.start_time and s.start_time > day_span(d)[0] else None
-        starts[d.id][s.user_id] = None if prev is None or start is None else min(prev, start)
-    return {day_id: {uid: t for uid, t in m.items() if t} for day_id, m in starts.items()}
+        ds, de = day_span(d)
+        start, end = max(s.start_time or time.min, ds), min(s.end_time or time.max, de)
+        prev = hours[d.id].get(s.user_id)
+        hours[d.id][s.user_id] = (min(prev[0], start), max(prev[1], end)) if prev else (start, end)
+    out: dict[int, dict[int, tuple[time | None, time | None]]] = defaultdict(dict)
+    for d in days:
+        ds, de = day_span(d)
+        for uid, (start, end) in hours.get(d.id, {}).items():
+            if start > ds or end < de:
+                out[d.id][uid] = (start if start > ds else None, end if end < de else None)
+    return out
 
 
 def check_overlaps(db: Session, added: list[tuple[TournamentDay, User]]) -> None:
