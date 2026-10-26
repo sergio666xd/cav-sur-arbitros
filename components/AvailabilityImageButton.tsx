@@ -3,7 +3,7 @@
 import { ArrowDownTrayIcon, PhotoIcon, ShareIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useState } from "react";
 import { formatShortDate } from "@/lib/api";
-import { groupByDate, renderAvailabilityImage, type ImageSpec } from "@/lib/availabilityImage";
+import { groupByDate, renderAvailabilityImage, styleColumns, type DateFormat, type ImageSpec } from "@/lib/availabilityImage";
 import { Portal, Spinner } from "./ui";
 
 // Botón que genera la imagen de disponibilidad y la muestra para descargar o compartir.
@@ -22,21 +22,26 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
   // Datos de la imagen y fechas elegidas; al cambiar la selección se vuelve a dibujar.
   const [base, setBase] = useState<ImageSpec | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  // Opciones de la imagen de disponibilidad: fila de solicitados y una columna por fecha.
-  const [opts, setOpts] = useState({ required: true, grouped: false });
+  // Opciones de la imagen de disponibilidad: fila de solicitados, una columna por fecha, hora y formato de la fecha.
+  const [opts, setOpts] = useState<{ required: boolean; grouped: boolean; showTime: boolean; dateFormat: DateFormat }>(
+    { required: true, grouped: false, showTime: true, dateFormat: "short" },
+  );
 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
 
   const canGroup = !!base && new Set(base.columns.map((c) => c.date).filter(Boolean)).size
     < base.columns.filter((c) => c.date).length;
   const dates = base ? [...new Set(base.columns.map((c) => c.date).filter((d): d is string => !!d))].sort() : [];
+  // Las columnas llevan la fecha si la imagen tiene varias fechas (o si se agrupan por fecha).
+  const datedColumns = !!base && (opts.grouped || base.columns.some((c) => c.top && c.date));
 
   async function render(s: ImageSpec, sel: string[], o = opts) {
     const columns = s.columns.filter((c) => !c.date || sel.includes(c.date));
+    const availability = s.kind !== "assignment";
     const blob = await renderAvailabilityImage({
       ...s,
       hideRequired: s.hideRequired || !o.required,
-      columns: o.grouped ? groupByDate(columns) : columns,
+      columns: !availability ? columns : o.grouped ? groupByDate(columns, o.dateFormat) : styleColumns(columns, o),
     });
     const f = new File([blob], `${fileName}.png`, { type: "image/png" });
     setFile(f);
@@ -142,6 +147,29 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
                       onChange={(e) => setOption({ grouped: e.target.checked })} />
                     Agrupar las franjas de cada fecha en una sola columna
                   </label>
+                )}
+                {!opts.grouped && (
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" className="switch" checked={opts.showTime} disabled={busy}
+                      onChange={(e) => setOption({ showTime: e.target.checked })} />
+                    Mostrar la hora
+                  </label>
+                )}
+                {datedColumns && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span>Fecha:</span>
+                    <div className="inline-flex rounded-lg border border-stone-300 p-0.5" role="group" aria-label="Formato de la fecha">
+                      {([["day", "Solo el día"], ["short", "Fecha corta"]] as const).map(([v, text]) => (
+                        <button key={v} type="button" aria-pressed={opts.dateFormat === v} disabled={busy}
+                          onClick={() => opts.dateFormat !== v && setOption({ dateFormat: v })}
+                          className={`rounded-md px-3 py-1 text-sm transition ${
+                            opts.dateFormat === v ? "bg-brand-500 text-white" : "text-stone-600 hover:bg-stone-100"
+                          }`}>
+                          {text}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             )}

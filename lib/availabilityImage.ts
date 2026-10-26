@@ -56,10 +56,26 @@ export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColu
   }));
 }
 
+// Cómo se muestra la fecha de cada columna: solo el día ("Miércoles") o la fecha corta ("Mié 28/10/2026").
+export type DateFormat = "day" | "short";
+
+function columnDate(iso: string, format: DateFormat): string {
+  return format === "day" ? formatDate(iso).split(" ")[0] : formatShortDate(iso);
+}
+
+// Aplica las opciones elegidas al generar la imagen: formato de la fecha y si se muestra la hora.
+export function styleColumns(cols: ImageColumn[], o: { showTime: boolean; dateFormat: DateFormat }): ImageColumn[] {
+  return cols.map((c) => ({
+    ...c,
+    top: c.top && c.date ? columnDate(c.date, o.dateFormat) : c.top,
+    label: o.showTime ? c.label : "",
+  }));
+}
+
 // Una sola columna por fecha: junta las franjas de cada día. Un árbitro cuenta una vez por fecha
 // (con su primera inscripción) y los solicitados suman cada franja de torneo una sola vez, aunque
 // la cubran varias disponibilidades.
-export function groupByDate(cols: ImageColumn[]): ImageColumn[] {
+export function groupByDate(cols: ImageColumn[], format: DateFormat = "short"): ImageColumn[] {
   const out: ImageColumn[] = [];
   const byDate = new Map<string, ImageColumn & { seen: Map<number, number>; loose: number }>();
   for (const c of cols) {
@@ -69,10 +85,7 @@ export function groupByDate(cols: ImageColumn[]): ImageColumn[] {
     }
     let g = byDate.get(c.date);
     if (!g) {
-      // El día completo ("Sábado") y debajo la fecha.
-      const [day] = formatDate(c.date).split(" ");
-      const [, short] = formatShortDate(c.date).split(" ");
-      g = { date: c.date, label: day, sub: short, required: 0, entries: [], seen: new Map(), loose: 0 };
+      g = { date: c.date, label: columnDate(c.date, format), required: 0, entries: [], seen: new Map(), loose: 0 };
       byDate.set(c.date, g);
       out.push(g);
     }
