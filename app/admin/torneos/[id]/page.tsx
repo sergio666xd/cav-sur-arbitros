@@ -21,15 +21,18 @@ import { ShirtLabel, ShirtSelect } from "@/components/Shirt";
 function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail; onSaved: () => void }) {
   const initial = () => Object.fromEntries(day.assignments.map((a) => [a.user_id, a.role ?? ""])) as Record<number, string>;
   const [selected, setSelected] = useState<Record<number, string>>(initial);
+  // Cambios sin guardar: al recargar (p. ej. tras marcar una confirmación) no se pierden.
+  const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [marking, setMarking] = useState<number | null>(null);
 
-  useEffect(() => setSelected(initial()), [day]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!dirty) setSelected(initial()); }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Incluye asignados que ya no figuran como candidatos (p. ej. si quitaron su disponibilidad).
   const people = [...day.candidates];
   for (const a of day.assignments) {
-    if (!people.some((c) => c.user_id === a.user_id)) people.push({ user_id: a.user_id, name: a.name, is_chief: a.is_chief, assigned_elsewhere: null, available_at: null });
+    if (!people.some((c) => c.user_id === a.user_id)) people.push({ user_id: a.user_id, name: a.name, is_chief: a.is_chief, is_guest: a.is_guest, assigned_elsewhere: null, available_at: null });
   }
   const count = Object.keys(selected).length;
   const usedRoles = new Set(Object.values(selected).filter(Boolean));
@@ -39,6 +42,21 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
     if (id in next) delete next[id];
     else next[id] = "";
     setSelected(next);
+    setDirty(true);
+  }
+
+  // Un árbitro externo no tiene cuenta para confirmar: el administrador marca si confirmó.
+  async function markConfirmed(userId: number, confirmed: boolean) {
+    setMarking(userId);
+    setMsg(null);
+    try {
+      await api(`/tournament-days/${day.id}/assignments/${userId}/confirmed`, { method: "PUT", body: { confirmed } });
+      onSaved();
+    } catch (e) {
+      setMsg({ kind: "error", text: (e as Error).message });
+    } finally {
+      setMarking(null);
+    }
   }
 
   async function save() {
@@ -50,6 +68,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
         body: Object.entries(selected).map(([user_id, role]) => ({ user_id: Number(user_id), role: role || null })),
       });
       setMsg({ kind: "success", text: "Asignación guardada." });
+      setDirty(false);
       onSaved();
     } catch (e) {
       setMsg({ kind: "error", text: (e as Error).message });
@@ -81,15 +100,25 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
                       <ExclamationTriangleIcon className="h-3.5 w-3.5" />Asignado en {c.assigned_elsewhere}
                     </span>
                   )}
-                  {saved && on && !day.past && (
+                  {saved && on && !day.past && !c.is_guest && (
                     <span className={`ml-2 text-xs ${saved.confirmed ? "text-green-700" : "text-stone-500"}`}>
                       {saved.confirmed ? "✓ Confirmó" : "Sin confirmar"}
                     </span>
                   )}
+                  {saved && on && !day.past && c.is_guest && (
+                    <label className={`ml-2 inline-flex cursor-pointer items-center gap-1.5 align-middle text-xs ${saved.confirmed ? "text-green-700" : "text-stone-500"}`}
+                      title="No tiene cuenta en la aplicación: márcalo cuando te confirme">
+                      {marking === c.user_id ? <Spinner /> : (
+                        <input type="checkbox" className="h-3.5 w-3.5 accent-green-600" checked={saved.confirmed}
+                          disabled={marking !== null} onChange={(e) => markConfirmed(c.user_id, e.target.checked)} />
+                      )}
+                      {saved.confirmed ? "Confirmó" : "Marcar si confirmó"}
+                    </label>
+                  )}
                 </span>
                 {t.has_roles && on && (
                   <select className="input w-40 py-1" value={selected[c.user_id]}
-                    onChange={(e) => setSelected({ ...selected, [c.user_id]: e.target.value })}>
+                    onChange={(e) => { setSelected({ ...selected, [c.user_id]: e.target.value }); setDirty(true); }}>
                     <option value="">Sin rol</option>
                     {t.roles.map((r) => (
                       <option key={r} value={r} disabled={usedRoles.has(r) && selected[c.user_id] !== r}>{r}</option>
@@ -123,7 +152,8 @@ function roleKind(role: string): keyof Counts {
 }
 
 function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail; onSaved: () => void }) {
-  const refs = day.assignments.filter((a) => !a.is_chief);
+  // Al Jefe y a los externos no se les registran partidos.
+  const refs = day.assignments.filter((a) => !a.is_chief && !a.is_guest);
   const cats = day.effective_categories;
   // Clave "" = total sin categoría (franjas sin categorías).
   const keys = cats.length ? cats : [""];

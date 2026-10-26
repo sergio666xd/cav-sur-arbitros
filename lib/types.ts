@@ -1,9 +1,10 @@
 export type Shirt = { id: number; name: string; color: string };
-export type Candidate = { user_id: number; name: string; is_chief: boolean; assigned_elsewhere: string | null; available_at: string | null };
+export type Candidate = { user_id: number; name: string; is_chief: boolean; is_guest: boolean; assigned_elsewhere: string | null; available_at: string | null };
 export type AssignedRef = {
   user_id: number;
   name: string;
   is_chief: boolean;
+  is_guest: boolean;
   role: string | null;
   confirmed: boolean;
   refereed: number | null;

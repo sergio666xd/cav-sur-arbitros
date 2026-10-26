@@ -9,7 +9,7 @@ from ..coverage import available_by_day, check_overlaps, covers, overlaps
 from ..database import get_db
 from ..deps import check_manages, require_admin, require_creator
 from ..models import Assignment, AvailabilityWindow, MatchRecord, Tournament, TournamentDay, User
-from ..schemas import AssignmentIn, BoardIn, FinishedIn, MatchIn, TournamentIn
+from ..schemas import AssignmentIn, BoardIn, ConfirmedIn, FinishedIn, MatchIn, TournamentIn
 from ..serializers import day_info, fold, name_key, tournament_info
 from ..slots import day_slot, ended_by_time, group_days, has_started, is_finished
 from ..timeutil import is_open_for_availability, today_local, utcnow
@@ -99,7 +99,7 @@ def past_days(
     for d in db.scalars(q).all():
         if not is_finished(d) or not user.manages(d.tournament):
             continue
-        refs = [a for a in d.assignments if not a.user.is_chief]
+        refs = [a for a in d.assignments if not a.user.is_chief and not a.user.guest]
         out.append({
             **day_info(d),
             "tournament_id": d.tournament_id,
@@ -237,6 +237,7 @@ def get_tournament(tournament_id: int, user: User = Depends(require_admin), db: 
                 "user_id": u.id,
                 "name": u.full_name,
                 "is_chief": u.is_chief,
+                "is_guest": u.guest,
                 "assigned_elsewhere": clash.tournament.name if clash else None,
                 "available_at": at.isoformat() if at else None,
             })
@@ -247,6 +248,7 @@ def get_tournament(tournament_id: int, user: User = Depends(require_admin), db: 
                 "user_id": a.user_id,
                 "name": a.user.full_name,
                 "is_chief": a.user.is_chief,
+                "is_guest": a.user.guest,
                 "role": a.role,
                 "confirmed": a.confirmed_at is not None,
                 "refereed": rec.refereed if rec else None,
@@ -273,8 +275,9 @@ def _windows_on(db: Session, dates: set) -> list[AvailabilityWindow]:
 
 
 def _open_referees(db: Session) -> list[User]:
-    """Árbitros activos (sin el Jefe), en orden alfabético: candidatos de una franja oculta."""
-    users = db.scalars(select(User).where(User.is_referee.is_(True), User.is_chief.is_(False), User.active.is_(True))).all()
+    """Árbitros activos (sin el Jefe ni externos), en orden alfabético: candidatos de una franja oculta."""
+    users = db.scalars(select(User).where(
+        User.is_referee.is_(True), User.is_chief.is_(False), User.active.is_(True), User.is_guest.isnot(True))).all()
     return sorted(users, key=name_key)
 
 
@@ -339,6 +342,22 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
     return added
 
 
+@router.put("/tournament-days/{day_id}/assignments/{user_id}/confirmed")
+def set_guest_confirmed(
+    day_id: int, user_id: int, data: ConfirmedIn, user: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    """Un árbitro externo no inicia sesión: el administrador marca si confirmó su asignación."""
+    day = _get_day(db, day_id, user)
+    a = next((a for a in day.assignments if a.user_id == user_id), None)
+    if not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ese árbitro no está asignado a esta franja.")
+    if not a.user.guest:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este árbitro confirma desde su cuenta.")
+    a.confirmed_at = (a.confirmed_at or utcnow()) if data.confirmed else None
+    db.commit()
+    return {"confirmed": a.confirmed_at is not None}
+
+
 @router.put("/tournament-days/{day_id}/finished")
 def set_finished(day_id: int, data: FinishedIn, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     day = _get_day(db, day_id, user)
@@ -366,8 +385,8 @@ def set_matches(day_id: int, items: list[MatchIn], user: User = Depends(require_
         u = assigned.get(item.user_id)
         if not u:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se registran partidos de árbitros asignados a ese día.")
-        if u.is_chief:
-            continue  # Al JEFE no se le registran partidos.
+        if u.is_chief or u.guest:
+            continue  # Al JEFE y a los árbitros externos no se les registran partidos.
         breakdown = None
         if item.categories:
             unknown = [c.category for c in item.categories if c.category not in categories]
@@ -441,6 +460,7 @@ def assignment_board(d: date | None = None, user: User = Depends(require_admin),
                 "user_id": u.id,
                 "name": u.full_name,
                 "is_chief": u.is_chief,
+                "is_guest": u.guest,
                 "available_day_ids": available.get(u.id, []),
                 "assigned": assigned.get(u.id, {}),
                 "confirmed_day_ids": confirmed.get(u.id, []),

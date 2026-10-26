@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, time
+from secrets import token_hex
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -9,7 +10,7 @@ from ..coverage import covers, window_slot
 from ..database import get_db
 from ..deps import check_manages, current_user, require_admin, require_referee
 from ..models import AvailabilityWindow, TournamentDay, User, WindowHiddenName, WindowSignup
-from ..schemas import WindowIn
+from ..schemas import GuestIn, WindowIn
 from ..serializers import fold
 from ..slots import day_slot
 from ..timeutil import is_open_for_availability, today_local
@@ -89,6 +90,8 @@ def _admin_out(w: AvailabilityWindow, user: User) -> dict:
             "slot_label": day_slot(d).label,
             "required": d.required,
         } for d in days],
+        "guests": [{"user_id": s.user_id, "name": s.user.full_name} for s in _active_signups(w) if s.user.guest],
+        "can_edit_guests": all(user.manages(d.tournament) for d in w.days),
     }
 
 
@@ -161,7 +164,8 @@ def availability_summary(d: date | None = None, user: User = Depends(require_adm
             # Franjas que cubre, para no contar dos veces sus requeridos al agrupar por fecha.
             "days": [{"id": x.id, "required": x.required} for x in mine],
             "tournament": tournament,
-            "entries": [{"user_id": s.user_id, "name": s.user.full_name, "at": s.created_at.isoformat()}
+            "entries": [{"user_id": s.user_id, "name": s.user.full_name, "at": s.created_at.isoformat(),
+                         "is_guest": s.user.guest}
                         for s in _active_signups(w) if not s.user.is_chief],
         })
     return result
@@ -293,3 +297,50 @@ def delete_window(window_id: int, user: User = Depends(require_admin), db: Sessi
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Esta disponibilidad incluye torneos que no tienes asignados: no puedes eliminarla.")
     db.delete(w)
     db.commit()
+
+
+# ---------- Árbitros externos ----------
+def _check_manages_all(user: User, w: AvailabilityWindow) -> None:
+    if any(not user.manages(d.tournament) for d in w.days):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Esta disponibilidad incluye torneos que no tienes asignados.")
+
+
+def _guest(db: Session, name: str) -> User:
+    """El árbitro externo con ese nombre (sin importar mayúsculas ni tildes), o uno nuevo."""
+    key = fold(name)
+    for g in db.scalars(select(User).where(User.is_guest.is_(True))).all():
+        if fold(g.full_name) == key:
+            g.active = True
+            return g
+    first, _, last = name.partition(" ")
+    g = User(
+        first_name=first, last_name=last, document=f"externo-{token_hex(8)}", birth_date=date(1900, 1, 1),
+        pin_hash="!", is_referee=True, is_guest=True, entry_points=0,
+    )
+    db.add(g)
+    db.flush()
+    return g
+
+
+@router.post("/availability-windows/{window_id}/guests")
+def add_guest(window_id: int, data: GuestIn, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Inscribe a un árbitro externo (solo con su nombre). Se puede aunque ya cerró la selección de los árbitros."""
+    w = _get_window(db, window_id)
+    _check_manages_all(user, w)
+    if w.date < today_local():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La fecha ya pasó.")
+    g = _guest(db, data.name)
+    if not any(s.user_id == g.id for s in w.signups):
+        w.signups.append(WindowSignup(user_id=g.id, user=g))
+    db.commit()
+    return _admin_out(w, user)
+
+
+@router.delete("/availability-windows/{window_id}/guests/{user_id}")
+def remove_guest(window_id: int, user_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    w = _get_window(db, window_id)
+    _check_manages_all(user, w)
+    for s in [s for s in w.signups if s.user_id == user_id and s.user.guest]:
+        w.signups.remove(s)
+    db.commit()
+    return _admin_out(w, user)

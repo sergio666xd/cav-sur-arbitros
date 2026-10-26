@@ -36,6 +36,9 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     # Puntos de ingreso. Se guardan por usuario para que cambiar ENTRY_POINTS no altere a los que ya están.
     entry_points: Mapped[int | None] = mapped_column(Integer, default=ENTRY_POINTS, nullable=True)
+    # Árbitro externo: solo tiene nombre, no es usuario (no inicia sesión). Lo agrega un administrador
+    # a una disponibilidad para poder asignarlo; no entra al ranking, calificaciones ni lista arbitral.
+    is_guest: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
 
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -43,7 +46,11 @@ class User(Base):
 
     @property
     def full_name(self) -> str:
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def guest(self) -> bool:
+        return bool(self.is_guest)
 
     # Permisos efectivos: el JEFE y el rol system tienen todo.
     @property

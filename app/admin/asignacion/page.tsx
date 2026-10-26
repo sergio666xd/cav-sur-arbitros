@@ -36,6 +36,7 @@ type BoardRow = {
   user_id: number;
   name: string;
   is_chief: boolean;
+  is_guest: boolean;
   available_day_ids: number[];
   assigned: Record<string, string | null>;
   confirmed_day_ids: number[];
@@ -69,6 +70,28 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
   const cols = group.columns;
   // Camiseta de cada franja; se guarda al elegirla, aparte de las asignaciones.
   const [shirtOf, setShirtOf] = useState<Record<number, Shirt | null>>(() => Object.fromEntries(cols.map((c) => [c.id, c.shirt])));
+  // Confirmaciones de externos marcadas aquí ("árbitro-franja" -> confirmó), sin recargar el tablero.
+  const [marked, setMarked] = useState<Record<string, boolean>>({});
+  const [marking, setMarking] = useState<string | null>(null);
+  const [markError, setMarkError] = useState<string | null>(null);
+
+  useEffect(() => setMarked({}), [group]);
+
+  const isConfirmed = (r: BoardRow, c: Column) => marked[`${r.user_id}-${c.id}`] ?? r.confirmed_day_ids.includes(c.id);
+
+  async function markConfirmed(r: BoardRow, c: Column, confirmed: boolean) {
+    const key = `${r.user_id}-${c.id}`;
+    setMarking(key);
+    setMarkError(null);
+    try {
+      await api(`/tournament-days/${c.id}/assignments/${r.user_id}/confirmed`, { method: "PUT", body: { confirmed } });
+      setMarked((m) => ({ ...m, [key]: confirmed }));
+    } catch (e) {
+      setMarkError((e as Error).message);
+    } finally {
+      setMarking(null);
+    }
+  }
 
   function toggle(col: Column, userId: number) {
     const day = { ...sel[col.id] };
@@ -116,7 +139,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                     </div>
                     {group.rows.some((r) => String(c.id) in r.assigned) && (
                       <div className="text-xs text-stone-500">
-                        {group.rows.filter((r) => r.confirmed_day_ids.includes(c.id)).length} confirmaron
+                        {group.rows.filter((r) => String(c.id) in r.assigned && isConfirmed(r, c)).length} confirmaron
                       </div>
                     )}
                     <ShirtSelect className="mt-2" dayId={c.id} value={shirtOf[c.id] ?? null} shirts={shirts}
@@ -190,7 +213,18 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                             </select>
                           )}
                           {!available && !on && <span className="text-xs text-stone-400">—</span>}
-                          {on && String(c.id) in r.assigned && (
+                          {on && String(c.id) in r.assigned && r.is_guest && (
+                            // Un externo no tiene cuenta: se marca aquí cuando confirma.
+                            <label className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs ${isConfirmed(r, c) ? "font-medium text-green-700" : "text-stone-500"}`}
+                              title="No tiene cuenta en la aplicación: márcalo cuando te confirme">
+                              {marking === `${r.user_id}-${c.id}` ? <Spinner className="h-3 w-3" /> : (
+                                <input type="checkbox" className="h-3.5 w-3.5 accent-green-600" checked={isConfirmed(r, c)}
+                                  disabled={marking !== null} onChange={(e) => markConfirmed(r, c, e.target.checked)} />
+                              )}
+                              {isConfirmed(r, c) ? "Confirmó" : "Marcar si confirmó"}
+                            </label>
+                          )}
+                          {on && String(c.id) in r.assigned && !r.is_guest && (
                             // Solo para asignaciones ya guardadas.
                             r.confirmed_day_ids.includes(c.id)
                               ? <span className="whitespace-nowrap text-xs font-medium text-green-700">✓ Confirmó</span>
@@ -206,6 +240,7 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
           </tbody>
         </table>
       </div>
+      {markError && <div className="border-t border-stone-200 p-3"><Alert>{markError}</Alert></div>}
     </section>
   );
 }

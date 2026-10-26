@@ -21,7 +21,8 @@ SCORE_LABELS = {
 
 def _ratable(db: Session) -> list[User]:
     users = db.scalars(
-        select(User).where(User.is_referee.is_(True), User.is_chief.is_(False), User.active.is_(True))
+        select(User).where(User.is_referee.is_(True), User.is_chief.is_(False), User.active.is_(True),
+                           User.is_guest.isnot(True))
     ).all()
     return sorted(users, key=name_key)
 

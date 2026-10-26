@@ -261,6 +261,10 @@ class FinishedIn(BaseModel):
     finished: bool
 
 
+class ConfirmedIn(BaseModel):
+    confirmed: bool
+
+
 class MatchIn(BaseModel):
     user_id: int
     refereed: int = Field(default=0, ge=0, le=100)
@@ -301,6 +305,19 @@ class WindowIn(BaseModel):
                 raise ValueError("La hora de fin debe ser posterior a la de inicio.")
         self.day_ids = list(dict.fromkeys(self.day_ids))
         return self
+
+
+class GuestIn(BaseModel):
+    """Árbitro externo: solo el nombre completo."""
+    name: str = Field(min_length=1, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def _clean(cls, v: str) -> str:
+        v = " ".join(v.split())
+        if not v:
+            raise ValueError("Escribe el nombre del árbitro.")
+        return v
 
 
 # ---------- Calificaciones ----------

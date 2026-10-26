@@ -1,6 +1,6 @@
 "use client";
 
-import { EyeSlashIcon, LockClosedIcon, PencilSquareIcon, PlusIcon, TrashIcon, UsersIcon } from "@heroicons/react/20/solid";
+import { EyeSlashIcon, LockClosedIcon, PencilSquareIcon, PlusIcon, TrashIcon, UserPlusIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -27,6 +27,8 @@ type Window = {
   registered: number;
   open: boolean;
   days: WindowDay[];
+  guests: { user_id: number; name: string }[];
+  can_edit_guests: boolean;
 };
 type SlotOption = {
   id: number;
@@ -194,6 +196,64 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
   );
 }
 
+// Árbitros sin cuenta: no son usuarios, se inscriben solo con su nombre para poder asignarlos.
+function GuestsForm({ window: w, onChanged }: { window: Window; onChanged: (w: Window) => void }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<number | "add" | null>(null);
+
+  async function run(key: number | "add", path: string, init: Parameters<typeof api>[1]) {
+    setBusy(key);
+    setError(null);
+    try {
+      onChanged(await api<Window>(path, init));
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    if (await run("add", `/availability-windows/${w.id}/guests`, { method: "POST", body: { name } })) setName("");
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-stone-500">
+        Para árbitros que no tienen cuenta en la aplicación. Quedan inscritos en esta disponibilidad y podrás asignarlos en sus franjas.
+      </p>
+      <form onSubmit={add} className="flex gap-2">
+        <input className="input min-w-0 flex-1" value={name} onChange={(e) => setName(e.target.value)}
+          placeholder="Nombre y apellido" maxLength={120} autoFocus />
+        <button className="btn-primary shrink-0" disabled={busy !== null || !name.trim()}>
+          {busy === "add" ? <Spinner /> : <PlusIcon className="h-4 w-4" />}Agregar
+        </button>
+      </form>
+      {error && <Alert>{error}</Alert>}
+      {w.guests.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-stone-300 p-3 text-sm text-stone-500">Aún no has agregado árbitros por nombre en esta disponibilidad.</p>
+      ) : (
+        <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
+          {w.guests.map((g) => (
+            <li key={g.user_id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+              <span className="font-medium">{g.name}</span>
+              <button className="btn-ghost text-red-700" disabled={busy !== null} title={`Quitar a ${g.name}`}
+                onClick={() => run(g.user_id, `/availability-windows/${w.id}/guests/${g.user_id}`, { method: "DELETE" })}>
+                {busy === g.user_id ? <Spinner /> : <XMarkIcon className="h-4 w-4" />}Quitar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function WindowsPage() {
   const params = useSearchParams();
   const { data, loading, error, reload } = useFetch<Window[]>("/availability-windows");
@@ -202,6 +262,7 @@ function WindowsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [listFor, setListFor] = useState<Window | null>(null);
   const [list, setList] = useState<{ name: string; since: string }[] | null>(null);
+  const [guestsFor, setGuestsFor] = useState<Window | null>(null);
 
   // Desde un torneo se llega con ?d=AAAA-MM-DD para habilitar esa fecha.
   useEffect(() => {
@@ -319,6 +380,9 @@ function WindowsPage() {
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
                       <button className="btn-ghost" onClick={() => showList(w)}><UsersIcon className="h-4 w-4" />Inscritos</button>
+                      {w.can_edit_guests && (
+                        <button className="btn-ghost" onClick={() => setGuestsFor(w)}><UserPlusIcon className="h-4 w-4" />Agregar por nombre</button>
+                      )}
                       <button className="btn-ghost" onClick={() => setDraft({
                         id: w.id, date: w.date, all_day: w.all_day, start_time: w.start_time ?? "", end_time: w.end_time ?? "",
                         day_ids: w.days.map((d) => d.id), hidden: w.hidden_tournament_ids,
@@ -336,6 +400,14 @@ function WindowsPage() {
         {draft && (
           <WindowForm key={draft.id ?? `new-${draft.date}`} initial={draft} onClose={() => setDraft(null)}
             onSaved={() => { setDraft(null); reload(); }} />
+        )}
+      </Modal>
+      <Modal open={!!guestsFor} onClose={() => setGuestsFor(null)} title="Agregar árbitros por nombre">
+        {guestsFor && (
+          <>
+            <p className="mb-3 text-sm font-medium">{formatDate(guestsFor.date)} · {guestsFor.slot_label}</p>
+            <GuestsForm window={guestsFor} onChanged={(w) => { setGuestsFor(w); reload(); }} />
+          </>
         )}
       </Modal>
       <Modal open={!!listFor} onClose={() => setListFor(null)} title="Árbitros inscritos">
