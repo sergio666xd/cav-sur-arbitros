@@ -49,6 +49,20 @@ def overlaps(a: TournamentDay, b: TournamentDay) -> bool:
     return a_start < b_end and b_start < a_end
 
 
+def reaches(s: WindowSignup, d: TournamentDay) -> bool:
+    """Un árbitro que indicó su horario sirve para la franja si se cruza con ella (aunque sea en parte)."""
+    ds, de = day_span(d)
+    return (s.start_time is None or s.start_time < de) and (s.end_time is None or ds < s.end_time)
+
+
+def _covering_signups(db: Session, days: list[TournamentDay]) -> list[tuple[TournamentDay, WindowSignup]]:
+    windows = db.scalars(
+        select(AvailabilityWindow).where(AvailabilityWindow.date.in_({d.date for d in days}))
+        .options(selectinload(AvailabilityWindow.signups).selectinload(WindowSignup.user))
+    ).all()
+    return [(d, s) for d in days for w in windows if covers(w, d) for s in w.signups if reaches(s, d)]
+
+
 def available_by_day(db: Session, days: list[TournamentDay]) -> dict[int, dict[int, tuple[User, datetime]]]:
     """Para cada franja (no oculta): árbitro -> (usuario, cuándo se inscribió). Solo usuarios activos."""
     out: dict[int, dict[int, tuple[User, datetime]]] = defaultdict(dict)
@@ -60,21 +74,36 @@ def available_by_day(db: Session, days: list[TournamentDay]) -> dict[int, dict[i
         if u.active and (u.id not in out[day_id] or at < out[day_id][u.id][1]):
             out[day_id][u.id] = (u, at)
 
-    windows = db.scalars(
-        select(AvailabilityWindow).where(AvailabilityWindow.date.in_({d.date for d in days}))
-        .options(selectinload(AvailabilityWindow.signups).selectinload(WindowSignup.user))
-    ).all()
-    for d in days:
-        for w in windows:
-            if covers(w, d):
-                for s in w.signups:
-                    add(d.id, s.user, s.created_at)
+    for d, s in _covering_signups(db, days):
+        add(d.id, s.user, s.created_at)
     for day_id, u, at in db.execute(
         select(Availability.day_id, User, Availability.created_at)
         .join(User, User.id == Availability.user_id)
         .where(Availability.day_id.in_([d.id for d in days]))
     ).all():
         add(day_id, u, at)
+    return out
+
+
+def hours_by_day(db: Session, days: list[TournamentDay]) -> dict[int, dict[int, tuple[time | None, time | None]]]:
+    """Para cada franja: árbitro -> (desde, hasta) cuando su horario no cubre la franja completa.
+
+    "desde" solo si empieza después que la franja y "hasta" solo si termina antes. Con varias inscripciones
+    que cubren la franja se toma el horario más amplio.
+    """
+    days = [d for d in days if not d.hidden]
+    hours: dict[int, dict[int, tuple[time, time]]] = defaultdict(dict)
+    for d, s in _covering_signups(db, days) if days else []:
+        ds, de = day_span(d)
+        start, end = max(s.start_time or time.min, ds), min(s.end_time or time.max, de)
+        prev = hours[d.id].get(s.user_id)
+        hours[d.id][s.user_id] = (min(prev[0], start), max(prev[1], end)) if prev else (start, end)
+    out: dict[int, dict[int, tuple[time | None, time | None]]] = defaultdict(dict)
+    for d in days:
+        ds, de = day_span(d)
+        for uid, (start, end) in hours.get(d.id, {}).items():
+            if start > ds or end < de:
+                out[d.id][uid] = (start if start > ds else None, end if end < de else None)
     return out
 
 

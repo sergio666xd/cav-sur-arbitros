@@ -1170,3 +1170,70 @@ def test_guest_referees(client):
     # Se puede quitar de la disponibilidad; un árbitro registrado no se quita por aquí.
     r = client.delete(f"/api/availability-windows/{w['id']}/guests/{luis}", headers=chief)
     assert [g["name"] for g in r.json()["guests"]] == ["Pedro Pérez Gil"]
+
+
+
+def test_custom_hours(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=3)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "Copa", "location": "A", "referees_required": 2,
+        "days": [{"date": d, "start_time": "08:00", "end_time": "12:00"},
+                 {"date": d, "start_time": "14:00", "end_time": "18:00"}]}).json()["id"]
+    day_ids = [x["id"] for x in client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"]]
+    w = client.post("/api/availability-windows", headers=chief, json={
+        "date": d, "start_time": "08:00", "end_time": "18:00", "day_ids": day_ids}).json()
+    assert w["allow_custom_hours"] is False
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "93000001", "Ana")
+    ref2 = _register(client, code, "93000002", "Beto")
+
+    def signup(h, **body):
+        return client.post(f"/api/availability/{w['id']}", headers=h, json=body)
+
+    # Sin la opción no se puede indicar otro horario.
+    assert signup(ref, start_time="10:00").status_code == 400
+    spec = {"date": d, "start_time": "08:00", "end_time": "18:00", "day_ids": day_ids, "allow_custom_hours": True}
+    assert client.put(f"/api/availability-windows/{w['id']}", headers=chief, json=spec).json()["allow_custom_hours"] is True
+
+    # Fuera del horario o al revés no; dentro sí, y se puede cambiar después.
+    for bad in ({"start_time": "07:00"}, {"start_time": "18:00"}, {"end_time": "19:00"}, {"end_time": "07:00"},
+                {"start_time": "13:00", "end_time": "12:00"}):
+        assert signup(ref, **bad).status_code == 400, bad
+    assert signup(ref, start_time="13:00").status_code == 204
+    assert signup(ref2).status_code == 204
+    mine = client.get("/api/availability", headers=ref).json()[0]
+    assert mine["mine"] is True and mine["my_start_time"] == "13:00" and mine["my_end_time"] is None
+    assert client.get(f"/api/availability/{w['id']}/referees", headers=ref).json()[0]["start_time"] == "13:00"
+
+    # Desde las 13:00 no sirve para la franja de la mañana; para la de la tarde sí, completa.
+    days = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"]
+    morning = {c["name"]: c for c in days[0]["candidates"]}
+    afternoon = {c["name"]: c for c in days[1]["candidates"]}
+    assert "Ana Test" not in morning and "Beto Test" in morning
+    assert afternoon["Ana Test"]["available_hours"] is None
+    assert client.put(f"/api/tournament-days/{days[0]['id']}/assignments", headers=chief,
+                      json=[{"user_id": afternoon["Ana Test"]["user_id"]}]).status_code == 400
+
+    # De 10:00 a 15:00: parte de las dos franjas, con su horario en el torneo y el tablero (no en el resumen de la imagen).
+    signup(ref, start_time="10:00", end_time="15:00")
+    days = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"]
+    hours = [next(c for c in x["candidates"] if c["name"] == "Ana Test")["available_hours"] for x in days]
+    assert hours == [{"from": "10:00", "until": None}, {"from": None, "until": "15:00"}]
+    row = next(r for g in client.get(f"/api/assignment-board?d={d}", headers=chief).json()["groups"]
+               for r in g["rows"] if r["name"] == "Ana Test")
+    assert row["hours"] == {str(days[0]["id"]): {"from": "10:00", "until": None}}
+    entry = next(e for e in client.get(f"/api/availability/summary?d={d}", headers=chief).json()[0]["entries"]
+                 if e["name"] == "Ana Test")
+    assert "start_time" not in entry
+
+    # Hasta las 12:00 ya no sirve para la tarde.
+    signup(ref, end_time="12:00")
+    days = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"]
+    assert "Ana Test" not in {c["name"] for c in days[1]["candidates"]}
+
+    # Las mismas horas de la disponibilidad son todo el horario; al quitar la opción se borran los horarios.
+    signup(ref2, start_time="08:00", end_time="18:00")
+    mine2 = client.get("/api/availability", headers=ref2).json()[0]
+    assert mine2["my_start_time"] is None and mine2["my_end_time"] is None
+    client.put(f"/api/availability-windows/{w['id']}", headers=chief, json={**spec, "allow_custom_hours": False})
+    assert client.get("/api/availability", headers=ref).json()[0]["my_end_time"] is None

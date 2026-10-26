@@ -128,6 +128,12 @@ export function formatClock(hhmm: string): string {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "a. m." : "p. m."}`;
 }
 
+// Horario propio de un árbitro: "Desde 10:00 a. m.", "Hasta 3:00 p. m." o "10:00 a. m. – 3:00 p. m.".
+export function hoursLabel(from: string | null | undefined, until: string | null | undefined): string {
+  if (from && until) return `${formatClock(from)} – ${formatClock(until)}`;
+  return from ? `Desde ${formatClock(from)}` : until ? `Hasta ${formatClock(until)}` : "";
+}
+
 // "las 7:00 a. m." o "la 1:00 p. m.".
 export function atClock(hhmm: string): string {
   return `${Number(hhmm.split(":")[0]) % 12 === 1 ? "la" : "las"} ${formatClock(hhmm)}`;

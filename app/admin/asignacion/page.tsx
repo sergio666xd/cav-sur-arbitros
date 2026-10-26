@@ -7,11 +7,11 @@ import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import { assignmentSpec, summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, PageHeader, Spinner } from "@/components/ui";
-import { api, formatDate, formatShortDate } from "@/lib/api";
+import { api, formatDate, formatShortDate, hoursLabel } from "@/lib/api";
 import { shortAddress } from "@/lib/maps";
 import { useFetch } from "@/lib/useFetch";
 import { ShirtSelect } from "@/components/Shirt";
-import type { Shirt } from "@/lib/types";
+import type { Hours, Shirt } from "@/lib/types";
 
 type Column = {
   id: number;
@@ -40,6 +40,8 @@ type BoardRow = {
   available_day_ids: number[];
   assigned: Record<string, string | null>;
   confirmed_day_ids: number[];
+  /** Franja -> horario que indicó, si no la cubre completa. */
+  hours?: Record<string, Hours>;
 };
 
 type Group = { key: number; slot_label: string; columns: Column[]; rows: BoardRow[] };
@@ -213,6 +215,11 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                             </select>
                           )}
                           {!available && !on && <span className="text-xs text-stone-400">—</span>}
+                          {r.hours?.[String(c.id)] && (
+                            <span className="whitespace-nowrap text-xs font-medium text-sky-700" title="Horario que indicó el árbitro">
+                              {hoursLabel(r.hours[String(c.id)].from, r.hours[String(c.id)].until)}
+                            </span>
+                          )}
                           {on && String(c.id) in r.assigned && r.is_guest && (
                             // Un externo no tiene cuenta: se marca aquí cuando confirma.
                             <label className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs ${isConfirmed(r, c) ? "font-medium text-green-700" : "text-stone-500"}`}

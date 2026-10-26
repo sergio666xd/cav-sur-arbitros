@@ -1,6 +1,6 @@
 "use client";
 
-import { EyeSlashIcon, LockClosedIcon, PencilSquareIcon, PlusIcon, TrashIcon, UserPlusIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
+import { ClockIcon, EyeSlashIcon, LockClosedIcon, PencilSquareIcon, PlusIcon, TrashIcon, UserPlusIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -10,7 +10,7 @@ import DateHeading from "@/components/DateHeading";
 import DayFilter from "@/components/DayFilter";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
-import { api, formatDate, formatDateTime } from "@/lib/api";
+import { api, formatDate, formatDateTime, hoursLabel } from "@/lib/api";
 import { summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import { useFetch } from "@/lib/useFetch";
 
@@ -26,6 +26,7 @@ type Window = {
   required: number;
   registered: number;
   open: boolean;
+  allow_custom_hours: boolean;
   days: WindowDay[];
   guests: { user_id: number; name: string }[];
   can_edit_guests: boolean;
@@ -42,9 +43,12 @@ type SlotOption = {
   location: string;
   window_ids: number[];
 };
-type Draft = { id?: number; date: string; all_day: boolean; start_time: string; end_time: string; day_ids: number[]; hidden: number[] };
+type Draft = {
+  id?: number; date: string; all_day: boolean; start_time: string; end_time: string; day_ids: number[]; hidden: number[];
+  custom_hours: boolean;
+};
 
-const emptyDraft = (date = ""): Draft => ({ date, all_day: false, start_time: "", end_time: "", day_ids: [], hidden: [] });
+const emptyDraft = (date = ""): Draft => ({ date, all_day: false, start_time: "", end_time: "", day_ids: [], hidden: [], custom_hours: false });
 
 // Horario que cubre las franjas elegidas: de la primera hora de inicio a la última de fin.
 // Si alguna es de todo el día o no tiene hora de fin, la disponibilidad queda de todo el día.
@@ -98,6 +102,7 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
           end_time: v.all_day ? null : v.end_time || null,
           day_ids: v.day_ids.filter((id) => slots?.some((s) => s.id === id)),
           hidden_tournament_ids: v.hidden,
+          allow_custom_hours: v.custom_hours,
         },
       });
       onSaved();
@@ -169,6 +174,13 @@ function WindowForm({ initial, onClose, onSaved }: { initial: Draft; onClose: ()
           </div>
         )}
         {autoTime && chosen.length > 0 && <p className="mt-1 text-xs text-stone-500">El horario se ajusta a las franjas elegidas; puedes cambiarlo.</p>}
+        <label className="mt-3 flex items-start gap-2 text-sm font-medium">
+          <input type="checkbox" className="switch mt-0.5" checked={v.custom_hours} onChange={(e) => setV({ ...v, custom_hours: e.target.checked })} />
+          <span>
+            Los árbitros pueden indicar su horario
+            <span className="block text-xs font-normal text-stone-500">Desde y hasta qué hora pueden, dentro del horario de la disponibilidad. Si no lo indican, cuentan para todo el horario.</span>
+          </span>
+        </label>
       </div>
       {tournaments.length > 0 && (
         <div>
@@ -261,7 +273,7 @@ function WindowsPage() {
   const [day, setDay] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [listFor, setListFor] = useState<Window | null>(null);
-  const [list, setList] = useState<{ name: string; since: string }[] | null>(null);
+  const [list, setList] = useState<{ name: string; since: string; start_time: string | null; end_time: string | null }[] | null>(null);
   const [guestsFor, setGuestsFor] = useState<Window | null>(null);
 
   // Desde un torneo se llega con ?d=AAAA-MM-DD para habilitar esa fecha.
@@ -369,6 +381,11 @@ function WindowsPage() {
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         {!w.open && <Badge color="stone"><LockClosedIcon className="mr-0.5 h-3 w-3" />Cerrada</Badge>}
+                        {w.allow_custom_hours && (
+                          <span title="Los árbitros pueden indicar desde y hasta qué hora pueden">
+                            <Badge color="blue"><ClockIcon className="mr-0.5 h-3 w-3" />Hora flexible</Badge>
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="mt-4">
@@ -385,7 +402,7 @@ function WindowsPage() {
                       )}
                       <button className="btn-ghost" onClick={() => setDraft({
                         id: w.id, date: w.date, all_day: w.all_day, start_time: w.start_time ?? "", end_time: w.end_time ?? "",
-                        day_ids: w.days.map((d) => d.id), hidden: w.hidden_tournament_ids,
+                        day_ids: w.days.map((d) => d.id), hidden: w.hidden_tournament_ids, custom_hours: w.allow_custom_hours,
                       })}><PencilSquareIcon className="h-4 w-4" />Editar</button>
                       <button className="btn-ghost text-red-700" onClick={() => remove(w)}><TrashIcon className="h-4 w-4" />Eliminar</button>
                     </div>
@@ -420,7 +437,12 @@ function WindowsPage() {
           <ol className="divide-y divide-stone-100">
             {list.map((r, i) => (
               <li key={i} className="flex justify-between py-2 text-sm">
-                <span>{i + 1}. {r.name}</span>
+                <span>
+                  {i + 1}. {r.name}
+                  {(r.start_time || r.end_time) && (
+                    <span className="ml-1.5 text-xs font-medium text-sky-700">{hoursLabel(r.start_time, r.end_time)}</span>
+                  )}
+                </span>
                 <span className="text-xs text-stone-400">{formatDateTime(r.since)}</span>
               </li>
             ))}

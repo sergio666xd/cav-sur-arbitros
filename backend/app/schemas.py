@@ -293,6 +293,8 @@ class WindowIn(BaseModel):
     day_ids: list[int] = Field(default_factory=list)
     # Torneos cuyo nombre no verán los árbitros en esta disponibilidad.
     hidden_tournament_ids: list[int] = Field(default_factory=list)
+    # Los árbitros pueden indicar su propio horario dentro del de la disponibilidad.
+    allow_custom_hours: bool = False
 
     @model_validator(mode="after")
     def _times(self):
@@ -318,6 +320,12 @@ class GuestIn(BaseModel):
         if not v:
             raise ValueError("Escribe el nombre del árbitro.")
         return v
+
+
+class SignupIn(BaseModel):
+    """Inscripción de un árbitro: opcionalmente, desde y hasta qué hora está disponible."""
+    start_time: time | None = None
+    end_time: time | None = None
 
 
 # ---------- Calificaciones ----------
