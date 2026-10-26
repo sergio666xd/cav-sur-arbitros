@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..coverage import available_by_day, check_overlaps, covers, overlaps
+from ..coverage import available_by_day, check_overlaps, covers, overlaps, start_times_by_day
 from ..database import get_db
 from ..deps import check_manages, require_admin, require_creator
 from ..models import Assignment, AvailabilityWindow, MatchRecord, Tournament, TournamentDay, User
@@ -204,6 +204,7 @@ def get_tournament(tournament_id: int, user: User = Depends(require_admin), db: 
     dates = [d.date for d in t.days]
 
     available = available_by_day(db, list(t.days))
+    starts = start_times_by_day(db, list(t.days))
     windows = _windows_on(db, set(dates))
 
     # Asignaciones de esas fechas en otros torneos, para avisar de choques de horario.
@@ -240,6 +241,8 @@ def get_tournament(tournament_id: int, user: User = Depends(require_admin), db: 
                 "is_guest": u.guest,
                 "assigned_elsewhere": clash.tournament.name if clash else None,
                 "available_at": at.isoformat() if at else None,
+                # Hora desde la que puede, si la indicó al inscribirse.
+                "available_from": _hhmm(starts.get(d.id, {}).get(u.id)),
             })
         assignments = []
         for a in sorted(d.assignments, key=lambda a: (t.roles.index(a.role) if a.role in (t.roles or []) else 99, name_key(a.user))):
@@ -266,6 +269,10 @@ def get_tournament(tournament_id: int, user: User = Depends(require_admin), db: 
         })
         days.append(info)
     return {**tournament_info(t), "days": days}
+
+
+def _hhmm(t) -> str | None:
+    return t.strftime("%H:%M") if t else None
 
 
 def _windows_on(db: Session, dates: set) -> list[AvailabilityWindow]:
@@ -424,6 +431,7 @@ def assignment_board(d: date | None = None, user: User = Depends(require_admin),
         .options(selectinload(TournamentDay.tournament), selectinload(TournamentDay.assignments))
     ).all() if not is_finished(x) and user.manages(x.tournament)]
     avail = available_by_day(db, list(days))
+    starts = start_times_by_day(db, list(days))
     chiefs = db.scalars(select(User).where(User.is_chief.is_(True), User.active.is_(True))).all()
     referees = _open_referees(db) if any(x.hidden for x in days) else []
 
@@ -464,6 +472,7 @@ def assignment_board(d: date | None = None, user: User = Depends(require_admin),
                 "available_day_ids": available.get(u.id, []),
                 "assigned": assigned.get(u.id, {}),
                 "confirmed_day_ids": confirmed.get(u.id, []),
+                "start_times": {str(day.id): _hhmm(starts[day.id][u.id]) for day in cols if u.id in starts.get(day.id, {})},
             } for u in rows],
         })
     return {"date": d.isoformat(), "dates": [x.isoformat() for x in upcoming], "groups": groups}

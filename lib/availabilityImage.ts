@@ -1,11 +1,11 @@
-import { dmy, formatDate, formatShortDate, formatTime } from "./api";
+import { dmy, formatClock, formatDate, formatShortDate, formatTime } from "./api";
 import { shortAddress } from "./maps";
 
 // Dibuja en un canvas una imagen para compartir: tabla con los árbitros en filas, las franjas en
 // columnas y una X donde el árbitro marcó disponibilidad. En modo "assignment" muestra en cambio a
 // los árbitros asignados, con su rol (o una X si no tiene), y sin totales.
 
-// at: cuándo marcó disponibilidad (ordena las filas). mark: rol asignado.
+// at: cuándo marcó disponibilidad (ordena las filas). mark: rol asignado o, en disponibilidad, desde qué hora puede.
 export type ImageEntry = { user_id: number; name: string; at: string; mark?: string };
 // date (AAAA-MM-DD) permite elegir qué fechas incluir al generar la imagen.
 // days: franjas de torneo que cubre la columna, para sumar bien los solicitados al agrupar por fecha.
@@ -41,8 +41,11 @@ export type SummaryRow = {
   required: number;
   days: { id: number; required: number }[];
   tournament: { name: string } | null;
-  entries: ImageEntry[];
+  entries: (ImageEntry & { start_time?: string | null })[];
 };
+
+// Nota al pie cuando algún árbitro indicó desde qué hora puede (la hora sale en su casilla en vez de la X).
+export const START_TIME_NOTE = "Si aparece una hora, el árbitro está disponible desde esa hora.";
 
 export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColumn[] {
   return rows.map((r) => ({
@@ -52,7 +55,7 @@ export function summaryColumns(rows: SummaryRow[], withDate: boolean): ImageColu
     sub: r.tournament?.name,
     required: r.required,
     days: r.days,
-    entries: r.entries,
+    entries: r.entries.map((e) => ({ ...e, mark: e.start_time ? formatClock(e.start_time) : undefined })),
   }));
 }
 

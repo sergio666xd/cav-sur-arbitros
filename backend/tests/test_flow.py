@@ -1170,3 +1170,59 @@ def test_guest_referees(client):
     # Se puede quitar de la disponibilidad; un árbitro registrado no se quita por aquí.
     r = client.delete(f"/api/availability-windows/{w['id']}/guests/{luis}", headers=chief)
     assert [g["name"] for g in r.json()["guests"]] == ["Pedro Pérez Gil"]
+
+
+def test_custom_start_time(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=3)).isoformat()
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "Copa", "location": "A", "referees_required": 2,
+        "days": [{"date": d, "start_time": "08:00", "end_time": "12:00"},
+                 {"date": d, "start_time": "14:00", "end_time": "18:00"}]}).json()["id"]
+    day_ids = [x["id"] for x in client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"]]
+    w = client.post("/api/availability-windows", headers=chief, json={
+        "date": d, "start_time": "08:00", "end_time": "18:00", "day_ids": day_ids}).json()
+    assert w["allow_custom_start"] is False
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "93000001", "Ana")
+    ref2 = _register(client, code, "93000002", "Beto")
+
+    # Sin la opción no se puede indicar otra hora.
+    assert client.post(f"/api/availability/{w['id']}", headers=ref, json={"start_time": "10:00"}).status_code == 400
+    spec = {"date": d, "start_time": "08:00", "end_time": "18:00", "day_ids": day_ids, "allow_custom_start": True}
+    assert client.put(f"/api/availability-windows/{w['id']}", headers=chief, json=spec).json()["allow_custom_start"] is True
+
+    # Fuera del horario no; dentro sí, y se puede cambiar después.
+    for bad in ("07:00", "18:00", "19:00"):
+        assert client.post(f"/api/availability/{w['id']}", headers=ref, json={"start_time": bad}).status_code == 400
+    assert client.post(f"/api/availability/{w['id']}", headers=ref, json={"start_time": "13:00"}).status_code == 204
+    assert client.post(f"/api/availability/{w['id']}", headers=ref2).status_code == 204
+    mine = client.get("/api/availability", headers=ref).json()[0]
+    assert mine["mine"] is True and mine["my_start_time"] == "13:00"
+    assert client.get(f"/api/availability/{w['id']}/referees", headers=ref).json()[0]["start_time"] == "13:00"
+
+    # Desde las 13:00 no sirve para la franja de la mañana, sí para la de la tarde (sin restricción porque empieza después).
+    days = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"]
+    morning = {c["name"]: c for c in days[0]["candidates"]}
+    afternoon = {c["name"]: c for c in days[1]["candidates"]}
+    assert "Ana Test" not in morning and "Beto Test" in morning
+    assert afternoon["Ana Test"]["available_from"] is None
+    assert client.put(f"/api/tournament-days/{days[0]['id']}/assignments", headers=chief,
+                      json=[{"user_id": next(c["user_id"] for c in days[1]["candidates"] if c["name"] == "Ana Test")}]).status_code == 400
+
+    # Desde las 10:00 sí cubre parte de la mañana: aparece con su hora en el torneo, el tablero y el resumen.
+    client.post(f"/api/availability/{w['id']}", headers=ref, json={"start_time": "10:00"})
+    days = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"]
+    ana = next(c for c in days[0]["candidates"] if c["name"] == "Ana Test")
+    assert ana["available_from"] == "10:00"
+    row = next(r for g in client.get(f"/api/assignment-board?d={d}", headers=chief).json()["groups"]
+               for r in g["rows"] if r["name"] == "Ana Test")
+    assert row["start_times"] == {str(days[0]["id"]): "10:00"}
+    entry = next(e for e in client.get(f"/api/availability/summary?d={d}", headers=chief).json()[0]["entries"]
+                 if e["name"] == "Ana Test")
+    assert entry["start_time"] == "10:00"
+
+    # La misma hora de inicio de la disponibilidad es todo el horario; al quitar la opción se borran las horas.
+    client.post(f"/api/availability/{w['id']}", headers=ref2, json={"start_time": "08:00"})
+    assert client.get("/api/availability", headers=ref2).json()[0]["my_start_time"] is None
+    client.put(f"/api/availability-windows/{w['id']}", headers=chief, json={**spec, "allow_custom_start": False})
+    assert client.get("/api/availability", headers=ref).json()[0]["my_start_time"] is None

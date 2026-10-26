@@ -1,13 +1,13 @@
 "use client";
 
-import { CheckIcon, HandRaisedIcon, LockClosedIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
+import { CheckIcon, ClockIcon, HandRaisedIcon, LockClosedIcon, UsersIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import DateHeading from "@/components/DateHeading";
 import DayFilter from "@/components/DayFilter";
 import Shell from "@/components/Shell";
 import { Alert, Badge, Empty, Loading, Modal, PageHeader, ProgressBar, Skeleton, Spinner } from "@/components/ui";
-import { api, formatDate, formatDateTime } from "@/lib/api";
+import { api, atClock, formatClock, formatDate, formatDateTime } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/useFetch";
 
@@ -16,6 +16,12 @@ type Slot = {
   date: string;
   slot_label: string;
   all_day: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  /** El árbitro puede indicar desde qué hora está disponible (dentro del horario). */
+  allow_custom_start: boolean;
+  /** Hora que indicó al inscribirse; null: todo el horario. */
+  my_start_time: string | null;
   /** Total de requeridos: null si algún torneo los oculta (salvo que no se vea ninguno por nombre). */
   required: number | null;
   registered: number;
@@ -26,7 +32,7 @@ type Slot = {
   hidden_count: number;
 };
 
-type Referee = { name: string; since: string };
+type Referee = { name: string; since: string; start_time: string | null };
 
 export default function AvailabilityPage() {
   const { user } = useAuth();
@@ -35,13 +41,33 @@ export default function AvailabilityPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [listFor, setListFor] = useState<Slot | null>(null);
   const [list, setList] = useState<Referee[] | null>(null);
+  // Hora de inicio escrita en cada disponibilidad (vacía: todo el horario).
+  const [starts, setStarts] = useState<Record<number, string>>({});
+  const startOf = (s: Slot) => starts[s.key] ?? s.my_start_time ?? "";
 
   async function toggle(s: Slot) {
     setBusy(s.key);
     setActionError(null);
     try {
-      await api(`/availability/${s.key}`, { method: s.mine ? "DELETE" : "POST" });
+      await api(`/availability/${s.key}`, s.mine
+        ? { method: "DELETE" }
+        : { method: "POST", body: s.allow_custom_start ? { start_time: startOf(s) || null } : undefined });
       await reload();
+      setStarts(({ [s.key]: _, ...rest }) => rest);
+    } catch (e) {
+      setActionError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveStart(s: Slot) {
+    setBusy(s.key);
+    setActionError(null);
+    try {
+      await api(`/availability/${s.key}`, { method: "POST", body: { start_time: startOf(s) || null } });
+      await reload();
+      setStarts(({ [s.key]: _, ...rest }) => rest);
     } catch (e) {
       setActionError((e as Error).message);
     } finally {
@@ -130,6 +156,29 @@ export default function AvailabilityPage() {
                           <ProgressBar pct={Math.min(100, Math.round((s.registered / Math.max(1, s.required)) * 100))} />
                         </div>
                       )}
+                      {s.mine && s.my_start_time && !s.open && (
+                        <p className="mt-3 flex items-center gap-1 text-sm text-sky-700"><ClockIcon className="h-4 w-4" />Disponible desde {formatClock(s.my_start_time)}</p>
+                      )}
+                      {s.open && s.allow_custom_start && (
+                        <div className="mt-4 rounded-lg bg-stone-50 p-3">
+                          <label className="label" htmlFor={`start-${s.key}`}>¿Desde qué hora puedes? <span className="font-normal text-stone-500">(opcional)</span></label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input id={`start-${s.key}`} className="input w-36" type="time" value={startOf(s)}
+                              min={s.all_day ? undefined : s.start_time ?? undefined} max={s.end_time ?? undefined}
+                              onChange={(e) => setStarts({ ...starts, [s.key]: e.target.value })} />
+                            {s.mine && startOf(s) !== (s.my_start_time ?? "") && (
+                              <button className="btn-secondary" disabled={busy === s.key} onClick={() => saveStart(s)}>
+                                {busy === s.key ? <Spinner /> : <CheckIcon className="h-4 w-4" />}Guardar hora
+                              </button>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-stone-500">
+                            {s.mine
+                              ? s.my_start_time ? `Inscrito desde ${atClock(s.my_start_time)}` : "Inscrito para todo el horario"
+                              : "Déjalo vacío si puedes todo el horario."}
+                          </p>
+                        </div>
+                      )}
                       <div className="mt-4 flex flex-wrap gap-2">
                         {s.open && (
                           <button className={s.mine ? "btn-secondary" : "btn-primary"} disabled={busy === s.key} onClick={() => toggle(s)}>
@@ -158,7 +207,10 @@ export default function AvailabilityPage() {
           <ol className="divide-y divide-stone-100">
             {list.map((r, i) => (
               <li key={i} className="flex animate-fade-in justify-between py-2 text-sm" style={{ animationDelay: `${i * 30}ms` }}>
-                <span>{i + 1}. {r.name}</span>
+                <span>
+                  {i + 1}. {r.name}
+                  {r.start_time && <span className="ml-1.5 text-xs font-medium text-sky-700">desde {formatClock(r.start_time)}</span>}
+                </span>
                 <span className="text-xs text-stone-400">{formatDateTime(r.since)}</span>
               </li>
             ))}

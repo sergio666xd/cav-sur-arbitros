@@ -3,7 +3,7 @@
 import { ArrowDownTrayIcon, PhotoIcon, ShareIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { useEffect, useState } from "react";
 import { formatShortDate } from "@/lib/api";
-import { groupByDate, renderAvailabilityImage, styleColumns, type DateFormat, type ImageSpec } from "@/lib/availabilityImage";
+import { groupByDate, renderAvailabilityImage, START_TIME_NOTE, styleColumns, type DateFormat, type ImageSpec } from "@/lib/availabilityImage";
 import { Portal, Spinner } from "./ui";
 
 // Botón que genera la imagen de disponibilidad y la muestra para descargar o compartir.
@@ -41,6 +41,7 @@ export default function AvailabilityImageButton({ spec, fileName, label = "Image
     const blob = await renderAvailabilityImage({
       ...s,
       hideRequired: s.hideRequired || !o.required,
+      footer: s.footer ?? (availability && columns.some((c) => c.entries.some((e) => e.mark)) ? START_TIME_NOTE : undefined),
       columns: !availability ? columns : o.grouped ? groupByDate(columns, o.dateFormat) : styleColumns(columns, o),
     });
     const f = new File([blob], `${fileName}.png`, { type: "image/png" });
