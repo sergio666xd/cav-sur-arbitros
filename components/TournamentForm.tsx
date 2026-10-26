@@ -180,6 +180,9 @@ export default function TournamentForm({
     setV({ ...v, days: [...v.days, last ? { ...last, id: undefined, key, date: nextDate(last.date) } : { ...emptyDay, key }] });
   }
 
+  // Datos generales: al editar un torneo empiezan contraídos para ir directo a las franjas.
+  const [infoOpen, setInfoOpen] = useState(!initial.name);
+
   // Franjas desplegadas. Las del torneo guardado empiezan plegadas; las nuevas, abiertas.
   const [open, setOpen] = useState<Set<string>>(() => new Set(v.days.filter((d) => !d.id).map(rowKey)));
   const toggle = (k: string) => setOpen((o) => {
@@ -256,63 +259,83 @@ export default function TournamentForm({
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      <div className="card grid gap-4 md:grid-cols-2">
-        <div className="md:col-span-2">
-          <label className="label">Nombre del torneo</label>
-          <input className="input" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required />
-        </div>
-        <div className="md:col-span-2">
-          <label className="label">Sedes del torneo</label>
-          <div className="space-y-2">
-            {v.venues.map((venue, i) => (
-              <div key={i} className="flex animate-slide-down gap-2">
-                <div className="flex-1">
-                  <PlaceInput value={venue} onChange={(x) => setVenue(i, x)} saved={locations.filter((l) => !v.venues.includes(l))}
-                    placeholder={i === 0 ? "Sede principal" : "Otra sede"} required={i === 0} />
-                </div>
-                {v.venues.length > 1 && (
-                  <button type="button" className="btn-ghost px-2 text-red-600" title="Quitar sede" aria-label="Quitar sede" onClick={() => removeVenue(i)}><XMarkIcon className="h-5 w-5" /></button>
-                )}
-              </div>
-            ))}
-          </div>
-          <button type="button" className="btn-ghost mt-2 px-2 text-sm text-brand-700" onClick={() => setV({ ...v, venues: [...v.venues, ""] })}>
-            <PlusIcon className="h-4 w-4" />Añadir sede
-          </button>
-        </div>
-        <div>
-          <label className="label">Árbitros requeridos por franja</label>
-          <input className="input" type="number" min={1} value={v.referees_required}
-            onChange={(e) => setV({ ...v, referees_required: Number(e.target.value) })} required />
-        </div>
-        <div className="md:col-span-2">
-          <label className="label">Categorías del torneo</label>
-          <ListInput value={v.categories} onChange={(c) => setV({ ...v, categories: c })} placeholder="Ej. Sub-17 femenino" suggestions={categories} />
-        </div>
-        <div className="md:col-span-2">
-          <label className="label">Notas para los árbitros asignados</label>
-          <textarea className="input min-h-20" value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} />
-        </div>
-        <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-0.5 switch" checked={v.is_visible} onChange={(e) => setV({ ...v, is_visible: e.target.checked })} />
-          <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán el nombre del torneo, la fecha y la franja.</span></span>
-        </label>
-        <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-0.5 switch" checked={v.show_required} onChange={(e) => setV({ ...v, show_required: e.target.checked })} />
-          <span><b>Árbitros requeridos visibles</b><br /><span className="text-stone-500">Si no, en Disponibilidad los árbitros solo verán cuántos se han inscrito en cada franja.</span></span>
-        </label>
-        <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-0.5 switch" checked={v.has_roles} onChange={(e) => setV({ ...v, has_roles: e.target.checked })} />
-          <span><b>Torneo con roles</b><br /><span className="text-stone-500">Cada árbitro asignado recibe un rol, p. ej. Principal, Segundo y Planillero.</span></span>
-        </label>
-        {v.has_roles && (
+      <div className="card" onInvalidCapture={(e) => {
+        if (infoOpen) return;
+        const el = e.target as HTMLInputElement;
+        setInfoOpen(true);
+        requestAnimationFrame(() => el.reportValidity());
+      }}>
+        <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setInfoOpen(!infoOpen)} aria-expanded={infoOpen}>
+          <ChevronDownIcon className={`h-5 w-5 shrink-0 text-stone-400 transition-transform duration-200 ${infoOpen ? "" : "-rotate-90"}`} />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Datos del torneo</span>
+            {!infoOpen && (
+              <span className="block truncate text-sm text-stone-500">
+                {[v.name || "Sin nombre", venues.length === 1 ? shortAddress(venues[0]) : `${venues.length} sedes`,
+                  `${v.referees_required} árbitros por franja`].join(" · ")}
+              </span>
+            )}
+          </span>
+          <span className="shrink-0 text-sm text-brand-700">{infoOpen ? "Minimizar" : "Mostrar"}</span>
+        </button>
+        <div className={infoOpen ? "mt-4 grid animate-slide-down gap-4 md:grid-cols-2" : "hidden"}>
           <div className="md:col-span-2">
-            <label className="label">Roles</label>
-            <ListInput value={v.roles} onChange={(roles) => setV({ ...v, roles })} placeholder="Nuevo rol" />
+            <label className="label">Nombre del torneo</label>
+            <input className="input" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required />
           </div>
-        )}
-        <div className="md:col-span-2">
-          <AdminPicker value={v.admin_ids} onChange={(admin_ids) => setV({ ...v, admin_ids })} />
+          <div className="md:col-span-2">
+            <label className="label">Sedes del torneo</label>
+            <div className="space-y-2">
+              {v.venues.map((venue, i) => (
+                <div key={i} className="flex animate-slide-down gap-2">
+                  <div className="flex-1">
+                    <PlaceInput value={venue} onChange={(x) => setVenue(i, x)} saved={locations.filter((l) => !v.venues.includes(l))}
+                      placeholder={i === 0 ? "Sede principal" : "Otra sede"} required={i === 0} />
+                  </div>
+                  {v.venues.length > 1 && (
+                    <button type="button" className="btn-ghost px-2 text-red-600" title="Quitar sede" aria-label="Quitar sede" onClick={() => removeVenue(i)}><XMarkIcon className="h-5 w-5" /></button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button" className="btn-ghost mt-2 px-2 text-sm text-brand-700" onClick={() => setV({ ...v, venues: [...v.venues, ""] })}>
+              <PlusIcon className="h-4 w-4" />Añadir sede
+            </button>
+          </div>
+          <div>
+            <label className="label">Árbitros requeridos por franja</label>
+            <input className="input" type="number" min={1} value={v.referees_required}
+              onChange={(e) => setV({ ...v, referees_required: Number(e.target.value) })} required />
+          </div>
+          <div className="md:col-span-2">
+            <label className="label">Categorías del torneo</label>
+            <ListInput value={v.categories} onChange={(c) => setV({ ...v, categories: c })} placeholder="Ej. Sub-17 femenino" suggestions={categories} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="label">Notas para los árbitros asignados</label>
+            <textarea className="input min-h-20" value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} />
+          </div>
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 switch" checked={v.is_visible} onChange={(e) => setV({ ...v, is_visible: e.target.checked })} />
+            <span><b>Información visible</b><br /><span className="text-stone-500">Si no, los árbitros solo verán el nombre del torneo, la fecha y la franja.</span></span>
+          </label>
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 switch" checked={v.show_required} onChange={(e) => setV({ ...v, show_required: e.target.checked })} />
+            <span><b>Árbitros requeridos visibles</b><br /><span className="text-stone-500">Si no, en Disponibilidad los árbitros solo verán cuántos se han inscrito en cada franja.</span></span>
+          </label>
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" className="mt-0.5 switch" checked={v.has_roles} onChange={(e) => setV({ ...v, has_roles: e.target.checked })} />
+            <span><b>Torneo con roles</b><br /><span className="text-stone-500">Cada árbitro asignado recibe un rol, p. ej. Principal, Segundo y Planillero.</span></span>
+          </label>
+          {v.has_roles && (
+            <div className="md:col-span-2">
+              <label className="label">Roles</label>
+              <ListInput value={v.roles} onChange={(roles) => setV({ ...v, roles })} placeholder="Nuevo rol" />
+            </div>
+          )}
+          <div className="md:col-span-2">
+            <AdminPicker value={v.admin_ids} onChange={(admin_ids) => setV({ ...v, admin_ids })} />
+          </div>
         </div>
       </div>
 
