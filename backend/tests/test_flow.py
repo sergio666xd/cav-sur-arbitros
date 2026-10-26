@@ -1237,3 +1237,42 @@ def test_custom_hours(client):
     assert mine2["my_start_time"] is None and mine2["my_end_time"] is None
     client.put(f"/api/availability-windows/{w['id']}", headers=chief, json={**spec, "allow_custom_hours": False})
     assert client.get("/api/availability", headers=ref).json()[0]["my_end_time"] is None
+
+
+def test_concurrent_edits_are_rejected(client):
+    chief = login(client, "10000000", "1111")
+    d = (today_local() + timedelta(days=3)).isoformat()
+    body = {"name": "Copa", "location": "A", "referees_required": 2, "days": [{"date": d, "start_time": "09:00"}]}
+    tid = client.post("/api/tournaments", headers=chief, json=body).json()["id"]
+    t = client.get(f"/api/tournaments/{tid}", headers=chief).json()
+    v = t["version"]
+    day = {"id": t["days"][0]["id"], "date": d, "start_time": "09:00"}
+
+    # Dos personas abren el formulario con la misma versión: la segunda en guardar es rechazada.
+    assert client.put(f"/api/tournaments/{tid}", headers=chief,
+                      json={**body, "name": "Copa A", "days": [day], "expected_version": v}).status_code == 200
+    r = client.put(f"/api/tournaments/{tid}", headers=chief, json={**body, "name": "Copa B", "days": [day], "expected_version": v})
+    assert r.status_code == 409
+    t = client.get(f"/api/tournaments/{tid}", headers=chief).json()
+    assert t["name"] == "Copa A" and t["version"] == v + 1
+    # Sin versión (clientes anteriores) se sigue pudiendo guardar.
+    assert client.put(f"/api/tournaments/{tid}", headers=chief, json={**body, "days": [day]}).status_code == 200
+
+    # Asignación: si cambió desde que se empezó a editar, se rechaza (en la franja y en el tablero).
+    _open_windows(client, chief)
+    code = client.post("/api/codes", headers=chief).json()["code"]
+    ref = _register(client, code, "94000001", "Ana")
+    key = client.get("/api/availability", headers=ref).json()[0]["key"]
+    client.post(f"/api/availability/{key}", headers=ref)
+    day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    sig, ana = day["assign_sig"], next(c["user_id"] for c in day["candidates"] if c["name"].startswith("Ana"))
+    url = f"/api/tournament-days/{day['id']}/assignments"
+    assert client.put(url, headers=chief, params={"expected": sig}, json=[{"user_id": ana}]).status_code == 200
+    assert client.put(url, headers=chief, params={"expected": sig}, json=[]).status_code == 409
+    board = client.get(f"/api/assignment-board?d={d}", headers=chief).json()
+    col = board["groups"][0]["columns"][0]
+    assert col["assign_sig"] != sig
+    assert client.put("/api/assignment-board", headers=chief,
+                      json={"days": [{"day_id": day["id"], "items": [], "expected": sig}]}).status_code == 409
+    assert client.put("/api/assignment-board", headers=chief,
+                      json={"days": [{"day_id": day["id"], "items": [], "expected": col["assign_sig"]}]}).status_code == 200

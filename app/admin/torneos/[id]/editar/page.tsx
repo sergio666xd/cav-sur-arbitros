@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import BackLink from "@/components/BackLink";
 import Shell from "@/components/Shell";
 import TournamentForm, { DEFAULT_ROLES, type TournamentFormValue } from "@/components/TournamentForm";
@@ -41,25 +42,42 @@ function toForm(t: TournamentDetail): TournamentFormValue {
 export default function EditTournamentPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  // Sigue consultando el torneo para avisar si otra persona lo guarda mientras se edita; el formulario
+  // conserva lo que se está escribiendo (solo toma los datos al abrirse o al cargar los cambios del otro).
   const { data, loading, error } = useFetch<TournamentDetail>(`/tournaments/${id}`);
+  const [base, setBase] = useState<TournamentDetail | null>(null);
+  const form = base ?? data;
+  if (data && !base) setBase(data);
+  const changed = !!data && !!base && data.version !== base.version;
   return (
     <Shell allow={(u) => u.perm_create_tournaments}>
       <BackLink href={`/admin/torneos/${id}`}>Volver al torneo</BackLink>
       <PageHeader title="Editar torneo y fechas" subtitle="Añade nuevas fechas para reutilizar el torneo. Al editar una franja, incluso su fecha, se conservan sus disponibilidades y asignaciones." />
-      {loading ? (
+      {loading && !form ? (
         <Loading variant="form" />
-      ) : error ? (
+      ) : error && !form ? (
         <Alert>{error}</Alert>
-      ) : data ? (
-        <TournamentForm
-          initial={toForm(data)}
-          pastCount={data.days.filter((d) => d.past).length}
-          submitLabel="Guardar cambios"
-          onSubmit={async (body) => {
-            await api(`/tournaments/${id}`, { method: "PUT", body });
-            router.push(`/admin/torneos/${id}`);
-          }}
-        />
+      ) : form ? (
+        <>
+          {changed && (
+            <div className="mb-4 animate-slide-down">
+              <Alert kind="warning">
+                <p>Otra persona guardó cambios en este torneo mientras lo editabas. Para no borrar lo que hizo, no podrás guardar hasta cargar sus cambios.</p>
+                <button type="button" className="btn-secondary mt-2" onClick={() => setBase(data)}>Cargar sus cambios (descarta los tuyos)</button>
+              </Alert>
+            </div>
+          )}
+          <TournamentForm
+            key={form.version}
+            initial={toForm(form)}
+            pastCount={form.days.filter((d) => d.past).length}
+            submitLabel="Guardar cambios"
+            onSubmit={async (body) => {
+              await api(`/tournaments/${id}`, { method: "PUT", body: { ...(body as object), expected_version: form.version } });
+              router.push(`/admin/torneos/${id}`);
+            }}
+          />
+        </>
       ) : null}
     </Shell>
   );

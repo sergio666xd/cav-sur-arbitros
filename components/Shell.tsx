@@ -9,7 +9,7 @@ import {
   ArrowRightStartOnRectangleIcon, Bars3Icon, CalendarDaysIcon, CalendarIcon, ClipboardDocumentCheckIcon, KeyIcon, NoSymbolIcon,
   StarIcon, TrophyIcon, UserCircleIcon, UserGroupIcon, ViewColumnsIcon, XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { useFetch } from "@/lib/useFetch";
+import { REFRESH_MS, useFetch } from "@/lib/useFetch";
 import { Skeleton } from "./ui";
 import { formatPhone } from "./Whatsapp";
 
@@ -122,15 +122,19 @@ export default function Shell({
   }, [menuOpen]);
 
   // Alerta en el menú: asignaciones que el árbitro aún no confirma. Se actualiza al cambiar de
-  // página y cuando Mis torneos avisa que se confirmó una.
+  // página, cuando Mis torneos avisa que se confirmó una y cada 10 s (con la pestaña visible).
   const [pending, setPending] = useState(0);
   const tracksAssignments = !!user && user.active && (user.is_referee || user.is_chief);
   useEffect(() => {
     if (!tracksAssignments) return;
     const load = () => api<{ count: number }>("/me/pending-confirmations").then((r) => setPending(r.count)).catch(() => {});
     load();
+    const timer = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);
     window.addEventListener(PENDING_EVENT, load);
-    return () => window.removeEventListener(PENDING_EVENT, load);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(PENDING_EVENT, load);
+    };
   }, [tracksAssignments, pathname]);
 
   if (loading || !user) {
@@ -258,7 +262,7 @@ export default function Shell({
 
 // Un usuario suspendido ingresa, pero solo ve este aviso con el contacto del Jefe.
 function Suspended({ onLogout }: { onLogout: () => void }) {
-  const { data } = useFetch<{ chief_name: string | null; whatsapp: string | null }>("/auth/suspension");
+  const { data } = useFetch<{ chief_name: string | null; whatsapp: string | null }>("/auth/suspension", { refresh: 0 });
   return (
     <div className="min-h-screen">
       <header className="border-b-2 border-brand-500 bg-night text-white shadow">

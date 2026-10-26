@@ -3,7 +3,7 @@
 import { CheckCircleIcon, ChevronDownIcon, ClockIcon, ExclamationTriangleIcon, MapPinIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import BackLink from "@/components/BackLink";
 import Place from "@/components/Place";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
@@ -26,8 +26,24 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [marking, setMarking] = useState<number | null>(null);
+  // Asignación guardada cuando se empezó a editar: si otra persona la cambia entretanto, se avisa
+  // y el servidor no deja guardar encima.
+  const [expected, setExpected] = useState(day.assign_sig ?? "");
+  const conflict = dirty && (day.assign_sig ?? "") !== expected;
 
-  useEffect(() => { if (!dirty) setSelected(initial()); }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Al actualizarse los datos, se toma la asignación nueva solo si no hay cambios sin guardar.
+  useEffect(() => {
+    if (dirty) return;
+    setSelected(initial());
+    setExpected(day.assign_sig ?? "");
+  }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function loadTheirs() {
+    setSelected(initial());
+    setExpected(day.assign_sig ?? "");
+    setDirty(false);
+    setMsg(null);
+  }
 
   // Incluye asignados que ya no figuran como candidatos (p. ej. si quitaron su disponibilidad).
   const people = [...day.candidates];
@@ -63,7 +79,7 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
     setBusy(true);
     setMsg(null);
     try {
-      await api(`/tournament-days/${day.id}/assignments`, {
+      await api(`/tournament-days/${day.id}/assignments?expected=${encodeURIComponent(expected)}`, {
         method: "PUT",
         body: Object.entries(selected).map(([user_id, role]) => ({ user_id: Number(user_id), role: role || null })),
       });
@@ -135,6 +151,14 @@ function AssignmentEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDe
           })}
         </ul>
       )}
+      {conflict && (
+        <div className="mt-2">
+          <Alert kind="warning">
+            <p>Otra persona cambió esta asignación mientras la editabas. Para no borrar lo que hizo, carga sus cambios antes de guardar.</p>
+            <button type="button" className="btn-secondary mt-2" onClick={loadTheirs}>Cargar sus cambios (descarta los tuyos)</button>
+          </Alert>
+        </div>
+      )}
       {msg && <div className="mt-2"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
       <button className="btn-primary mt-3" disabled={busy} onClick={save}>{busy ? <><Spinner />Guardando...</> : "Guardar asignación"}</button>
     </div>
@@ -174,8 +198,10 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [games, setGames] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Lo escrito y sin guardar no se reemplaza cuando se actualizan los datos.
+  const [dirty, setDirty] = useState(false);
 
-  useEffect(() => setValues(initial()), [day]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!dirty) setValues(initial()); }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (refs.length === 0) return null;
   const withRoles = t.has_roles && refs.some((a) => a.role);
@@ -195,6 +221,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
       };
     }
     setValues(next);
+    setDirty(true);
   }
 
   const num = (v?: string) => Number(v || 0);
@@ -214,6 +241,7 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
           : { user_id: a.user_id, ...counts(a.user_id, "") }),
       });
       setMsg({ kind: "success", text: "Partidos registrados." });
+      setDirty(false);
       onSaved();
     } catch (e) {
       setMsg({ kind: "error", text: (e as Error).message });
@@ -222,8 +250,10 @@ function MatchEditor({ day, t, onSaved }: { day: DayDetail; t: TournamentDetail;
     }
   }
 
-  const set = (id: number, cat: string, k: keyof Counts, v: string) =>
+  const set = (id: number, cat: string, k: keyof Counts, v: string) => {
     setValues({ ...values, [id]: { ...values[id], [cat]: { ...values[id]?.[cat], [k]: v.replace(/\D/g, "") } } });
+    setDirty(true);
+  };
 
   const cell = (id: number, cat: string, k: keyof Counts, label: string) => (
     <input className="input w-14 px-2 py-1 text-center" inputMode="numeric" aria-label={label}
@@ -420,13 +450,16 @@ export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const { data: t, loading, error, reload } = useFetch<TournamentDetail>(`/tournaments/${id}`);
+  // Cada 5 s, para ver al momento lo que otros cambian en asignaciones, camisetas, horarios, etc.
+  const { data: t, loading, error, reload } = useFetch<TournamentDetail>(`/tournaments/${id}`, { refresh: 5_000 });
   const [showPast, setShowPast] = useState(false);
   const shirts = useFetch<Shirt[]>("/shirts");
 
-  // Si se llega desde "Fechas anteriores" (#dia-N), abrir esa sección y desplazarse hasta la franja.
+  // Si se llega desde "Fechas anteriores" (#dia-N), abrir esa sección y desplazarse hasta la franja (solo al cargar).
+  const scrolled = useRef(false);
   useEffect(() => {
-    if (!t || typeof window === "undefined" || !window.location.hash.startsWith("#dia-")) return;
+    if (!t || scrolled.current || typeof window === "undefined" || !window.location.hash.startsWith("#dia-")) return;
+    scrolled.current = true;
     const dayId = Number(window.location.hash.slice(5));
     if (t.days.some((d) => d.id === dayId && d.past)) setShowPast(true);
     setTimeout(() => document.getElementById(`dia-${dayId}`)?.scrollIntoView({ behavior: "smooth" }), 50);

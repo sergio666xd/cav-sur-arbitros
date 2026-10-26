@@ -2,7 +2,7 @@
 
 import { ClockIcon, ExclamationTriangleIcon } from "@heroicons/react/20/solid";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AvailabilityImageButton from "@/components/AvailabilityImageButton";
 import { assignmentSpec, summaryColumns, type SummaryRow } from "@/lib/availabilityImage";
 import Shell from "@/components/Shell";
@@ -30,6 +30,8 @@ type Column = {
   hidden: boolean;
   visible: boolean;
   shirt: Shirt | null;
+  /** Huella de la asignación guardada, para no pisar los cambios de otro. */
+  assign_sig: string;
 };
 
 type BoardRow = {
@@ -50,6 +52,9 @@ type Board = { date: string; dates: string[]; groups: Group[] };
 // Selección: día -> (árbitro -> rol, "" si no tiene rol).
 type Selection = Record<number, Record<number, string>>;
 
+// Para comparar la selección de una franja sin importar el orden en que se marcó.
+const canon = (day: Record<number, string> | undefined) => JSON.stringify(Object.entries(day ?? {}).sort());
+
 function fromBoard(board: Board): Selection {
   const sel: Selection = {};
   for (const g of board.groups) {
@@ -66,12 +71,14 @@ function overlaps(a: Column, b: Column) {
   return a.start_time < (b.end_time ?? "24:00") && b.start_time < (a.end_time ?? "24:00");
 }
 
-function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
+function GroupTable({ group, date, dirty, shirts, sel, setSel, conflicts, onLoadTheirs }: {
   group: Group; date: string; dirty: boolean; shirts: Shirt[]; sel: Selection; setSel: (s: Selection) => void;
+  conflicts: Set<number>; onLoadTheirs: (dayId: number) => void;
 }) {
   const cols = group.columns;
-  // Camiseta de cada franja; se guarda al elegirla, aparte de las asignaciones.
+  // Camiseta de cada franja; se guarda al elegirla, aparte de las asignaciones, y se actualiza si otro la cambia.
   const [shirtOf, setShirtOf] = useState<Record<number, Shirt | null>>(() => Object.fromEntries(cols.map((c) => [c.id, c.shirt])));
+  useEffect(() => setShirtOf(Object.fromEntries(cols.map((c) => [c.id, c.shirt]))), [group]); // eslint-disable-line react-hooks/exhaustive-deps
   // Confirmaciones de externos marcadas aquí ("árbitro-franja" -> confirmó), sin recargar el tablero.
   const [marked, setMarked] = useState<Record<string, boolean>>({});
   const [marking, setMarking] = useState<string | null>(null);
@@ -142,6 +149,14 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
                     {group.rows.some((r) => String(c.id) in r.assigned) && (
                       <div className="text-xs text-stone-500">
                         {group.rows.filter((r) => String(c.id) in r.assigned && isConfirmed(r, c)).length} confirmaron
+                      </div>
+                    )}
+                    {conflicts.has(c.id) && (
+                      <div className="mt-2 max-w-56 animate-slide-down rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                        Otra persona cambió esta franja mientras la editabas.
+                        <button type="button" className="mt-1 block font-semibold underline" onClick={() => onLoadTheirs(c.id)}>
+                          Cargar sus cambios
+                        </button>
                       </div>
                     )}
                     <ShirtSelect className="mt-2" dayId={c.id} value={shirtOf[c.id] ?? null} shirts={shirts}
@@ -254,19 +269,51 @@ function GroupTable({ group, date, dirty, shirts, sel, setSel }: {
 
 export default function AssignmentBoardPage() {
   const [date, setDate] = useState<string | null>(null);
-  const { data, loading, error, reload } = useFetch<Board>(`/assignment-board${date ? `?d=${date}` : ""}`);
+  const [busy, setBusy] = useState(false);
+  // Cada 5 s (sin actualizar mientras se guarda): asignaciones, camisetas, lugares y horarios que cambien otros.
+  const { data, loading, error, reload } = useFetch<Board>(`/assignment-board${date ? `?d=${date}` : ""}`, { refresh: 5_000, paused: busy });
   const [sel, setSel] = useState<Selection>({});
   const shirts = useFetch<Shirt[]>("/shirts");
   const [msg, setMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Por franja, la huella de la asignación guardada cuando se empezó a editar.
+  const [expected, setExpected] = useState<Record<number, string>>({});
 
+  const original = useMemo(() => (data ? fromBoard(data) : {}), [data]);
+  const sigs = useMemo(() => Object.fromEntries((data?.groups ?? []).flatMap((g) => g.columns.map((c) => [c.id, c.assign_sig]))) as Record<number, string>, [data]);
+
+  // Al llegar datos nuevos, cada franja toma lo guardado salvo que tenga cambios sin guardar aquí:
+  // así se actualiza solo lo que cambió, sin perder lo que se está editando.
+  const prev = useRef<{ date: string; sel: Selection }>({ date: "", sel: {} });
+  const latest = useRef({ sel, expected });
+  latest.current = { sel, expected };
   useEffect(() => {
-    if (data) setSel(fromBoard(data));
-  }, [data]);
+    if (!data) return;
+    const same = prev.current.date === data.date;
+    const { sel: cur, expected: exp } = latest.current;
+    const nextSel: Selection = {};
+    const nextExp: Record<number, string> = {};
+    for (const [key, saved] of Object.entries(original)) {
+      const id = Number(key);
+      const edited = same && id in cur && canon(cur[id]) !== canon(prev.current.sel[id]);
+      nextSel[id] = edited ? cur[id] : saved;
+      nextExp[id] = edited ? (exp[id] ?? sigs[id]) : sigs[id];
+    }
+    prev.current = { date: data.date, sel: original };
+    setSel(nextSel);
+    setExpected(nextExp);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = data !== null && data.groups.every((g) => g.columns.every((c) => c.id in sel));
-  const original = useMemo(() => (data ? JSON.stringify(fromBoard(data)) : ""), [data]);
-  const dirty = data !== null && JSON.stringify(sel) !== original;
+  const changed = Object.keys(sel).map(Number).filter((id) => canon(sel[id]) !== canon(original[id]));
+  const dirty = data !== null && changed.length > 0;
+  // Franjas que editas aquí y que otra persona guardó entretanto: no se pueden guardar encima.
+  const conflicts = new Set(changed.filter((id) => expected[id] !== sigs[id]));
+
+  function loadTheirs(dayId: number) {
+    setSel({ ...sel, [dayId]: original[dayId] });
+    setExpected({ ...expected, [dayId]: sigs[dayId] });
+    setMsg(null);
+  }
 
   function pickDate(d: string) {
     if (dirty && !confirm("Tienes cambios sin guardar. ¿Cambiar de fecha y descartarlos?")) return;
@@ -281,9 +328,11 @@ export default function AssignmentBoardPage() {
       await api("/assignment-board", {
         method: "PUT",
         body: {
-          days: Object.entries(sel).map(([dayId, people]) => ({
-            day_id: Number(dayId),
-            items: Object.entries(people).map(([userId, role]) => ({ user_id: Number(userId), role: role || null })),
+          // Solo las franjas cambiadas, cada una con la asignación que tenía al empezar a editarla.
+          days: changed.map((dayId) => ({
+            day_id: dayId,
+            expected: expected[dayId],
+            items: Object.entries(sel[dayId]).map(([userId, role]) => ({ user_id: Number(userId), role: role || null })),
           })),
         },
       });
@@ -358,7 +407,8 @@ export default function AssignmentBoardPage() {
               <div className={`space-y-6 transition-opacity duration-200 ${loading ? "pointer-events-none opacity-50" : ""}`}>
                 {data.groups.map((g, i) => (
                   <div key={`${data.date}-${g.key}`} className="animate-slide-up" style={{ animationDelay: `${i * 60}ms` }}>
-                    <GroupTable group={g} date={data.date} dirty={dirty} shirts={shirts.data ?? []} sel={sel} setSel={setSel} />
+                    <GroupTable group={g} date={data.date} dirty={dirty} shirts={shirts.data ?? []} sel={sel} setSel={setSel}
+                      conflicts={conflicts} onLoadTheirs={loadTheirs} />
                   </div>
                 ))}
               </div>

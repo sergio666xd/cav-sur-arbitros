@@ -107,6 +107,8 @@ class Tournament(Base):
     has_roles: Mapped[bool] = mapped_column(Boolean, default=False)
     roles: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[str] = mapped_column(Text, default="")
+    # Sube cada vez que se guarda el formulario del torneo, para no pisar los cambios de otro usuario.
+    version: Mapped[int | None] = mapped_column(Integer, default=1, nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
