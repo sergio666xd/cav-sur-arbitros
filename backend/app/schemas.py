@@ -186,6 +186,8 @@ class TournamentIn(BaseModel):
     location: str = Field(default="", max_length=200)  # Compatibilidad: una sola sede.
     categories: list[str] = Field(default_factory=list)
     referees_required: int = Field(ge=1, le=200)
+    # Versión del torneo cuando se abrió el formulario: si otro usuario guardó después, se rechaza.
+    expected_version: int | None = None
     is_visible: bool = True
     show_required: bool = True
     has_roles: bool = False
@@ -244,6 +246,8 @@ class AssignmentIn(BaseModel):
 class BoardDayIn(BaseModel):
     day_id: int
     items: list[AssignmentIn]
+    # Asignación que había cuando se empezó a editar (assign_sig): si cambió entretanto, se rechaza.
+    expected: str | None = None
 
 
 class BoardIn(BaseModel):

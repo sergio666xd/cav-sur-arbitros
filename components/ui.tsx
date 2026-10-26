@@ -4,11 +4,12 @@ import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkI
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-export function Alert({ kind = "error", children }: { kind?: "error" | "success" | "info"; children: React.ReactNode }) {
+export function Alert({ kind = "error", children }: { kind?: "error" | "success" | "info" | "warning"; children: React.ReactNode }) {
   const { styles, Icon } = {
     error: { styles: "border-red-200 bg-red-50 text-red-800", Icon: ExclamationTriangleIcon },
     success: { styles: "border-green-200 bg-green-50 text-green-800", Icon: CheckCircleIcon },
     info: { styles: "border-brand-200 bg-brand-50 text-brand-900", Icon: InformationCircleIcon },
+    warning: { styles: "border-amber-200 bg-amber-50 text-amber-900", Icon: ExclamationTriangleIcon },
   }[kind];
   return (
     <div role={kind === "error" ? "alert" : "status"} className={`flex animate-slide-down items-start gap-2 rounded-lg border px-4 py-3 text-sm ${styles}`}>

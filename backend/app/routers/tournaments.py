@@ -10,7 +10,7 @@ from ..database import get_db
 from ..deps import check_manages, require_admin, require_creator
 from ..models import Assignment, AvailabilityWindow, MatchRecord, Tournament, TournamentDay, User
 from ..schemas import AssignmentIn, BoardIn, ConfirmedIn, FinishedIn, MatchIn, TournamentIn
-from ..serializers import day_info, fold, name_key, tournament_info
+from ..serializers import assignment_sig, day_info, fold, name_key, tournament_info
 from ..slots import day_slot, ended_by_time, group_days, has_started, is_finished
 from ..timeutil import is_open_for_availability, today_local, utcnow
 from .catalog import remember
@@ -176,6 +176,12 @@ def update_tournament(
     tournament_id: int, data: TournamentIn, _: User = Depends(require_creator), db: Session = Depends(get_db)
 ):
     t = _get_tournament(db, tournament_id)
+    if data.expected_version is not None and data.expected_version != (t.version or 0):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Otra persona guardó cambios en este torneo mientras lo editabas. Carga sus cambios y vuelve a hacer los tuyos.",
+        )
+    t.version = (t.version or 0) + 1
     _apply_fields(db, t, data)
     _apply_days(db, t, data)
     if not t.has_roles:
@@ -261,6 +267,7 @@ def get_tournament(tournament_id: int, user: User = Depends(require_admin), db: 
             })
         info = day_info(d)
         info.update({
+            "assign_sig": assignment_sig(d),
             "open": is_open_for_availability(d.date),
             "candidates": candidates,
             "available_count": len(available.get(d.id, {})),
@@ -294,15 +301,19 @@ def _open_referees(db: Session) -> list[User]:
 
 @router.put("/tournament-days/{day_id}/assignments")
 def set_assignments(
-    day_id: int, items: list[AssignmentIn], user: User = Depends(require_admin), db: Session = Depends(get_db)
+    day_id: int, items: list[AssignmentIn], expected: str | None = None,
+    user: User = Depends(require_admin), db: Session = Depends(get_db),
 ):
+    """`expected`: la asignación (assign_sig) que había al empezar a editar; si otro la cambió, se rechaza."""
     day = _get_day(db, day_id, user)
-    check_overlaps(db, _apply_assignments(db, day, items))
+    check_overlaps(db, _apply_assignments(db, day, items, expected))
     db.commit()
     return {"ok": True}
 
 
-def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn]) -> list[tuple[TournamentDay, User]]:
+def _apply_assignments(
+    db: Session, day: TournamentDay, items: list[AssignmentIn], expected: str | None = None
+) -> list[tuple[TournamentDay, User]]:
     """Deja la asignación de la franja exactamente como `items` (sin confirmar la transacción).
 
     Devuelve los árbitros recién asignados, para revisar después si se cruzan con otra franja.
@@ -310,6 +321,12 @@ def _apply_assignments(db: Session, day: TournamentDay, items: list[AssignmentIn
     t = day.tournament
     if is_finished(day):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La franja de {t.name} ya finalizó; su asignación no se puede cambiar.")
+    if expected is not None and expected != assignment_sig(day):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Otra persona cambió la asignación de {t.name} el {day.date:%d/%m/%Y} ({day_slot(day).label}) mientras la editabas."
+            " Carga sus cambios y vuelve a intentarlo.",
+        )
     current = {a.user_id: a for a in day.assignments}
     user_ids = [i.user_id for i in items]
     if len(user_ids) != len(set(user_ids)):
@@ -462,6 +479,7 @@ def assignment_board(d: date | None = None, user: User = Depends(require_admin),
             "slot_label": g.slot.label,
             "columns": [{
                 **day_info(day),
+                "assign_sig": assignment_sig(day),
                 "tournament_id": day.tournament_id,
                 "tournament": day.tournament.name,
                 "visible": day.tournament.is_visible,
@@ -487,7 +505,7 @@ def save_assignment_board(data: BoardIn, user: User = Depends(require_admin), db
     """Guarda varias franjas a la vez: o se guardan todas o ninguna."""
     added = []
     for entry in data.days:
-        added += _apply_assignments(db, _get_day(db, entry.day_id, user), entry.items)
+        added += _apply_assignments(db, _get_day(db, entry.day_id, user), entry.items, entry.expected)
     check_overlaps(db, added)
     db.commit()
     return {"ok": True}

@@ -31,7 +31,7 @@ export default function RatingsPage() {
   // El rol system ve las calificaciones, pero solo el Jefe califica o anula.
   const canRate = !!user?.is_chief;
   const refs = useFetch<Ref[]>("/ratings/referees");
-  const scale = useFetch<Scale>("/ratings/scale");
+  const scale = useFetch<Scale>("/ratings/scale", { refresh: 0 });
   const history = useFetch<Batch[]>("/ratings/history");
   const [editing, setEditing] = useState(false);
   const [picks, setPicks] = useState<Record<number, string>>({});

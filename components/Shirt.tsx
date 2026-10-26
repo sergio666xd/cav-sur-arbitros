@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Shirt } from "@/lib/types";
 import { Spinner } from "./ui";
@@ -32,6 +32,9 @@ export function ShirtSelect({ dayId, value, shirts, onSaved, className = "" }: {
   const [current, setCurrent] = useState<Shirt | null>(value);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Si otra persona cambia la camiseta, se ve al actualizarse los datos (salvo mientras se guarda aquí).
+  useEffect(() => { if (!busy) setCurrent(value); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function change(raw: string) {
     setBusy(true);

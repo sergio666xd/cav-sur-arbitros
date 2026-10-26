@@ -40,9 +40,13 @@ export type DayDetail = {
   assigned_count?: number;
   candidates: Candidate[];
   assignments: AssignedRef[];
+  /** Huella de la asignación (árbitros y roles), para no pisar los cambios de otro. */
+  assign_sig?: string;
 };
 export type TournamentDetail = {
   id: number;
+  /** Sube cada vez que se guarda el formulario del torneo. */
+  version: number;
   name: string;
   location: string;
   venues: string[];

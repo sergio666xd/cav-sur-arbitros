@@ -24,9 +24,15 @@ def me_out(u: User) -> Me:
     )
 
 
+def assignment_sig(d: TournamentDay) -> str:
+    """Huella de la asignación de una franja (árbitros y roles), para detectar si otro la cambió."""
+    return "|".join(sorted(f"{a.user_id}:{a.role or ''}" for a in d.assignments))
+
+
 def tournament_info(t: Tournament) -> dict:
     return {
         "id": t.id,
+        "version": t.version or 0,
         "name": t.name,
         "location": t.location,
         "venues": t.venue_list,
