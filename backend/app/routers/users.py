@@ -30,8 +30,8 @@ def _base(u: User, viewer: User) -> dict:
 
 
 def _listed(u: User) -> bool:
-    """El rol system no aparece en la lista arbitral, salvo que también sea árbitro."""
-    return not u.system or u.is_referee
+    """El rol system no aparece en la lista arbitral, salvo que también sea árbitro. Los externos nunca."""
+    return not u.guest and (not u.system or u.is_referee)
 
 
 def _protect(u: User, viewer: User) -> None:

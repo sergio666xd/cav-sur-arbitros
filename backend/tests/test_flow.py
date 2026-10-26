@@ -1120,3 +1120,53 @@ def test_chief_deducts_points(client):
     for item in ({"user_id": uid}, {"user_id": uid, "score": "P5", "deduct": 3}, {"user_id": uid, "deduct": 0}):
         assert client.post("/api/ratings", headers=chief, json={"items": [item]}).status_code == 422
     assert client.post("/api/ratings", headers=ref, json={"items": [{"user_id": uid, "deduct": 3}]}).status_code == 403
+
+
+def test_guest_referees(client):
+    chief = login(client, "10000000", "1111")
+    d = today_local() + timedelta(days=3)
+    tid = client.post("/api/tournaments", headers=chief, json={"name": "Copa", "location": "A", "referees_required": 2,
+        "days": [{"date": d.isoformat(), "start_time": "09:00", "end_time": "12:00"}]}).json()["id"]
+    _open_windows(client, chief)
+    w = client.get("/api/availability-windows", headers=chief).json()[0]
+    assert w["guests"] == [] and w["can_edit_guests"] is True
+
+    # Un externo se agrega solo con su nombre; el mismo nombre (sin importar tildes) es la misma persona.
+    r = client.post(f"/api/availability-windows/{w['id']}/guests", headers=chief, json={"name": "  Pedro   Pérez Gil "})
+    assert r.status_code == 200, r.text
+    assert [g["name"] for g in r.json()["guests"]] == ["Pedro Pérez Gil"]
+    assert r.json()["registered"] == 1
+    r = client.post(f"/api/availability-windows/{w['id']}/guests", headers=chief, json={"name": "pedro perez gil"})
+    assert len(r.json()["guests"]) == 1
+    assert client.post(f"/api/availability-windows/{w['id']}/guests", headers=chief, json={"name": "  "}).status_code == 422
+    client.post(f"/api/availability-windows/{w['id']}/guests", headers=chief, json={"name": "Luis"})
+    pedro, luis = (g["user_id"] for g in client.get("/api/availability-windows", headers=chief).json()[0]["guests"])
+
+    # Aparece como candidato y se puede asignar; queda sin confirmar hasta que el administrador lo marque.
+    day = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]
+    cand = next(c for c in day["candidates"] if c["user_id"] == pedro)
+    assert cand["is_guest"] is True
+    assert client.put(f"/api/tournament-days/{day['id']}/assignments", headers=chief,
+                      json=[{"user_id": pedro}]).status_code == 200
+    a = client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"][0]
+    assert a["is_guest"] is True and a["confirmed"] is False
+    url = f"/api/tournament-days/{day['id']}/assignments/{pedro}/confirmed"
+    assert client.put(url, headers=chief, json={"confirmed": True}).json() == {"confirmed": True}
+    assert client.get(f"/api/tournaments/{tid}", headers=chief).json()["days"][0]["assignments"][0]["confirmed"] is True
+    assert client.put(url, headers=chief, json={"confirmed": False}).json() == {"confirmed": False}
+    assert client.put(f"/api/tournament-days/{day['id']}/assignments/{luis}/confirmed", headers=chief,
+                      json={"confirmed": True}).status_code == 404
+
+    # No está en la lista arbitral, el ranking ni las calificaciones, y no puede iniciar sesión.
+    names = [u["first_name"] for u in client.get("/api/users", headers=chief).json()]
+    assert "Pedro" not in names
+    assert all("Pedro" not in r["name"] for r in client.get("/api/ranking", headers=chief).json())
+    assert all("Pedro" not in r["name"] for r in client.get("/api/ratings/referees", headers=chief).json())
+    with SessionLocal() as db:
+        doc = db.get(User, pedro).document
+    assert client.post("/api/auth/login", json={"document": doc, "pin": "1234"}).status_code in (401, 422)
+    assert any(e["is_guest"] for e in client.get(f"/api/availability/summary?d={d.isoformat()}", headers=chief).json()[0]["entries"])
+
+    # Se puede quitar de la disponibilidad; un árbitro registrado no se quita por aquí.
+    r = client.delete(f"/api/availability-windows/{w['id']}/guests/{luis}", headers=chief)
+    assert [g["name"] for g in r.json()["guests"]] == ["Pedro Pérez Gil"]

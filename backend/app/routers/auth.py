@@ -22,7 +22,7 @@ _BAD_LOGIN = "Documento o contraseña incorrectos."
 def login(data: LoginIn, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.document == data.document))
     now = utcnow()
-    if not user:
+    if not user or user.guest:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, _BAD_LOGIN)
     if user.locked_until and user.locked_until > now:
         minutes = int((user.locked_until - now).total_seconds() // 60) + 1
