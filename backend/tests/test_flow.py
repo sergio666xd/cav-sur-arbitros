@@ -1276,3 +1276,21 @@ def test_concurrent_edits_are_rejected(client):
                       json={"days": [{"day_id": day["id"], "items": [], "expected": sig}]}).status_code == 409
     assert client.put("/api/assignment-board", headers=chief,
                       json={"days": [{"day_id": day["id"], "items": [], "expected": col["assign_sig"]}]}).status_code == 200
+
+
+def test_database_down_returns_json(client, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    from app import main
+
+    def down():
+        raise OperationalError("connect", {}, Exception("tenant/user not found"))
+
+    monkeypatch.setattr(main, "_ready", False)
+    monkeypatch.setattr(main, "migrate", down)
+    r = client.post("/api/auth/login", json={"document": "10000000", "pin": "1111"})
+    assert r.status_code == 503
+    assert r.json()["detail"] == main.DB_DOWN
+    # Cuando la base de datos vuelve, la API se recupera sola.
+    monkeypatch.setattr(main, "migrate", lambda: None)
+    assert client.post("/api/auth/login", json={"document": "10000000", "pin": "1111"}).status_code == 200
