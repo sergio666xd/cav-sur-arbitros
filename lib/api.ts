@@ -61,14 +61,25 @@ export async function api<T = unknown>(path: string, options: { method?: string;
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
-  const res = await fetch(`/api${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, "No hay conexión. Revisa tu internet e intenta de nuevo.");
+  }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    // Llegó una página de error en vez de datos (servidor caído o reiniciándose).
+    throw new ApiError(res.status, "El servidor no está disponible en este momento. Intenta de nuevo en unos minutos.");
+  }
   if (!res.ok) {
     if (res.status === 401 && token) {
       setToken(null);
